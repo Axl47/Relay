@@ -38,14 +38,19 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.roundToInt
 
 @Composable
 fun BottomLeftPlayerControls(
     playbackSpeed: Float,
+    audioNormalizeEnabled: Boolean,
+    audioNormalizeLevel: Float,
     currentChapter: Segment?,
     onLockControls: () -> Unit,
     onCycleRotation: () -> Unit,
     onPlaybackSpeedChange: (Float) -> Unit,
+    onToggleAudioNormalization: () -> Unit,
+    onAdjustAudioNormalization: () -> Unit,
     onOpenSheet: (Sheets) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,6 +76,15 @@ fun BottomLeftPlayerControls(
                 playerPreferences.playerSpeed().set(newSpeed)
             },
             onLongClick = { onOpenSheet(Sheets.PlaybackSpeed) },
+        )
+        ControlsButton(
+            text = if (audioNormalizeEnabled) {
+                "Norm ${((audioNormalizeLevel * 100f).roundToInt())}%"
+            } else {
+                "Norm ${stringResource(MR.strings.off)}"
+            },
+            onClick = onToggleAudioNormalization,
+            onLongClick = onAdjustAudioNormalization,
         )
         AnimatedVisibility(
             currentChapter != null && playerPreferences.showCurrentChapter().get(),

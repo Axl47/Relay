@@ -39,6 +39,7 @@ import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.custombutton.CustomButtonRepositoryImpl
 import tachiyomi.data.episode.EpisodeRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
+import tachiyomi.data.playback.PlaybackProfileRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
 import tachiyomi.data.source.SourceHealthRepositoryImpl
 import tachiyomi.data.source.SourceRepositoryImpl
@@ -89,6 +90,7 @@ import tachiyomi.domain.history.interactor.GetTotalWatchDuration
 import tachiyomi.domain.history.interactor.RemoveHistory
 import tachiyomi.domain.history.interactor.UpsertHistory
 import tachiyomi.domain.history.repository.HistoryRepository
+import tachiyomi.domain.playback.repository.PlaybackProfileRepository
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
 import tachiyomi.domain.source.interactor.GetRemoteAnime
@@ -189,6 +191,7 @@ class DomainModule : InjektModule {
 
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get()) }
         addSingletonFactory<SourceHealthRepository> { SourceHealthRepositoryImpl(get()) }
+        addSingletonFactory<PlaybackProfileRepository> { PlaybackProfileRepositoryImpl(get()) }
         addSingletonFactory { AniSkipApi(get(), get()) }
         addSingletonFactory<AniSkipRepository> { AniSkipRepositoryImpl(get(), get()) }
         addSingletonFactory { SourceFallbackManager(get()) }

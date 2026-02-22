@@ -5,6 +5,10 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,6 +73,7 @@ import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.anime.model.Anime
+import tachiyomi.domain.aniskip.model.AniSkipPreference
 import tachiyomi.domain.episode.model.Episode
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -201,6 +206,7 @@ class AnimeScreen(
                 navigator.push(MigrateSearchScreen(successState.anime.id))
             }.takeIf { successState.anime.favorite },
             changeAnimeSkipIntro = screenModel::showAnimeSkipIntroDialog.takeIf { successState.anime.favorite },
+            onChangeAniSkipPreference = screenModel::showAniSkipPreferenceDialog.takeIf { successState.anime.favorite },
             onMultiBookmarkClicked = screenModel::bookmarkEpisodes,
             // AM (FILLERMARK) -->
             onMultiFillermarkClicked = screenModel::fillermarkEpisodes,
@@ -362,6 +368,45 @@ class AnimeScreen(
                     onValueChanged = {
                         updateSkipIntroLength(it.toLong())
                         onDismissRequest()
+                    },
+                )
+            }
+            is AnimeScreenModel.Dialog.ChangeAniSkipPreference -> {
+                AlertDialog(
+                    onDismissRequest = onDismissRequest,
+                    title = { androidx.compose.material3.Text("AniSkip preference") },
+                    text = {
+                        androidx.compose.foundation.layout.Column {
+                            AniSkipPreference.entries.forEach { preference ->
+                                androidx.compose.foundation.layout.Row(
+                                    modifier = Modifier.selectable(
+                                        selected = preference == dialog.currentPreference,
+                                        onClick = {
+                                            screenModel.setAniSkipPreference(preference)
+                                            onDismissRequest()
+                                        },
+                                    ),
+                                ) {
+                                    RadioButton(
+                                        selected = preference == dialog.currentPreference,
+                                        onClick = {
+                                            screenModel.setAniSkipPreference(preference)
+                                            onDismissRequest()
+                                        },
+                                    )
+                                    androidx.compose.material3.Text(
+                                        text = preference.name.lowercase()
+                                            .replaceFirstChar { it.uppercase() },
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = onDismissRequest) {
+                            androidx.compose.material3.Text("Cancel")
+                        }
                     },
                 )
             }

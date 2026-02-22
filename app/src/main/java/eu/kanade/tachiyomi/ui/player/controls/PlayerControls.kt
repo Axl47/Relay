@@ -78,7 +78,6 @@ import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
-import `is`.xyz.mpv.MPVLib
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
@@ -534,6 +533,8 @@ fun PlayerControls(
                 }
                 // Bottom left controls
                 val playbackSpeed by viewModel.playbackSpeed.collectAsState()
+                val audioNormalizeEnabled by viewModel.audioNormalizeEnabled.collectAsState()
+                val audioNormalizeLevel by viewModel.audioNormalizeLevel.collectAsState()
                 AnimatedVisibility(
                     controlsShown && !areControlsLocked,
                     enter = if (!reduceMotion) {
@@ -556,13 +557,15 @@ fun PlayerControls(
                     },
                 ) {
                     BottomLeftPlayerControls(
-                        playbackSpeed,
+                        playbackSpeed = playbackSpeed,
+                        audioNormalizeEnabled = audioNormalizeEnabled,
+                        audioNormalizeLevel = audioNormalizeLevel,
                         currentChapter = currentChapter?.toSegment(),
                         onLockControls = viewModel::lockControls,
                         onCycleRotation = viewModel::cycleScreenRotations,
-                        onPlaybackSpeedChange = {
-                            MPVLib.setPropertyDouble("speed", it.toDouble())
-                        },
+                        onPlaybackSpeedChange = viewModel::setPlaybackSpeed,
+                        onToggleAudioNormalization = viewModel::toggleAudioNormalization,
+                        onAdjustAudioNormalization = viewModel::cycleAudioNormalizationLevel,
                         onOpenSheet = viewModel::showSheet,
                     )
                 }
@@ -616,7 +619,7 @@ fun PlayerControls(
             decoder = decoder,
             onUpdateDecoder = viewModel::updateDecoder,
             speed = speed,
-            onSpeedChange = { MPVLib.setPropertyDouble("speed", it.toFixed(2).toDouble()) },
+            onSpeedChange = { viewModel.setPlaybackSpeed(it.toFixed(2)) },
             sleepTimerTimeRemaining = sleepTimerTimeRemaining,
             onStartSleepTimer = viewModel::startTimer,
             buttons = customButtons.getButtons().toImmutableList(),

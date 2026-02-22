@@ -121,7 +121,10 @@ import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.history.interactor.GetNextEpisodes
 import tachiyomi.domain.history.interactor.UpsertHistory
 import tachiyomi.domain.history.model.HistoryUpdate
+import tachiyomi.domain.playback.model.PlaybackProfile
+import tachiyomi.domain.playback.repository.PlaybackProfileRepository
 import tachiyomi.domain.source.fallback.SourceFallbackManager
+import tachiyomi.domain.source.repository.SourceHealthRepository
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.i18n.MR
@@ -131,6 +134,7 @@ import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.InputStream
 import java.util.Date
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -165,7 +169,9 @@ class PlayerViewModel @JvmOverloads constructor(
     private val getCustomButtons: GetCustomButtons = Injekt.get(),
     private val trackSelect: TrackSelect = Injekt.get(),
     private val sourceFallbackManager: SourceFallbackManager = Injekt.get(),
+    private val sourceHealthRepository: SourceHealthRepository = Injekt.get(),
     private val aniSkipRepository: AniSkipRepository = Injekt.get(),
+    private val playbackProfileRepository: PlaybackProfileRepository = Injekt.get(),
     uiPreferences: UiPreferences = Injekt.get(),
 ) : ViewModel() {
 
@@ -201,6 +207,10 @@ class PlayerViewModel @JvmOverloads constructor(
 
     val isLoading = MutableStateFlow(true)
     val playbackSpeed = MutableStateFlow(playerPreferences.playerSpeed().get())
+    private val _audioNormalizeEnabled = MutableStateFlow(false)
+    val audioNormalizeEnabled = _audioNormalizeEnabled.asStateFlow()
+    private val _audioNormalizeLevel = MutableStateFlow(0.5f)
+    val audioNormalizeLevel = _audioNormalizeLevel.asStateFlow()
 
     private val _subtitleTracks = MutableStateFlow<List<VideoTrack>>(emptyList())
     val subtitleTracks = _subtitleTracks.asStateFlow()
@@ -236,6 +246,8 @@ class PlayerViewModel @JvmOverloads constructor(
     private val _skipIntroText = MutableStateFlow<String?>(null)
     val skipIntroText = _skipIntroText.asStateFlow()
     private var aniSkipSegments: List<TimeStamp> = emptyList()
+    private var playbackProfile: PlaybackProfile? = null
+    private var playbackProfileSkipPreference: AniSkipPreference? = null
 
     private val _pos = MutableStateFlow(0f)
     val pos = _pos.asStateFlow()
@@ -503,6 +515,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
     fun selectAudio(id: Int) {
         activity.player.aid = id
+        savePlaybackProfile(audioTrack = id.toString())
     }
 
     fun updateAudio(id: Int) {
@@ -539,6 +552,7 @@ class PlayerViewModel @JvmOverloads constructor(
         }
         activity.player.secondarySid = _selectedSubtitles.value.second
         activity.player.sid = _selectedSubtitles.value.first
+        savePlaybackProfile(subtitleTrack = _selectedSubtitles.value.first.toString())
     }
 
     fun updateSubtitle(sid: Int, secondarySid: Int) {
@@ -1204,6 +1218,7 @@ class PlayerViewModel @JvmOverloads constructor(
             if (anime != null) {
                 _currentAnime.update { _ -> anime }
                 animeTitle.update { _ -> anime.title }
+                loadPlaybackProfile(anime)
                 sourceManager.isInitialized.first { it }
                 if (episodeId == -1L) episodeId = initialEpisodeId
 
@@ -1470,6 +1485,7 @@ class PlayerViewModel @JvmOverloads constructor(
         _currentVideo.update { _ -> resolvedVideo }
 
         qualityIndex = Pair(hosterIndex, videoIndex)
+        savePlaybackProfile(preferredSource = sourceId)
 
         activity.setVideo(resolvedVideo)
         return true
@@ -2073,13 +2089,14 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     fun getAniSkipPreference(): AniSkipPreference {
-        return currentAnime.value?.aniSkipPreference ?: AniSkipPreference.BUTTON
+        return playbackProfileSkipPreference ?: currentAnime.value?.aniSkipPreference ?: AniSkipPreference.BUTTON
     }
 
     fun setAniSkipPreference(preference: AniSkipPreference) {
         val anime = currentAnime.value ?: return
         viewModelScope.launchIO {
             setAnimeViewerFlags.awaitSetAniSkipPreference(anime.id, preference)
+            savePlaybackProfile(skipPreference = preference)
             _currentAnime.update { _ -> getAnime.await(anime.id) }
         }
     }
@@ -2120,6 +2137,100 @@ class PlayerViewModel @JvmOverloads constructor(
             name = name,
             type = type,
         )
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        val normalizedSpeed = speed.coerceIn(0.25f, 2.0f)
+        MPVLib.setPropertyDouble("speed", normalizedSpeed.toDouble())
+        playbackSpeed.update { normalizedSpeed }
+        playerPreferences.playerSpeed().set(normalizedSpeed)
+        savePlaybackProfile(playbackSpeed = normalizedSpeed)
+    }
+
+    fun toggleAudioNormalization() {
+        setAudioNormalizationEnabled(!audioNormalizeEnabled.value)
+    }
+
+    fun cycleAudioNormalizationLevel() {
+        val nextLevel = if (audioNormalizeLevel.value >= 1f) 0f else audioNormalizeLevel.value + 0.1f
+        setAudioNormalizationLevel(nextLevel)
+    }
+
+    fun setAudioNormalizationLevel(level: Float) {
+        val clampedLevel = level.coerceIn(0f, 1f)
+        _audioNormalizeLevel.update { clampedLevel }
+        if (audioNormalizeEnabled.value) {
+            applyAudioNormalization(enabled = true, level = clampedLevel)
+        }
+        savePlaybackProfile(normalizeLevel = clampedLevel)
+    }
+
+    private fun setAudioNormalizationEnabled(enabled: Boolean) {
+        _audioNormalizeEnabled.update { enabled }
+        applyAudioNormalization(enabled = enabled, level = audioNormalizeLevel.value)
+        savePlaybackProfile(audioNormalize = enabled)
+    }
+
+    private fun applyAudioNormalization(enabled: Boolean, level: Float) {
+        MPVLib.command(arrayOf("af", "remove", "@relaynorm"))
+        if (!enabled) return
+        val strength = 1f + (level.coerceIn(0f, 1f) * 20f)
+        val strengthString = String.format(Locale.US, "%.2f", strength)
+        MPVLib.command(arrayOf("af", "add", "@relaynorm:lavfi=[dynaudnorm=f=$strengthString]"))
+    }
+
+    private suspend fun loadPlaybackProfile(anime: Anime) {
+        val profile = playbackProfileRepository.getByAnimeId(anime.id)
+        playbackProfile = profile
+        playbackProfileSkipPreference = profile?.skipPreference
+        if (profile == null) return
+
+        profile.preferredSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let {
+                sourceHealthRepository.setSourcePriority(anime.id, it, 0)
+            }
+
+        playbackSpeed.update { profile.playbackSpeed }
+        playerPreferences.playerSpeed().set(profile.playbackSpeed)
+        MPVLib.setPropertyDouble("speed", profile.playbackSpeed.toDouble())
+
+        _audioNormalizeLevel.update { profile.normalizeLevel.coerceIn(0f, 1f) }
+        _audioNormalizeEnabled.update { profile.audioNormalize }
+        applyAudioNormalization(
+            enabled = profile.audioNormalize,
+            level = _audioNormalizeLevel.value,
+        )
+    }
+
+    private fun savePlaybackProfile(
+        preferredSource: String? = playbackProfile?.preferredSource,
+        audioTrack: String? = playbackProfile?.audioTrack,
+        subtitleTrack: String? = playbackProfile?.subtitleTrack,
+        playbackSpeed: Float = this.playbackSpeed.value,
+        skipPreference: AniSkipPreference? = playbackProfileSkipPreference,
+        audioNormalize: Boolean = audioNormalizeEnabled.value,
+        normalizeLevel: Float = audioNormalizeLevel.value,
+        brightnessOffset: Float = playbackProfile?.brightnessOffset ?: 0f,
+    ) {
+        val animeId = currentAnime.value?.id ?: return
+        val updated = PlaybackProfile(
+            animeId = animeId,
+            preferredSource = preferredSource,
+            audioTrack = audioTrack,
+            subtitleTrack = subtitleTrack,
+            playbackSpeed = playbackSpeed,
+            skipPreference = skipPreference,
+            audioNormalize = audioNormalize,
+            normalizeLevel = normalizeLevel,
+            brightnessOffset = brightnessOffset,
+            updatedAt = System.currentTimeMillis(),
+        )
+        playbackProfile = updated
+        playbackProfileSkipPreference = skipPreference
+        viewModelScope.launchIO {
+            playbackProfileRepository.upsert(updated)
+        }
     }
 
     fun setPrimaryCustomButtonTitle(button: CustomButton) {

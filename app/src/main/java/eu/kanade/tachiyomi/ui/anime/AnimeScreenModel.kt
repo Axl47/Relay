@@ -72,6 +72,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.source.NoResultsException
+import tachiyomi.domain.aniskip.model.AniSkipPreference
 import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodes
 import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
@@ -1239,6 +1240,7 @@ class AnimeScreenModel(
         data class EditAnimeInfo(val anime: Anime) : Dialog
         // SY <--
 
+        data class ChangeAniSkipPreference(val currentPreference: AniSkipPreference) : Dialog
         data object ChangeAnimeSkipIntro : Dialog
         data object SettingsSheet : Dialog
         data object TrackSheet : Dialog
@@ -1356,6 +1358,18 @@ class AnimeScreenModel(
 
     fun showAnimeSkipIntroDialog() {
         updateSuccessState { it.copy(dialog = Dialog.ChangeAnimeSkipIntro) }
+    }
+
+    fun showAniSkipPreferenceDialog() {
+        val anime = successState?.anime ?: return
+        updateSuccessState { it.copy(dialog = Dialog.ChangeAniSkipPreference(anime.aniSkipPreference)) }
+    }
+
+    fun setAniSkipPreference(preference: AniSkipPreference) {
+        val anime = successState?.anime ?: return
+        screenModelScope.launchIO {
+            setAnimeViewerFlags.awaitSetAniSkipPreference(anime.id, preference)
+        }
     }
 
     private fun showQualitiesDialog(episode: Episode) {

@@ -46,6 +46,7 @@ fun AnimeToolbar(
     onClickRefresh: () -> Unit,
     onClickMigrate: (() -> Unit)?,
     onClickSettings: (() -> Unit)?,
+    onClickAniSkipPreference: (() -> Unit)?,
     // SY -->
     onClickEditInfo: (() -> Unit)?,
     // SY <--
@@ -139,6 +140,14 @@ fun AnimeToolbar(
                                         AppBar.OverflowAction(
                                             title = stringResource(MR.strings.action_change_intro_length),
                                             onClick = changeAnimeSkipIntro,
+                                        ),
+                                    )
+                                }
+                                if (onClickAniSkipPreference != null) {
+                                    add(
+                                        AppBar.OverflowAction(
+                                            title = "AniSkip preference",
+                                            onClick = onClickAniSkipPreference,
                                         ),
                                     )
                                 }

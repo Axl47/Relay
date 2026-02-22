@@ -134,6 +134,7 @@ fun AnimeScreen(
     onEditFetchIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onChangeAniSkipPreference: (() -> Unit)?,
     // SY -->
     onEditInfoClicked: () -> Unit,
     // SY <--
@@ -199,6 +200,7 @@ fun AnimeScreen(
             onEditIntervalClicked = onEditFetchIntervalClicked,
             onMigrateClicked = onMigrateClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
+            onChangeAniSkipPreference = onChangeAniSkipPreference,
             // SY -->
             onEditInfoClicked = onEditInfoClicked,
             // SY <--
@@ -246,6 +248,7 @@ fun AnimeScreen(
             onEditCategoryClicked = onEditCategoryClicked,
             onEditIntervalClicked = onEditFetchIntervalClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
+            onChangeAniSkipPreference = onChangeAniSkipPreference,
             onMigrateClicked = onMigrateClicked,
             // SY -->
             onEditInfoClicked = onEditInfoClicked,
@@ -306,6 +309,7 @@ private fun AnimeScreenSmallImpl(
     onEditIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onChangeAniSkipPreference: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
     // SY -->
     onEditInfoClicked: () -> Unit,
@@ -384,6 +388,7 @@ private fun AnimeScreenSmallImpl(
                 // SY <--
                 onClickSettings = onSettingsClicked,
                 changeAnimeSkipIntro = changeAnimeSkipIntro,
+                onClickAniSkipPreference = onChangeAniSkipPreference,
                 actionModeCounter = selectedEpisodeCount,
                 onSelectAll = { onAllEpisodeSelected(true) },
                 onInvertSelection = { onInvertSelection() },
@@ -614,6 +619,7 @@ fun AnimeScreenLargeImpl(
     onEditIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onChangeAniSkipPreference: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
     // SY -->
     onEditInfoClicked: () -> Unit,
@@ -682,6 +688,7 @@ fun AnimeScreenLargeImpl(
                 onClickMigrate = onMigrateClicked,
                 onClickSettings = onSettingsClicked,
                 changeAnimeSkipIntro = changeAnimeSkipIntro,
+                onClickAniSkipPreference = onChangeAniSkipPreference,
                 // SY -->
                 onClickEditInfo = onEditInfoClicked.takeIf { state.anime.favorite },
                 // SY <--

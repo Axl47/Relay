@@ -1,0 +1,58 @@
+import kotlin.Boolean;
+
+CREATE TABLE playback_profile(
+    anime_id INTEGER NOT NULL PRIMARY KEY,
+    preferred_source TEXT,
+    audio_track TEXT,
+    subtitle_track TEXT,
+    playback_speed REAL NOT NULL DEFAULT 1.0,
+    skip_preference TEXT,
+    audio_normalize INTEGER AS Boolean NOT NULL DEFAULT 0,
+    normalize_level REAL NOT NULL DEFAULT 0.5,
+    brightness_offset REAL NOT NULL DEFAULT 0.0,
+    updated_at INTEGER NOT NULL
+);
+
+getByAnimeId:
+SELECT *
+FROM playback_profile
+WHERE anime_id = :animeId
+LIMIT 1;
+
+upsert:
+INSERT INTO playback_profile(
+    anime_id,
+    preferred_source,
+    audio_track,
+    subtitle_track,
+    playback_speed,
+    skip_preference,
+    audio_normalize,
+    normalize_level,
+    brightness_offset,
+    updated_at
+)
+VALUES (
+    :animeId,
+    :preferredSource,
+    :audioTrack,
+    :subtitleTrack,
+    :playbackSpeed,
+    :skipPreference,
+    :audioNormalize,
+    :normalizeLevel,
+    :brightnessOffset,
+    :updatedAt
+)
+ON CONFLICT(anime_id)
+DO UPDATE
+SET
+    preferred_source = :preferredSource,
+    audio_track = :audioTrack,
+    subtitle_track = :subtitleTrack,
+    playback_speed = :playbackSpeed,
+    skip_preference = :skipPreference,
+    audio_normalize = :audioNormalize,
+    normalize_level = :normalizeLevel,
+    brightness_offset = :brightnessOffset,
+    updated_at = :updatedAt;
