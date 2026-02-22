@@ -3,6 +3,7 @@ package tachiyomi.domain.anime.model
 import androidx.compose.runtime.Immutable
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import tachiyomi.core.common.preference.TriState
+import tachiyomi.domain.aniskip.model.AniSkipPreference
 import tachiyomi.domain.anime.interactor.GetCustomAnimeInfo
 import uy.kohesive.injekt.injectLazy
 import java.io.Serializable
@@ -109,6 +110,16 @@ data class Anime(
     val nextEpisodeAiringAt: Long
         get() = (viewerFlags and ANIME_AIRING_TIME_MASK).removeHexZeros(zeros = 6)
 
+    val aniSkipPreferenceRaw: Long
+        get() = viewerFlags and ANIME_ANISKIP_PREF_MASK
+
+    val aniSkipPreference: AniSkipPreference
+        get() = when (aniSkipPreferenceRaw) {
+            ANIME_ANISKIP_PREF_AUTO -> AniSkipPreference.AUTO
+            ANIME_ANISKIP_PREF_OFF -> AniSkipPreference.OFF
+            else -> AniSkipPreference.BUTTON
+        }
+
     val unseenFilter: TriState
         get() = when (unseenFilterRaw) {
             EPISODE_SHOW_UNSEEN -> TriState.ENABLED_IS
@@ -181,6 +192,9 @@ data class Anime(
         const val ANIME_AIRING_EPISODE_MASK = 0x000000000FFFF00L
         const val ANIME_AIRING_TIME_MASK = 0x0FFFFFFFF000000L
         const val ANIME_INTRO_DISABLE_MASK = 0x100000000000000L
+        const val ANIME_ANISKIP_PREF_MASK = 0x0000000000300000L
+        const val ANIME_ANISKIP_PREF_AUTO = 0x0000000000100000L
+        const val ANIME_ANISKIP_PREF_OFF = 0x0000000000200000L
 
         fun create() = Anime(
             id = -1L,

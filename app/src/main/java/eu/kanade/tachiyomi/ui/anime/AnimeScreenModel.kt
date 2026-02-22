@@ -23,7 +23,9 @@ import eu.kanade.domain.track.interactor.TrackEpisode
 import eu.kanade.domain.track.model.AutoTrackState
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.presentation.anime.DownloadAction
+import eu.kanade.presentation.anime.SourcePriorityEntry
 import eu.kanade.presentation.anime.components.EpisodeDownloadAction
+import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.data.download.DownloadCache
@@ -37,6 +39,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.isSourceForTorrents
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
 import eu.kanade.tachiyomi.ui.anime.track.TrackItem
+import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.util.AniChartApi
@@ -90,6 +93,7 @@ import tachiyomi.domain.episode.service.calculateChapterGap
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.source.repository.SourceHealthRepository
 import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.i18n.MR
@@ -132,6 +136,7 @@ class AnimeScreenModel(
     private val setAnimeCategories: SetAnimeCategories = Injekt.get(),
     private val animeRepository: AnimeRepository = Injekt.get(),
     private val filterEpisodesForDownload: FilterEpisodesForDownload = Injekt.get(),
+    private val sourceHealthRepository: SourceHealthRepository = Injekt.get(),
     internal val setAnimeViewerFlags: SetAnimeViewerFlags = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
     // AM (FILE_SIZE) -->
@@ -1224,6 +1229,11 @@ class AnimeScreenModel(
         data class Migrate(val newAnime: Anime, val oldAnime: Anime) : Dialog
         data class SetAnimeFetchInterval(val anime: Anime) : Dialog
         data class ShowQualities(val episode: Episode, val anime: Anime, val source: Source) : Dialog
+        data class SourcePrioritySheet(
+            val entries: List<SourcePriorityEntry> = emptyList(),
+            val isLoading: Boolean = true,
+            val isSaving: Boolean = false,
+        ) : Dialog
 
         // SY -->
         data class EditAnimeInfo(val anime: Anime) : Dialog
@@ -1249,6 +1259,77 @@ class AnimeScreenModel(
 
     fun showTrackDialog() {
         updateSuccessState { it.copy(dialog = Dialog.TrackSheet) }
+    }
+
+    fun showSourcePriorityDialog() {
+        val state = successState ?: return
+        updateSuccessState { it.copy(dialog = Dialog.SourcePrioritySheet()) }
+        screenModelScope.launchIO {
+            val entries = loadSourcePriorityEntries(state)
+            updateSuccessState { currentState ->
+                val dialog = currentState.dialog as? Dialog.SourcePrioritySheet ?: return@updateSuccessState currentState
+                currentState.copy(
+                    dialog = dialog.copy(
+                        entries = entries,
+                        isLoading = false,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun moveSourcePriorityUp(index: Int) {
+        updateSuccessState { state ->
+            val dialog = state.dialog as? Dialog.SourcePrioritySheet ?: return@updateSuccessState state
+            if (dialog.isLoading || dialog.isSaving || index <= 0 || index > dialog.entries.lastIndex) {
+                return@updateSuccessState state
+            }
+            val reordered = dialog.entries.toMutableList().apply {
+                add(index - 1, removeAt(index))
+            }
+            state.copy(dialog = dialog.copy(entries = reordered))
+        }
+    }
+
+    fun moveSourcePriorityDown(index: Int) {
+        updateSuccessState { state ->
+            val dialog = state.dialog as? Dialog.SourcePrioritySheet ?: return@updateSuccessState state
+            if (dialog.isLoading || dialog.isSaving || index < 0 || index >= dialog.entries.lastIndex) {
+                return@updateSuccessState state
+            }
+            val reordered = dialog.entries.toMutableList().apply {
+                add(index + 1, removeAt(index))
+            }
+            state.copy(dialog = dialog.copy(entries = reordered))
+        }
+    }
+
+    fun saveSourcePriorities() {
+        val state = successState ?: return
+        val dialog = state.dialog as? Dialog.SourcePrioritySheet ?: return
+        if (dialog.isLoading || dialog.isSaving) return
+
+        updateSuccessState {
+            val currentDialog = it.dialog as? Dialog.SourcePrioritySheet ?: return@updateSuccessState it
+            it.copy(dialog = currentDialog.copy(isSaving = true))
+        }
+
+        screenModelScope.launchIO {
+            runCatching {
+                sourceHealthRepository.setSourcePriorities(
+                    animeId = animeId,
+                    sourceIds = dialog.entries.map { it.sourceId },
+                )
+            }.onSuccess {
+                dismissDialog()
+            }.onFailure { error ->
+                logcat(LogPriority.ERROR, error) { "Failed to save source priorities" }
+                updateSuccessState {
+                    val currentDialog = it.dialog as? Dialog.SourcePrioritySheet ?: return@updateSuccessState it
+                    it.copy(dialog = currentDialog.copy(isSaving = false))
+                }
+            }
+        }
     }
 
     fun showCoverDialog() {
@@ -1279,6 +1360,57 @@ class AnimeScreenModel(
 
     private fun showQualitiesDialog(episode: Episode) {
         updateSuccessState { it.copy(dialog = Dialog.ShowQualities(episode, it.anime, it.source)) }
+    }
+
+    private suspend fun loadSourcePriorityEntries(state: State.Success): List<SourcePriorityEntry> {
+        val savedPriorities = sourceHealthRepository.getPriorities(state.anime.id)
+            .sortedBy { it.priority }
+            .map { it.sourceId }
+
+        if (savedPriorities.isNotEmpty()) {
+            return savedPriorities.map { sourceId ->
+                SourcePriorityEntry(
+                    sourceId = sourceId,
+                    label = sourceId,
+                )
+            }
+        }
+
+        val source = sourceManager.getOrStub(state.anime.source)
+        val candidates = buildList {
+            getNextUnseenEpisode()?.let(::add)
+            state.episodes.map { it.episode }.forEach { episode ->
+                if (none { it.id == episode.id }) add(episode)
+            }
+        }
+
+        for (episode in candidates) {
+            val entries = runCatching {
+                EpisodeLoader.getHosters(episode, state.anime, source)
+            }.getOrElse { emptyList() }
+                .mapNotNull { hoster ->
+                    val sourceId = hoster.toSourcePriorityId()
+                    if (sourceId.isBlank()) {
+                        null
+                    } else {
+                        SourcePriorityEntry(
+                            sourceId = sourceId,
+                            label = hoster.hosterName.takeIf { it.isNotBlank() } ?: sourceId,
+                        )
+                    }
+                }
+                .distinctBy { it.sourceId }
+
+            if (entries.isNotEmpty()) {
+                return entries
+            }
+        }
+
+        return emptyList()
+    }
+
+    private fun Hoster.toSourcePriorityId(): String {
+        return hosterUrl.takeIf { it.isNotBlank() } ?: hosterName
     }
 
     sealed interface State {

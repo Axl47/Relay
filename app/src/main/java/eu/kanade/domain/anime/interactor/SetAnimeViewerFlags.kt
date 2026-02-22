@@ -1,6 +1,7 @@
 package eu.kanade.domain.anime.interactor
 
 import tachiyomi.core.common.util.lang.toLong
+import tachiyomi.domain.aniskip.model.AniSkipPreference
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeUpdate
 import tachiyomi.domain.anime.repository.AnimeRepository
@@ -26,6 +27,19 @@ class SetAnimeViewerFlags(
     suspend fun awaitSetNextEpisodeAiring(id: Long, flags: Pair<Int, Long>) {
         awaitSetNextEpisodeToAir(id, flags.first.toLong().addHexZeros(zeros = 2))
         awaitSetNextEpisodeAiringAt(id, flags.second.addHexZeros(zeros = 6))
+    }
+
+    suspend fun awaitSetAniSkipPreference(id: Long, preference: AniSkipPreference) {
+        val anime = animeRepository.getAnimeById(id)
+        animeRepository.update(
+            AnimeUpdate(
+                id = id,
+                viewerFlags = anime.viewerFlags.setFlag(
+                    preference.toViewerFlag(),
+                    Anime.ANIME_ANISKIP_PREF_MASK,
+                ),
+            ),
+        )
     }
 
     private suspend fun awaitSetNextEpisodeToAir(id: Long, flag: Long) {
@@ -55,5 +69,13 @@ class SetAnimeViewerFlags(
     private fun Long.addHexZeros(zeros: Int): Long {
         val hex = 16.0
         return this.times(hex.pow(zeros)).toLong()
+    }
+
+    private fun AniSkipPreference.toViewerFlag(): Long {
+        return when (this) {
+            AniSkipPreference.AUTO -> Anime.ANIME_ANISKIP_PREF_AUTO
+            AniSkipPreference.BUTTON -> 0L
+            AniSkipPreference.OFF -> Anime.ANIME_ANISKIP_PREF_OFF
+        }
     }
 }

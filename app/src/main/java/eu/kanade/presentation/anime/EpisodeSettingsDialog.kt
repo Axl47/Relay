@@ -45,6 +45,7 @@ fun EpisodeSettingsDialog(
     onSortModeChanged: (Long) -> Unit,
     onDisplayModeChanged: (Long) -> Unit,
     onSetAsDefault: (applyToExistingAnime: Boolean) -> Unit,
+    onSourcePriorityClicked: (() -> Unit)? = null,
 ) {
     var showSetAsDefaultDialog by rememberSaveable { mutableStateOf(false) }
     if (showSetAsDefaultDialog) {
@@ -69,6 +70,15 @@ fun EpisodeSettingsDialog(
                     closeMenu()
                 },
             )
+            onSourcePriorityClicked?.let {
+                DropdownMenuItem(
+                    text = { Text("Source Priority") },
+                    onClick = {
+                        it()
+                        closeMenu()
+                    },
+                )
+            }
         },
     ) { page ->
         Column(

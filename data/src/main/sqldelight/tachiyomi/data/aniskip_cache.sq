@@ -1,0 +1,34 @@
+CREATE TABLE aniskip_cache(
+    mal_id INTEGER NOT NULL,
+    episode_number INTEGER NOT NULL,
+    skip_type TEXT NOT NULL,
+    start_time_ms INTEGER NOT NULL,
+    end_time_ms INTEGER NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (mal_id, episode_number, skip_type)
+);
+
+getSegments:
+SELECT *
+FROM aniskip_cache
+WHERE mal_id = :malId
+AND episode_number = :episodeNumber
+ORDER BY start_time_ms ASC;
+
+upsert:
+INSERT INTO aniskip_cache(mal_id, episode_number, skip_type, start_time_ms, end_time_ms, fetched_at)
+VALUES (:malId, :episodeNumber, :skipType, :startTimeMs, :endTimeMs, :fetchedAt)
+ON CONFLICT(mal_id, episode_number, skip_type)
+DO UPDATE
+SET
+    start_time_ms = :startTimeMs,
+    end_time_ms = :endTimeMs,
+    fetched_at = :fetchedAt;
+
+clearSegments:
+DELETE FROM aniskip_cache
+WHERE mal_id = :malId
+AND episode_number = :episodeNumber;
+
+clearAll:
+DELETE FROM aniskip_cache;

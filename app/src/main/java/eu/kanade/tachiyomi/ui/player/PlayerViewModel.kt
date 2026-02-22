@@ -39,6 +39,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import dev.icerock.moko.resources.StringResource
+import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.domain.anime.interactor.SetAnimeViewerFlags
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.episode.model.toDbEpisode
@@ -60,9 +61,6 @@ import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.saver.Image
 import eu.kanade.tachiyomi.data.saver.ImageSaver
 import eu.kanade.tachiyomi.data.saver.Location
-import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.data.track.anilist.Anilist
-import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.player.controls.components.IndexedSegment
@@ -72,7 +70,6 @@ import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
 import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import eu.kanade.tachiyomi.ui.player.utils.AniSkipApi
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.ui.player.utils.TrackSelect
 import eu.kanade.tachiyomi.ui.reader.SaveImageNotifier
@@ -107,6 +104,10 @@ import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.aniskip.model.AniSkipPreference
+import tachiyomi.domain.aniskip.model.SkipSegment
+import tachiyomi.domain.aniskip.model.SkipSegmentType
+import tachiyomi.domain.aniskip.repository.AniSkipRepository
 import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.category.interactor.GetCategories
@@ -164,6 +165,7 @@ class PlayerViewModel @JvmOverloads constructor(
     private val getCustomButtons: GetCustomButtons = Injekt.get(),
     private val trackSelect: TrackSelect = Injekt.get(),
     private val sourceFallbackManager: SourceFallbackManager = Injekt.get(),
+    private val aniSkipRepository: AniSkipRepository = Injekt.get(),
     uiPreferences: UiPreferences = Injekt.get(),
 ) : ViewModel() {
 
@@ -233,6 +235,7 @@ class PlayerViewModel @JvmOverloads constructor(
     val currentChapter = _currentChapter.asStateFlow()
     private val _skipIntroText = MutableStateFlow<String?>(null)
     val skipIntroText = _skipIntroText.asStateFlow()
+    private var aniSkipSegments: List<TimeStamp> = emptyList()
 
     private val _pos = MutableStateFlow(0f)
     val pos = _pos.asStateFlow()
@@ -1920,27 +1923,38 @@ class PlayerViewModel @JvmOverloads constructor(
      */
     suspend fun aniSkipResponse(playerDuration: Int?): List<TimeStamp>? {
         val animeId = currentAnime.value?.id ?: return null
-        val trackerManager = Injekt.get<TrackerManager>()
-        var malId: Long?
         val episodeNumber = currentEpisode.value?.episode_number?.toInt() ?: return null
-        if (getTracks.await(animeId).isEmpty()) {
+        val duration = playerDuration?.toLong() ?: return null
+        val tracks = getTracks.await(animeId)
+        if (tracks.isEmpty()) {
             logcat { "AniSkip: No tracks found for anime $animeId" }
+            aniSkipSegments = emptyList()
             return null
         }
 
-        getTracks.await(animeId).map { track ->
-            val tracker = trackerManager.get(track.trackerId)
-            malId = when (tracker) {
-                is MyAnimeList -> track.remoteId
-                is Anilist -> AniSkipApi().getMalIdFromAL(track.remoteId)
+        val malId = tracks.firstNotNullOfOrNull { track ->
+            when (track.trackerId) {
+                1L -> track.remoteId.takeIf { it > 0 }
+                TrackerManager.ANILIST -> aniSkipRepository.getMalIdFromAniList(track.remoteId)
                 else -> null
             }
-            val duration = playerDuration ?: return null
-            return malId?.let {
-                AniSkipApi().getResult(it.toInt(), episodeNumber, duration.toLong())
-            }
         }
-        return null
+
+        if (malId == null || malId <= 0) {
+            aniSkipSegments = emptyList()
+            return null
+        }
+
+        val mappedSegments = aniSkipRepository
+            .getSkipTimes(
+                malId = malId.toInt(),
+                episodeNumber = episodeNumber,
+                episodeLength = duration,
+            )
+            .map { it.toTimeStamp() }
+
+        aniSkipSegments = mappedSegments
+        return mappedSegments.takeIf { it.isNotEmpty() }
     }
 
     val introSkipEnabled = playerPreferences.enableSkipIntro().get()
@@ -1964,9 +1978,24 @@ class PlayerViewModel @JvmOverloads constructor(
                 _skipIntroText.update { _ -> null }
                 waitingSkipIntro = defaultWaitingTime
             } else {
-                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+                val aniSkipPreference = getAniSkipPreference()
+                val isAniSkipChapter = isAniSkipChapter(chapter)
+                if (isAniSkipChapter && aniSkipPreference == AniSkipPreference.OFF) {
+                    _skipIntroText.update { _ -> null }
+                    waitingSkipIntro = defaultWaitingTime
+                    return
+                }
 
-                if (netflixStyle) {
+                val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
+                val useNetflixStyle = netflixStyle &&
+                    !(isAniSkipChapter && aniSkipPreference == AniSkipPreference.BUTTON)
+                val shouldAutoSkip = if (isAniSkipChapter) {
+                    aniSkipPreference == AniSkipPreference.AUTO
+                } else {
+                    autoSkip
+                }
+
+                if (useNetflixStyle) {
                     // show a toast with the seconds before the skip
                     if (waitingSkipIntro == defaultWaitingTime) {
                         activity.showToast(
@@ -1979,7 +2008,7 @@ class PlayerViewModel @JvmOverloads constructor(
                     }
                     showSkipIntroButton(chapter, nextChapterPos, waitingSkipIntro)
                     waitingSkipIntro--
-                } else if (autoSkip) {
+                } else if (shouldAutoSkip) {
                     seekToWithText(
                         seekValue = nextChapterPos.toInt(),
                         text = activity.stringResource(MR.strings.player_intro_skipped, chapter.name),
@@ -2041,6 +2070,56 @@ class PlayerViewModel @JvmOverloads constructor(
         return chapters.value.withIndex()
             .filter { it.value.start <= (position ?: pos.value) }
             .maxByOrNull { it.value.start }
+    }
+
+    fun getAniSkipPreference(): AniSkipPreference {
+        return currentAnime.value?.aniSkipPreference ?: AniSkipPreference.BUTTON
+    }
+
+    fun setAniSkipPreference(preference: AniSkipPreference) {
+        val anime = currentAnime.value ?: return
+        viewModelScope.launchIO {
+            setAnimeViewerFlags.awaitSetAniSkipPreference(anime.id, preference)
+            _currentAnime.update { _ -> getAnime.await(anime.id) }
+        }
+    }
+
+    fun shouldLoadAniSkipSegments(): Boolean {
+        return getAniSkipPreference() != AniSkipPreference.OFF
+    }
+
+    fun clearAniSkipSegments() {
+        aniSkipSegments = emptyList()
+    }
+
+    private fun isAniSkipChapter(chapter: IndexedSegment): Boolean {
+        if (chapter.chapterType == ChapterType.Other) return false
+        return aniSkipSegments.any { stamp ->
+            kotlin.math.abs(stamp.start - chapter.start.toDouble()) < 1.0
+        }
+    }
+
+    private fun SkipSegment.toTimeStamp(): TimeStamp {
+        val type = when (type) {
+            SkipSegmentType.OP -> ChapterType.Opening
+            SkipSegmentType.ED -> ChapterType.Ending
+            SkipSegmentType.RECAP -> ChapterType.Recap
+            SkipSegmentType.MIXED_OP -> ChapterType.MixedOp
+            SkipSegmentType.MIXED_ED -> ChapterType.Ending
+        }
+        val name = when (this.type) {
+            SkipSegmentType.OP -> "Opening"
+            SkipSegmentType.ED -> "Ending"
+            SkipSegmentType.RECAP -> "Recap"
+            SkipSegmentType.MIXED_OP -> "Mixed-op"
+            SkipSegmentType.MIXED_ED -> "Mixed-ed"
+        }
+        return TimeStamp(
+            start = startMs / 1000.0,
+            end = endMs / 1000.0,
+            name = name,
+            type = type,
+        )
     }
 
     fun setPrimaryCustomButtonTitle(button: CustomButton) {

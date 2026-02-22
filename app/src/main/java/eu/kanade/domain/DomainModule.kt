@@ -32,6 +32,8 @@ import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.repository.ExtensionRepoRepository
 import mihon.domain.extensionrepo.service.ExtensionRepoService
 import mihon.domain.upcoming.interactor.GetUpcomingAnime
+import tachiyomi.data.aniskip.AniSkipApi
+import tachiyomi.data.aniskip.AniSkipRepositoryImpl
 import tachiyomi.data.anime.AnimeRepositoryImpl
 import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.custombutton.CustomButtonRepositoryImpl
@@ -43,6 +45,7 @@ import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
 import tachiyomi.data.updates.UpdatesRepositoryImpl
+import tachiyomi.domain.aniskip.repository.AniSkipRepository
 import tachiyomi.domain.anime.interactor.FetchInterval
 import tachiyomi.domain.anime.interactor.GetAnime
 import tachiyomi.domain.anime.interactor.GetAnimeByUrlAndSourceId
@@ -186,6 +189,8 @@ class DomainModule : InjektModule {
 
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get()) }
         addSingletonFactory<SourceHealthRepository> { SourceHealthRepositoryImpl(get()) }
+        addSingletonFactory { AniSkipApi(get(), get()) }
+        addSingletonFactory<AniSkipRepository> { AniSkipRepositoryImpl(get(), get()) }
         addSingletonFactory { SourceFallbackManager(get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledSources(get(), get()) }

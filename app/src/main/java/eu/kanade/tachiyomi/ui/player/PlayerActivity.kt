@@ -1249,6 +1249,7 @@ class PlayerActivity : BaseActivity() {
             if (
                 viewModel.introSkipEnabled &&
                 playerPreferences.aniSkipEnabled().get() &&
+                viewModel.shouldLoadAniSkipSegments() &&
                 !(playerPreferences.disableAniSkipOnChapters().get() && viewModel.chapters.value.isNotEmpty())
             ) {
                 viewModel.aniSkipResponse(player.duration)?.let {
@@ -1261,6 +1262,8 @@ class PlayerActivity : BaseActivity() {
                     )
                     viewModel.setChapter(viewModel.pos.value)
                 }
+            } else {
+                viewModel.clearAniSkipSegments()
             }
         }
     }

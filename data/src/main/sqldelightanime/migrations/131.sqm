@@ -1,0 +1,9 @@
+CREATE TABLE aniskip_cache (
+    mal_id INTEGER NOT NULL,
+    episode_number INTEGER NOT NULL,
+    skip_type TEXT NOT NULL,
+    start_time_ms INTEGER NOT NULL,
+    end_time_ms INTEGER NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (mal_id, episode_number, skip_type)
+);

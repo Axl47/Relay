@@ -30,6 +30,7 @@ import eu.kanade.presentation.anime.DuplicateAnimeDialog
 import eu.kanade.presentation.anime.EditCoverAction
 import eu.kanade.presentation.anime.EpisodeOptionsDialogScreen
 import eu.kanade.presentation.anime.EpisodeSettingsDialog
+import eu.kanade.presentation.anime.SourcePriorityDialog
 import eu.kanade.presentation.anime.components.AnimeCoverDialog
 import eu.kanade.presentation.anime.components.DeleteEpisodesDialog
 import eu.kanade.presentation.anime.components.SetIntervalDialog
@@ -275,6 +276,16 @@ class AnimeScreen(
                 onSortModeChanged = screenModel::setSorting,
                 onDisplayModeChanged = screenModel::setDisplayMode,
                 onSetAsDefault = screenModel::setCurrentSettingsAsDefault,
+                onSourcePriorityClicked = screenModel::showSourcePriorityDialog,
+            )
+            is AnimeScreenModel.Dialog.SourcePrioritySheet -> SourcePriorityDialog(
+                entries = dialog.entries,
+                isLoading = dialog.isLoading,
+                isSaving = dialog.isSaving,
+                onDismissRequest = onDismissRequest,
+                onMoveUp = screenModel::moveSourcePriorityUp,
+                onMoveDown = screenModel::moveSourcePriorityDown,
+                onSave = screenModel::saveSourcePriorities,
             )
             AnimeScreenModel.Dialog.TrackSheet -> {
                 NavigatorAdaptiveSheet(
