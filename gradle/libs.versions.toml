@@ -9,7 +9,6 @@ sqlite = "2.5.2"
 voyager = "1.1.0-beta03"
 spotless = "7.2.1"
 ktlint-core = "1.5.0"
-firebase-bom = "33.16.0"
 markdown = "0.35.0"
 junit = "5.13.4"
 
@@ -77,10 +76,6 @@ moko-core = { module = "dev.icerock.moko:resources", version.ref = "moko" }
 timber = "com.jakewharton.timber:timber:5.0.1"
 logcat = "com.squareup.logcat:logcat:0.2.3"
 
-firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
-firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
-firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
-
 aboutLibraries-compose = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlib_version" }
 
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku_version" }
@@ -110,11 +105,9 @@ markdown-core = { module = "com.mikepenz:multiplatform-markdown-renderer", versi
 markdown-coil = { module = "com.mikepenz:multiplatform-markdown-renderer-coil3", version.ref = "markdown" }
 
 [plugins]
-google-services = { id = "com.google.gms.google-services", version = "4.4.3" }
 aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutlib_version" }
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 moko = { id = "dev.icerock.mobile.multiplatform-resources", version.ref = "moko" }
-firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.6" }
 
 [bundles]
 okhttp = ["okhttp-core", "okhttp-logging", "okhttp-brotli", "okhttp-dnsoverhttps"]

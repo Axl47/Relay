@@ -1,3 +1,7 @@
+---
+created_at: 2026-02-22T04:27
+updated_at: 2026-02-22T04:32
+---
 Looking to report an issue/bug or make a feature request? Please refer to the [README file](https://github.com/komikku-app/anikku#issues-feature-requests-and-contributing).
 
 ---

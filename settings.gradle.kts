@@ -43,26 +43,14 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Anikku"
+rootProject.name = "Relay"
 include(":app")
 include(":core-metadata")
 include(":core:archive")
 include(":core:common")
 include(":data")
 include(":domain")
-include(":i18n")
-include(":i18n-aniyomi")
-// KMK -->
-include(":i18n-kmk")
-include(":i18n-ank")
-include(":flagkit")
-// KMK <--
-// SY -->
-include(":i18n-sy")
-// SY <--
-include(":macrobenchmark")
 include(":presentation-core")
 include(":presentation-widget")
 include(":source-api")
 include(":source-local")
-include(":telemetry")

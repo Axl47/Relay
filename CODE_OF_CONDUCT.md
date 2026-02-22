@@ -1,3 +1,7 @@
+---
+created_at: 2026-02-22T04:27
+updated_at: 2026-02-22T04:32
+---
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge

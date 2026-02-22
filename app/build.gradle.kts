@@ -13,20 +13,13 @@ plugins {
     id("com.github.ben-manes.versions")
 }
 
-if (Config.includeTelemetry) {
-    pluginManager.apply {
-        apply(libs.plugins.google.services.get().pluginId)
-        apply(libs.plugins.firebase.crashlytics.get().pluginId)
-    }
-}
-
 shortcutHelper.setFilePath("./shortcuts.xml")
 
 android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.anikku"
+        applicationId = "dev.relay.app"
 
         versionCode = 5
         versionName = "0.1.5"
@@ -54,54 +47,6 @@ android {
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = true)}\"")
         }
-
-        val commonMatchingFallbacks = listOf(release.name)
-
-        create("releaseTest") {
-            initWith(release)
-
-            applicationIdSuffix = ".rt"
-            isMinifyEnabled = false
-            isShrinkResources = false
-
-            matchingFallbacks.addAll(commonMatchingFallbacks)
-        }
-        create("foss") {
-            initWith(release)
-
-            applicationIdSuffix = ".foss"
-
-            matchingFallbacks.addAll(commonMatchingFallbacks)
-        }
-        create("preview") {
-            initWith(release)
-
-            applicationIdSuffix = ".beta"
-
-            versionNameSuffix = debug.versionNameSuffix
-            signingConfig = debug.signingConfig
-
-            matchingFallbacks.addAll(commonMatchingFallbacks)
-
-            buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
-        }
-        create("benchmark") {
-            initWith(release)
-
-            isDebuggable = false
-            isProfileable = true
-            versionNameSuffix = "${debug.versionNameSuffix}-benchmark"
-            applicationIdSuffix = ".benchmark"
-
-            signingConfig = debug.signingConfig
-
-            matchingFallbacks.addAll(commonMatchingFallbacks)
-        }
-    }
-
-    sourceSets {
-        getByName("preview").res.srcDirs("src/beta/res")
-        getByName("benchmark").res.srcDirs("src/debug/res")
     }
 
     splits {
@@ -198,14 +143,6 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.i18n)
-    // KMK -->
-    implementation(projects.i18nKmk)
-    implementation(projects.i18nAnk)
-    // KMK <--
-    // SY -->
-    implementation(projects.i18nSy)
-    // SY <--
     implementation(projects.core.archive)
     implementation(projects.core.common)
     implementation(projects.coreMetadata)
@@ -215,7 +152,6 @@ dependencies {
     implementation(projects.domain)
     implementation(projects.presentationCore)
     implementation(projects.presentationWidget)
-    implementation(projects.telemetry)
 
     // Compose
     implementation(compose.activity)
@@ -312,14 +248,6 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.bundles.markdown)
 
-    // KMK -->
-    implementation(libs.palette.ktx)
-    implementation(libs.materialKolor)
-    implementation(libs.haze)
-    implementation(compose.colorpicker)
-    implementation(projects.flagkit)
-    // KMK <--
-
     // Logging
     implementation(libs.timber)
     implementation(libs.logcat)
@@ -348,9 +276,6 @@ dependencies {
     implementation(sylibs.ratingbar)
     implementation(sylibs.composeRatingbar)
 
-    // Google drive
-    implementation(sylibs.google.api.services.drive)
-
     // ZXing Android Embedded
     implementation(sylibs.zxing.android.embedded)
 
@@ -369,14 +294,6 @@ dependencies {
     implementation(aniyomilibs.bundles.cast)
     // nanohttpd server
     implementation(aniyomilibs.nanohttpd)
-}
-
-androidComponents {
-    onVariants(selector().withFlavor("default" to "standard")) {
-        // Only excluding in standard flavor because this breaks
-        // Layout Inspector's Compose tree
-        it.packaging.resources.excludes.add("META-INF/*.version")
-    }
 }
 
 buildscript {

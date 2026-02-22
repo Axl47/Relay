@@ -9,10 +9,7 @@ class TrackLoginActivity : BaseOAuthLoginActivity() {
     override fun handleResult(data: Uri?) {
         when (data?.host) {
             "anilist-auth" -> handleAnilist(data)
-            "bangumi-auth" -> handleBangumi(data)
             "myanimelist-auth" -> handleMyAnimeList(data)
-            "shikimori-auth" -> handleShikimori(data)
-            "simkl-auth" -> handleSimkl(data)
         }
     }
 
@@ -30,19 +27,6 @@ class TrackLoginActivity : BaseOAuthLoginActivity() {
         }
     }
 
-    private fun handleBangumi(data: Uri) {
-        val code = data.getQueryParameter("code")
-        if (code != null) {
-            lifecycleScope.launchIO {
-                trackerManager.bangumi.login(code)
-                returnToSettings()
-            }
-        } else {
-            trackerManager.bangumi.logout()
-            returnToSettings()
-        }
-    }
-
     private fun handleMyAnimeList(data: Uri) {
         val code = data.getQueryParameter("code")
         if (code != null) {
@@ -52,32 +36,6 @@ class TrackLoginActivity : BaseOAuthLoginActivity() {
             }
         } else {
             trackerManager.myAnimeList.logout()
-            returnToSettings()
-        }
-    }
-
-    private fun handleShikimori(data: Uri) {
-        val code = data.getQueryParameter("code")
-        if (code != null) {
-            lifecycleScope.launchIO {
-                trackerManager.shikimori.login(code)
-                returnToSettings()
-            }
-        } else {
-            trackerManager.shikimori.logout()
-            returnToSettings()
-        }
-    }
-
-    private fun handleSimkl(data: Uri?) {
-        val code = data?.getQueryParameter("code")
-        if (code != null) {
-            lifecycleScope.launchIO {
-                trackerManager.simkl.login(code)
-                returnToSettings()
-            }
-        } else {
-            trackerManager.simkl.logout()
             returnToSettings()
         }
     }
