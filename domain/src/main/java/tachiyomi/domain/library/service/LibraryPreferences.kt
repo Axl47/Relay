@@ -114,14 +114,7 @@ class LibraryPreferences(
         TriState.DISABLED,
     )
 
-    // SY -->
-    fun filterLewd() = preferenceStore.getEnum(
-        "pref_filter_library_lewd_v2",
-        TriState.DISABLED,
-    )
-
     fun libraryReadDuplicateChapters() = preferenceStore.getBoolean("pref_library_mark_duplicate_chapters", false)
-    // SY <--
 
     fun filterTracking(id: Int) = preferenceStore.getEnum(
         "pref_filter_animelib_tracked_${id}_v2",

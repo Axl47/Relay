@@ -4,7 +4,7 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
 <li>Local reading and watching of content.</li>
 <li>A configurable reader with multiple viewers, reading directions and other settings.</li>
 <li>A configurable player built on mpv-android with multiple options and settings.</li>
-<li>Tracker support: MyAnimeList, AniList, Kitsu, MangaUpdates, Shikimori, Simkl, and Bangumi support.</li>
+<li>Tracker support: MyAnimeList, AniList, and MangaUpdates support.</li>
 <li>Categories to organize your library.</li>
 <li>Light and dark themes.</li>
 <li>Schedule updating your library for new chapters/episodes.</li>

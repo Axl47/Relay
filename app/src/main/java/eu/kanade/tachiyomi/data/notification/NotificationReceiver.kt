@@ -9,7 +9,6 @@ import androidx.core.net.toUri
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
@@ -76,7 +75,6 @@ class NotificationReceiver : BroadcastReceiver() {
                 )
             ACTION_CANCEL_RESTORE -> cancelRestore(context)
 
-            ACTION_CANCEL_SYNC -> cancelSync(context)
             // Cancel library update and dismiss notification
             ACTION_CANCEL_ANIMELIB_UPDATE -> cancelAnimelibUpdate(context)
             // Start downloading app update
@@ -202,15 +200,6 @@ class NotificationReceiver : BroadcastReceiver() {
 
     private fun cancelDownloadAppUpdate(context: Context) {
         AppUpdateDownloadJob.stop(context)
-    }
-
-    /**
-     * Method called when user wants to stop a backup restore job.
-     *
-     * @param context context of application
-     */
-    private fun cancelSync(context: Context) {
-        SyncDataJob.stop(context)
     }
 
     /**

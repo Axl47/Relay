@@ -3,11 +3,7 @@ package eu.kanade.tachiyomi.data.track
 import androidx.annotation.StringRes
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.track.anilist.Anilist
-import eu.kanade.tachiyomi.data.track.bangumi.Bangumi
-import eu.kanade.tachiyomi.data.track.kitsu.Kitsu
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
-import eu.kanade.tachiyomi.data.track.shikimori.Shikimori
-import eu.kanade.tachiyomi.data.track.simkl.Simkl
 
 @Suppress("MagicNumber")
 enum class TrackStatus(val int: Long, @StringRes val res: Int) {
@@ -52,49 +48,6 @@ enum class TrackStatus(val int: Long, @StringRes val res: Int) {
                         Anilist.ON_HOLD -> PAUSED
                         Anilist.COMPLETED -> COMPLETED
                         Anilist.DROPPED -> DROPPED
-                        else -> null
-                    }
-                }
-                TrackerManager.KITSU -> {
-                    when (statusLong) {
-                        Kitsu.READING -> READING
-                        Kitsu.WATCHING -> WATCHING
-                        Kitsu.COMPLETED -> COMPLETED
-                        Kitsu.ON_HOLD -> PAUSED
-                        Kitsu.PLAN_TO_READ -> PLAN_TO_READ
-                        Kitsu.PLAN_TO_WATCH -> PLAN_TO_WATCH
-                        Kitsu.DROPPED -> DROPPED
-                        else -> null
-                    }
-                }
-                (4L) -> {
-                    when (statusLong) {
-                        Shikimori.READING -> READING
-                        Shikimori.COMPLETED -> COMPLETED
-                        Shikimori.ON_HOLD -> PAUSED
-                        Shikimori.PLAN_TO_READ -> PLAN_TO_READ
-                        Shikimori.DROPPED -> DROPPED
-                        Shikimori.REREADING -> REPEATING
-                        else -> null
-                    }
-                }
-                (5L) -> {
-                    when (statusLong) {
-                        Bangumi.READING -> READING
-                        Bangumi.COMPLETED -> COMPLETED
-                        Bangumi.ON_HOLD -> PAUSED
-                        Bangumi.PLAN_TO_READ -> PLAN_TO_READ
-                        Bangumi.DROPPED -> DROPPED
-                        else -> null
-                    }
-                }
-                TrackerManager.SIMKL -> {
-                    when (statusLong) {
-                        Simkl.WATCHING -> WATCHING
-                        Simkl.COMPLETED -> COMPLETED
-                        Simkl.ON_HOLD -> PAUSED
-                        Simkl.PLAN_TO_WATCH -> PLAN_TO_WATCH
-                        Simkl.NOT_INTERESTING -> DROPPED
                         else -> null
                     }
                 }

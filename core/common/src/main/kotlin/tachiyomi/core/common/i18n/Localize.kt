@@ -3,28 +3,31 @@ package tachiyomi.core.common.i18n
 import android.content.Context
 import dev.icerock.moko.resources.PluralsResource
 import dev.icerock.moko.resources.StringResource
-import dev.icerock.moko.resources.desc.Plural
-import dev.icerock.moko.resources.desc.PluralFormatted
-import dev.icerock.moko.resources.desc.Resource
-import dev.icerock.moko.resources.desc.ResourceFormatted
-import dev.icerock.moko.resources.desc.StringDesc
 
 fun Context.stringResource(resource: StringResource): String {
-    return StringDesc.Resource(resource).toString(this).fixed()
+    return getString(resource.resourceId).fixed()
 }
 
 fun Context.stringResource(resource: StringResource, vararg args: Any): String {
-    return StringDesc.ResourceFormatted(resource, *args).toString(this).fixed()
+    return getString(resource.resourceId, *args.map(::resolveFormatArg).toTypedArray()).fixed()
 }
 
 fun Context.pluralStringResource(resource: PluralsResource, count: Int): String {
-    return StringDesc.Plural(resource, count).toString(this).fixed()
+    return resources.getQuantityString(resource.resourceId, count, count).fixed()
 }
 
 fun Context.pluralStringResource(resource: PluralsResource, count: Int, vararg args: Any): String {
-    return StringDesc.PluralFormatted(resource, count, *args).toString(this).fixed()
+    return resources.getQuantityString(resource.resourceId, count, *args.map(::resolveFormatArg).toTypedArray()).fixed()
+}
+
+private fun Context.resolveFormatArg(arg: Any): Any {
+    return when (arg) {
+        is StringResource -> stringResource(arg)
+        is PluralsResource -> pluralStringResource(arg, 2)
+        else -> arg
+    }
 }
 
 // TODO: janky workaround for https://github.com/icerockdev/moko-resources/issues/337
 private fun String.fixed() =
-    this.replace("""\""", """"""")
+    this.replace("\\\"", "\"")

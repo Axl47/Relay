@@ -19,11 +19,9 @@ import androidx.work.workDataOf
 import eu.kanade.domain.anime.interactor.UpdateAnime
 import eu.kanade.domain.anime.model.toSAnime
 import eu.kanade.domain.episode.interactor.SyncEpisodesWithSource
-import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.notification.Notifications
-import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.data.track.TrackStatus
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.SAnime
@@ -582,40 +580,13 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 // SY <--
             )
 
-            val syncPreferences: SyncPreferences = Injekt.get()
+            val request = OneTimeWorkRequestBuilder<LibraryUpdateJob>()
+                .addTag(TAG)
+                .addTag(WORK_NAME_MANUAL)
+                .setInputData(inputData)
+                .build()
 
-            // Always sync the data before library update if syncing is enabled.
-            if (syncPreferences.isSyncEnabled()) {
-                // Check if SyncDataJob is already running
-                if (SyncDataJob.isRunning(context)) {
-                    // SyncDataJob is already running
-                    return false
-                }
-
-                // Define the SyncDataJob
-                val syncDataJob = OneTimeWorkRequestBuilder<SyncDataJob>()
-                    .addTag(SyncDataJob.TAG_MANUAL)
-                    .build()
-
-                // Chain SyncDataJob to run before LibraryUpdateJob
-                val libraryUpdateJob = OneTimeWorkRequestBuilder<LibraryUpdateJob>()
-                    .addTag(TAG)
-                    .addTag(WORK_NAME_MANUAL)
-                    .setInputData(inputData)
-                    .build()
-
-                wm.beginUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, syncDataJob)
-                    .then(libraryUpdateJob)
-                    .enqueue()
-            } else {
-                val request = OneTimeWorkRequestBuilder<LibraryUpdateJob>()
-                    .addTag(TAG)
-                    .addTag(WORK_NAME_MANUAL)
-                    .setInputData(inputData)
-                    .build()
-
-                wm.enqueueUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, request)
-            }
+            wm.enqueueUniqueWork(WORK_NAME_MANUAL, ExistingWorkPolicy.KEEP, request)
 
             return true
         }

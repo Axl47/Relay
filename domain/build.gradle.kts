@@ -20,14 +20,6 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.i18n)
-    // SY -->
-    implementation(projects.i18nSy)
-    // SY <--
-    // ANK -->
-    implementation(projects.i18nAnk)
-    // ANK <--
-
     implementation(projects.sourceApi)
     implementation(projects.core.common)
 

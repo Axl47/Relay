@@ -58,14 +58,11 @@ import androidx.media.AudioAttributesCompat
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
 import com.hippo.unifile.UniFile
-import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.serialize
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.PlayerData
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.torrentServer.service.TorrentServerService
@@ -110,7 +107,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -174,10 +170,6 @@ class PlayerActivity : BaseActivity() {
             }
         }
     }
-
-    // AM (CONNECTIONS) -->
-    private val connectionsPreferences: ConnectionsPreferences = Injekt.get()
-    // <-- AM (CONNECTIONS)
 
     @SuppressLint("MissingSuperCall")
     override fun onNewIntent(intent: Intent) {
@@ -264,12 +256,6 @@ class PlayerActivity : BaseActivity() {
                 }
             }
             .launchIn(lifecycleScope)
-        viewModel.viewModelScope.launchIO {
-            // AM (DISCORD) -->
-            updateDiscordRPC(exitingPlayer = false)
-
-            // <-- AM (DISCORD)
-        }
         // Cast -->
         castManager
         // <-- Cast
@@ -327,9 +313,6 @@ class PlayerActivity : BaseActivity() {
         player.destroy()
         castManager.cleanup()
 
-        // AM (DISCORD) -->
-        updateDiscordRPC(exitingPlayer = true)
-        // <-- AM (DISCORD)
         super.onDestroy()
     }
 
@@ -338,8 +321,6 @@ class PlayerActivity : BaseActivity() {
 
         // Mantener sesión Cast activa
         castManager.maintainCastSessionBackground()
-
-        updateDiscordRPC(exitingPlayer = false)
 
         if (isInPictureInPictureMode) {
             super.onPause()
@@ -423,8 +404,6 @@ class PlayerActivity : BaseActivity() {
                 if (it != -1f) viewModel.changeBrightnessTo(it)
             }
         }
-        updateDiscordRPC(exitingPlayer = false)
-
         castManager.apply {
             registerSessionListener()
             if (castState.value == CastManager.CastState.CONNECTED) {
@@ -731,7 +710,6 @@ class PlayerActivity : BaseActivity() {
                 runCatching {
                     setPictureInPictureParams(createPipParams())
                 }
-                updateDiscordRPC(exitingPlayer = false)
             }
 
             "paused-for-cache" -> {
@@ -1140,7 +1118,6 @@ class PlayerActivity : BaseActivity() {
         } else {
             MPVLib.command(arrayOf("loadfile", parseVideoUrl(video.videoUrl)))
         }
-        updateDiscordRPC(exitingPlayer = false)
     }
 
     private fun torrentLinkHandler(videoUrl: String, quality: String) {
@@ -1367,51 +1344,4 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    // AM (DISCORD) -->
-    private fun updateDiscordRPC(exitingPlayer: Boolean) {
-        if (!connectionsPreferences.enableDiscordRPC().get()) return
-
-        viewModel.viewModelScope.launchIO {
-            try {
-                if (!exitingPlayer) {
-                    val timePos = player.timePos ?: return@launchIO
-                    val duration = player.duration ?: 1440
-
-                    val currentPosition = timePos.toLong() * 1000
-                    val startTimestamp = Calendar.getInstance().apply {
-                        timeInMillis = System.currentTimeMillis() - currentPosition
-                    }
-                    val endTimestamp = Calendar.getInstance().apply {
-                        timeInMillis = startTimestamp.timeInMillis
-                        add(Calendar.SECOND, duration)
-                    }
-
-                    val anime = viewModel.currentAnime.value ?: return@launchIO
-                    val episode = viewModel.currentEpisode.value ?: return@launchIO
-
-                    DiscordRPCService.setPlayerActivity(
-                        context = this@PlayerActivity,
-                        PlayerData(
-                            incognitoMode = viewModel.currentSource.value?.isNsfw() == true || viewModel.incognitoMode,
-                            animeId = anime.id,
-                            animeTitle = anime.ogTitle,
-                            thumbnailUrl = anime.thumbnailUrl ?: "",
-                            episodeNumber = if (connectionsPreferences.useChapterTitles().get()) {
-                                episode.name
-                            } else {
-                                episode.episode_number.toString()
-                            },
-                            startTimestamp = startTimestamp.timeInMillis,
-                            endTimestamp = endTimestamp.timeInMillis,
-                        ),
-                    )
-                } else {
-                    val lastUsedScreen = DiscordRPCService.lastUsedScreen
-                    DiscordRPCService.setAnimeScreen(this@PlayerActivity, lastUsedScreen)
-                }
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR) { "Error updating Discord RPC: ${e.message}" }
-            }
-        }
-    }
 }

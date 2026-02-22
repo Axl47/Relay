@@ -23,8 +23,6 @@ import eu.kanade.presentation.updates.UpdateScreen
 import eu.kanade.presentation.updates.UpdatesDeleteConfirmationDialog
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
@@ -150,9 +148,6 @@ data object UpdatesTab : Tab {
         }
 
         LaunchedEffect(Unit) {
-            // AM (DISCORD) -->
-            DiscordRPCService.setAnimeScreen(context, DiscordScreen.UPDATES)
-            // <-- AM (DISCORD)
             screenModel.events.collectLatest { event ->
                 when (event) {
                     UpdatesScreenModel.Event.InternalError -> screenModel.snackbarHostState.showSnackbar(

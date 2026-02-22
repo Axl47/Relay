@@ -23,8 +23,6 @@ import eu.kanade.presentation.history.components.HistoryDeleteAllDialog
 import eu.kanade.presentation.history.components.HistoryDeleteDialog
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -145,9 +143,6 @@ data object HistoryTab : Tab {
         }
 
         LaunchedEffect(Unit) {
-            // AM (DISCORD) -->
-            DiscordRPCService.setAnimeScreen(context, DiscordScreen.HISTORY)
-            // <-- AM (DISCORD)
             screenModel.events.collectLatest { e ->
                 when (e) {
                     HistoryScreenModel.Event.InternalError ->

@@ -46,16 +46,12 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
   * `Bulk-favorite` multiple entries all at once.
   * `Fast browsing` (for who with large library experiencing slow loading)
   * Auto `2-way sync` progress with trackers.
-  * Support `Android TV`, `Fire TV`.
   * From SY:
-    * `Anime Recommendations` showing community recommends from Anilist, MyAnimeList.
-    * Edit `Anime Info` manually, or fill data from MyAnimeList, Kitsu, Shikimori, Bangumi, Simkl.
+    * `Anime Recommendations` from Anilist and MyAnimeList.
+    * Edit `Anime Info` manually, or fill data from MyAnimeList.
     * `Custom cover` with files or URL.
-    * `Feed tab`, where you can easily view the latest entries or saved search from multiple sources at same time.
-    * `Saving searches` & filters, can use them with `Feed-tab`
     * `Pin anime` to top of Library with `Tag` sort.
     * `Merge anime` allow merging separated anime/episodes into one entry.
-    * `Lewd filter`, hide the lewd anime in your library when you want to.
     * `Tracking filter`, filter your tracked anime so you can see them or see non-tracked anime.
     * `Search tracking` status in library.
     * `Mass-migration` all your anime from one source to another at same time.
@@ -81,7 +77,7 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
   * Watching videos
   * Local watching of downloaded content
   * A configurable player built on mpv-android with multiple options and settings
-  * Tracker support: [MyAnimeList](https://myanimelist.net/), [AniList](https://anilist.co/), [Kitsu](https://kitsu.app/), [Simkl](https://simkl.in/), [Shikimori](https://shikimori.one), and [Bangumi](https://bgm.tv/)
+  * Tracker support: [MyAnimeList](https://myanimelist.net/) and [AniList](https://anilist.co/)
   * Categories to organize your library
   * Create backups locally to watch offline or to your desired cloud service
 * Other forks' features:

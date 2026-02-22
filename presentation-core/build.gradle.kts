@@ -31,10 +31,6 @@ kotlin {
 
 dependencies {
     api(projects.core.common)
-    api(projects.i18n)
-    // SY -->
-    api(projects.i18nSy)
-    // SY <--
 
     // Compose
     implementation(compose.activity)

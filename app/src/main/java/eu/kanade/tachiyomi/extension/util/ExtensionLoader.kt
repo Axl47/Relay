@@ -9,7 +9,6 @@ import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import dalvik.system.PathClassLoader
 import eu.kanade.domain.extension.interactor.TrustExtension
-import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.LoadResult
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -32,11 +31,7 @@ import java.io.File
 @SuppressLint("PackageManagerGetSignatures")
 internal object ExtensionLoader {
 
-    private val preferences: SourcePreferences by injectLazy()
     private val trustExtension: TrustExtension by injectLazy()
-    private val loadNsfwSource by lazy {
-        preferences.showNsfwSource().get()
-    }
 
     private const val EXTENSION_FEATURE = "tachiyomi.animeextension"
     private const val METADATA_SOURCE_CLASS = "tachiyomi.animeextension.class"
@@ -279,11 +274,6 @@ internal object ExtensionLoader {
         }
 
         val isNsfw = appInfo.metaData.getInt(METADATA_NSFW) == 1
-        if (!loadNsfwSource && isNsfw) {
-            logcat(LogPriority.WARN) { "NSFW extension $pkgName not allowed" }
-            return LoadResult.Error
-        }
-
         val isTorrent = appInfo.metaData.getInt(METADATA_TORRENT) == 1
 
         val classLoader = try {

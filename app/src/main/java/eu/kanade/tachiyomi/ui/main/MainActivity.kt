@@ -59,7 +59,6 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.NavigatorDisposeBehavior
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.domain.base.BasePreferences
-import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.components.AppStateBanners
 import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
 import eu.kanade.presentation.components.IncognitoModeBannerBackgroundColor
@@ -71,8 +70,6 @@ import eu.kanade.presentation.util.DefaultNavigatorScreenTransition
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Video
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
@@ -86,7 +83,6 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
-import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.player.ExternalIntents
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import eu.kanade.tachiyomi.util.system.dpToPx
@@ -129,10 +125,6 @@ class MainActivity : BaseActivity() {
     var ready = false
 
     private var navigator: Navigator? = null
-
-    // AM (CONNECTIONS) -->
-    private val connectionsPreferences: ConnectionsPreferences by injectLazy()
-    // <-- AM (CONNECTIONS)
 
     init {
         registerSecureActivity(this)
@@ -248,33 +240,11 @@ class MainActivity : BaseActivity() {
                             }
                         }
                         .launchIn(this)
-
-                    // AM (DISCORD) -->
-                    connectionsPreferences.enableDiscordRPC().changes()
-                        .drop(1)
-                        .onEach {
-                            if (it) {
-                                DiscordRPCService.start(this@MainActivity.applicationContext)
-                            } else {
-                                DiscordRPCService.stop(this@MainActivity.applicationContext, 0L)
-                            }
-                        }.launchIn(this)
-
-                    connectionsPreferences.discordRPCStatus().changes()
-                        .drop(1)
-                        .onEach {
-                            DiscordRPCService.stop(this@MainActivity.applicationContext, 0L)
-                            DiscordRPCService.start(this@MainActivity.applicationContext)
-                            DiscordRPCService.setAnimeScreen(this@MainActivity, DiscordScreen.MORE)
-                            DiscordRPCService.setMangaScreen(this@MainActivity, DiscordScreen.MORE)
-                        }.launchIn(this)
-                    // <-- AM (DISCORD)
                 }
 
                 HandleOnNewIntent(context = context, navigator = navigator)
 
                 CheckForUpdates()
-                ShowOnboarding()
             }
 
             var showChangelog by remember { mutableStateOf(didMigration && !isDebugBuildType) }
@@ -381,17 +351,6 @@ class MainActivity : BaseActivity() {
                 ExtensionApi().checkForUpdates(context)
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR, e)
-            }
-        }
-    }
-
-    @Composable
-    private fun ShowOnboarding() {
-        val navigator = LocalNavigator.currentOrThrow
-
-        LaunchedEffect(Unit) {
-            if (!preferences.shownOnboardingFlow().get() && navigator.lastItem !is OnboardingScreen) {
-                navigator.push(OnboardingScreen())
             }
         }
     }

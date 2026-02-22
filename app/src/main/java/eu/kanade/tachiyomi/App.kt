@@ -35,7 +35,6 @@ import eu.kanade.domain.DomainModule
 import eu.kanade.domain.KMKDomainModule
 import eu.kanade.domain.SYDomainModule
 import eu.kanade.domain.base.BasePreferences
-import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.setAppCompatDelegateThemeMode
 import eu.kanade.tachiyomi.core.security.PrivacyPreferences
@@ -46,9 +45,7 @@ import eu.kanade.tachiyomi.data.coil.AnimeCoverKeyer
 import eu.kanade.tachiyomi.data.coil.AnimeKeyer
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.TachiyomiImageDecoder
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
 import eu.kanade.tachiyomi.data.notification.Notifications
-import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.di.AppModule
 import eu.kanade.tachiyomi.di.PreferenceModule
 import eu.kanade.tachiyomi.di.SYPreferenceModule
@@ -62,7 +59,6 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.notify
-import exh.log.CrashlyticsPrinter
 import exh.log.EHLogLevel
 import exh.log.EnhancedFilePrinter
 import exh.log.XLogLogcatLogger
@@ -74,7 +70,6 @@ import logcat.LogPriority
 import logcat.LogcatLogger
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
-import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
@@ -103,11 +98,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun onCreate() {
         super<Application>.onCreate()
         patchInjekt()
-        TelemetryConfig.init(
-            applicationContext,
-            isPreviewBuildType,
-            BuildConfig.COMMIT_COUNT,
-        )
 
         // KMK -->
         if (isDebugBuildType) Timber.plant(Timber.DebugTree())
@@ -175,16 +165,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             }
             .launchIn(scope)
 
-        privacyPreferences.analytics()
-            .changes()
-            .onEach(TelemetryConfig::setAnalyticsEnabled)
-            .launchIn(scope)
-
-        privacyPreferences.crashlytics()
-            .changes()
-            .onEach(TelemetryConfig::setCrashlyticsEnabled)
-            .launchIn(scope)
-
         setAppCompatDelegateThemeMode(Injekt.get<UiPreferences>().themeMode().get())
 
         // Updates widget update
@@ -199,12 +179,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         }
 
         initializeMigrator()
-
-        val syncPreferences: SyncPreferences = Injekt.get()
-        val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
-        if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppStart) {
-            SyncDataJob.startNow(this@App)
-        }
     }
 
     private fun initializeMigrator() {
@@ -252,30 +226,10 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     override fun onStart(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStart()
-
-        val syncPreferences: SyncPreferences = Injekt.get()
-        val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
-        if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppResume) {
-            SyncDataJob.startNow(this@App)
-        }
-
-        // AM (DISCORD) -->
-        DiscordRPCService.start(applicationContext)
-        // <-- AM (DISCORD)
     }
 
     override fun onStop(owner: LifecycleOwner) {
         SecureActivityDelegate.onApplicationStopped()
-
-        val syncPreferences: SyncPreferences = Injekt.get()
-        val syncTriggerOpt = syncPreferences.getSyncTriggerOptions()
-        if (syncPreferences.isSyncEnabled() && syncTriggerOpt.syncOnAppStart) {
-            SyncDataJob.startNow(this@App)
-        }
-
-        // AM (DISCORD) -->
-        DiscordRPCService.stop(applicationContext)
-        // <-- AM (DISCORD)
     }
 
     override fun getPackageName(): String {
@@ -344,12 +298,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                     backupStrategy = NeverBackupStrategy()
                 }
         }
-
-        // Install Crashlytics in prod
-        if (!isDebugBuildType) {
-            printers += CrashlyticsPrinter(LogLevel.ERROR)
-        }
-
         XLog.init(
             logConfig,
             *printers.toTypedArray(),

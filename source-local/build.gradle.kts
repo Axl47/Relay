@@ -9,10 +9,6 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(projects.sourceApi)
-                api(projects.i18n)
-                // SY -->
-                api(projects.i18nSy)
-                // SY <--
 
                 implementation(libs.unifile)
             }

@@ -3,8 +3,6 @@ package eu.kanade.domain
 import android.app.Application
 import tachiyomi.data.anime.AnimeMergeRepositoryImpl
 import tachiyomi.data.anime.CustomAnimeRepositoryImpl
-import tachiyomi.data.source.FeedSavedSearchRepositoryImpl
-import tachiyomi.data.source.SavedSearchRepositoryImpl
 import tachiyomi.domain.anime.interactor.DeleteAnimeById
 import tachiyomi.domain.anime.interactor.DeleteByMergeId
 import tachiyomi.domain.anime.interactor.DeleteMergeById
@@ -24,21 +22,6 @@ import tachiyomi.domain.episode.interactor.DeleteEpisodes
 import tachiyomi.domain.episode.interactor.GetEpisodeByUrl
 import tachiyomi.domain.episode.interactor.GetMergedEpisodesByAnimeId
 import tachiyomi.domain.history.interactor.GetHistoryByAnimeId
-import tachiyomi.domain.source.interactor.CountFeedSavedSearchBySourceId
-import tachiyomi.domain.source.interactor.CountFeedSavedSearchGlobal
-import tachiyomi.domain.source.interactor.DeleteFeedSavedSearchById
-import tachiyomi.domain.source.interactor.DeleteSavedSearchById
-import tachiyomi.domain.source.interactor.GetFeedSavedSearchBySourceId
-import tachiyomi.domain.source.interactor.GetFeedSavedSearchGlobal
-import tachiyomi.domain.source.interactor.GetSavedSearchById
-import tachiyomi.domain.source.interactor.GetSavedSearchBySourceId
-import tachiyomi.domain.source.interactor.GetSavedSearchBySourceIdFeed
-import tachiyomi.domain.source.interactor.GetSavedSearchGlobalFeed
-import tachiyomi.domain.source.interactor.InsertFeedSavedSearch
-import tachiyomi.domain.source.interactor.InsertSavedSearch
-import tachiyomi.domain.source.interactor.ReorderFeed
-import tachiyomi.domain.source.repository.FeedSavedSearchRepository
-import tachiyomi.domain.source.repository.SavedSearchRepository
 import uy.kohesive.injekt.api.InjektModule
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addFactory
@@ -89,26 +72,6 @@ class SYDomainModule : InjektModule {
 //        addFactory { InsertFavoriteEntries(get()) }
 //        addFactory { DeleteFavoriteEntries(get()) }
 //        addFactory { InsertFavoriteEntryAlternative(get()) }
-
-        addSingletonFactory<SavedSearchRepository> { SavedSearchRepositoryImpl(get()) }
-        addFactory { GetSavedSearchById(get()) }
-        addFactory { GetSavedSearchBySourceId(get()) }
-        addFactory { DeleteSavedSearchById(get()) }
-        addFactory { InsertSavedSearch(get()) }
-//        addFactory { GetExhSavedSearch(get(), get(), get()) }
-
-        addSingletonFactory<FeedSavedSearchRepository> { FeedSavedSearchRepositoryImpl(get()) }
-        addFactory { InsertFeedSavedSearch(get()) }
-        addFactory { DeleteFeedSavedSearchById(get()) }
-        addFactory { GetFeedSavedSearchGlobal(get()) }
-        addFactory { GetFeedSavedSearchBySourceId(get()) }
-        addFactory { CountFeedSavedSearchGlobal(get()) }
-        addFactory { CountFeedSavedSearchBySourceId(get()) }
-        addFactory { GetSavedSearchGlobalFeed(get()) }
-        addFactory { GetSavedSearchBySourceIdFeed(get()) }
-        // KMK -->
-        addFactory { ReorderFeed(get()) }
-        // KMK <--
 
         addSingletonFactory<CustomAnimeRepository> { CustomAnimeRepositoryImpl(get<Application>()) }
         addFactory { GetCustomAnimeInfo(get()) }

@@ -36,20 +36,15 @@ import eu.kanade.presentation.library.DeleteLibraryAnimeDialog
 import eu.kanade.presentation.library.LibrarySettingsDialog
 import eu.kanade.presentation.library.components.LibraryContent
 import eu.kanade.presentation.library.components.LibraryToolbar
-import eu.kanade.presentation.more.onboarding.GETTING_STARTED_URL
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.connections.discord.DiscordRPCService
-import eu.kanade.tachiyomi.data.connections.discord.DiscordScreen
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import eu.kanade.tachiyomi.data.sync.SyncDataJob
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
@@ -63,7 +58,6 @@ import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.library.model.LibraryAnime
 import tachiyomi.domain.library.model.LibraryGroup
 import tachiyomi.i18n.MR
-import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
@@ -182,13 +176,7 @@ data object LibraryTab : Tab {
                             }
                         }
                     },
-                    onClickSyncNow = {
-                        if (!SyncDataJob.isRunning(context)) {
-                            SyncDataJob.startNow(context)
-                        } else {
-                            context.toast(SYMR.strings.sync_in_progress)
-                        }
-                    },
+                    onClickSyncNow = {},
                     searchQuery = state.searchQuery,
                     onSearchQueryChange = screenModel::search,
                     scrollBehavior = scrollBehavior.takeIf { !tabVisible }, // For scroll overlay when no tab
@@ -219,7 +207,7 @@ data object LibraryTab : Tab {
                             EmptyScreenAction(
                                 stringRes = MR.strings.getting_started_guide,
                                 icon = Icons.AutoMirrored.Outlined.HelpOutline,
-                                onClick = { handler.openUri(GETTING_STARTED_URL) },
+                                onClick = { handler.openUri("https://aniyomi.org/docs/guides/getting-started") },
                             ),
                         ),
                     )
@@ -319,9 +307,6 @@ data object LibraryTab : Tab {
         LaunchedEffect(state.isLoading) {
             if (!state.isLoading) {
                 (context as? MainActivity)?.ready = true
-                // AM (DISCORD) -->
-                DiscordRPCService.setAnimeScreen(context, DiscordScreen.LIBRARY)
-                // <-- AM (DISCORD)
             }
         }
 

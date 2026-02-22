@@ -19,11 +19,6 @@ kotlin {
 }
 
 dependencies {
-    implementation(projects.i18n)
-    // SY -->
-    implementation(projects.i18nSy)
-    // SY <--
-
     api(libs.logcat)
 
     api(libs.rxjava)

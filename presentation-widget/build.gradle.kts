@@ -17,7 +17,6 @@ dependencies {
     implementation(projects.core.common)
     implementation(projects.domain)
     implementation(projects.presentationCore)
-    api(projects.i18n)
 
     implementation(compose.glance)
     implementation(libs.material)
