@@ -120,6 +120,7 @@ import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.history.interactor.GetNextEpisodes
 import tachiyomi.domain.history.interactor.UpsertHistory
 import tachiyomi.domain.history.model.HistoryUpdate
+import tachiyomi.domain.source.fallback.SourceFallbackManager
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.i18n.MR
@@ -162,6 +163,7 @@ class PlayerViewModel @JvmOverloads constructor(
     private val basePreferences: BasePreferences = Injekt.get(),
     private val getCustomButtons: GetCustomButtons = Injekt.get(),
     private val trackSelect: TrackSelect = Injekt.get(),
+    private val sourceFallbackManager: SourceFallbackManager = Injekt.get(),
     uiPreferences: UiPreferences = Injekt.get(),
 ) : ViewModel() {
 
@@ -217,6 +219,7 @@ class PlayerViewModel @JvmOverloads constructor(
     val isLoadingHosters = _isLoadingHosters.asStateFlow()
     private val _hosterState = MutableStateFlow<List<HosterState>>(emptyList())
     val hosterState = _hosterState.asStateFlow()
+    val sourceFallbackState = sourceFallbackManager.state
     private val _hosterExpandedList = MutableStateFlow<List<Boolean>>(emptyList())
     val hosterExpandedList = _hosterExpandedList.asStateFlow()
     private val _selectedHosterVideoIndex = MutableStateFlow(Pair(-1, -1))
@@ -1240,6 +1243,13 @@ class PlayerViewModel @JvmOverloads constructor(
                 } else {
                     EpisodeLoader.getHosters(currentEp.toDomainEpisode()!!, anime, source)
                         .takeIf { it.isNotEmpty() }
+                        ?.let {
+                            sourceFallbackManager.orderCandidates(
+                                animeId = anime.id,
+                                candidates = it,
+                                sourceIdSelector = ::hosterSourceId,
+                            )
+                        }
                         ?.also { currentHosterList = it }
                         ?: run {
                             currentHosterList = null
@@ -1300,6 +1310,7 @@ class PlayerViewModel @JvmOverloads constructor(
      */
     fun loadHosters(source: AnimeSource, hosterList: List<Hoster>, hosterIndex: Int, videoIndex: Int) {
         val hasFoundPreferredVideo = AtomicBoolean(false)
+        sourceFallbackManager.setLoading()
 
         _hosterList.update { _ -> hosterList }
         _hosterExpandedList.update { _ ->
@@ -1386,6 +1397,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private suspend fun loadVideo(source: AnimeSource?, video: Video, hosterIndex: Int, videoIndex: Int): Boolean {
         val selectedHosterState = (_hosterState.value[hosterIndex] as? HosterState.Ready) ?: return false
+        val sourceId = hosterSourceId(hosterList.value[hosterIndex])
         updateIsLoadingEpisode(true)
 
         val oldSelectedIndex = _selectedHosterVideoIndex.value
@@ -1400,6 +1412,7 @@ class PlayerViewModel @JvmOverloads constructor(
         updatePausedState()
         pause()
 
+        val resolveStartMs = System.currentTimeMillis()
         val resolvedVideo = if (selectedHosterState.videoState[videoIndex] != Video.State.READY) {
             HosterLoader.getResolvedVideo(source, video)
         } else {
@@ -1407,6 +1420,7 @@ class PlayerViewModel @JvmOverloads constructor(
         }
 
         if (resolvedVideo == null || resolvedVideo.videoUrl.isEmpty()) {
+            sourceFallbackManager.recordFailure(sourceId)
             if (currentVideo.value == null) {
                 _hosterState.updateAt(
                     hosterIndex,
@@ -1415,6 +1429,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
                 val (newHosterIdx, newVideoIdx) = HosterLoader.selectBestVideo(hosterState.value)
                 if (newHosterIdx == -1) {
+                    sourceFallbackManager.setAllFailed()
                     if (_hosterState.value.any { it is HosterState.Loading }) {
                         _selectedHosterVideoIndex.update { _ -> Pair(-1, -1) }
                         return false
@@ -1424,6 +1439,13 @@ class PlayerViewModel @JvmOverloads constructor(
                 }
 
                 val newVideo = (hosterState.value[newHosterIdx] as HosterState.Ready).videoList[newVideoIdx]
+                val nextSourceId = hosterList.value.getOrNull(newHosterIdx)?.let(::hosterSourceId)
+                if (nextSourceId != null) {
+                    sourceFallbackManager.setFallingBack(nextSourceId)
+                    withUIContext {
+                        activity.toast("Source failed, trying ${hosterList.value[newHosterIdx].hosterName}...")
+                    }
+                }
 
                 return loadVideo(source, newVideo, newHosterIdx, newVideoIdx)
             } else {
@@ -1440,6 +1462,7 @@ class PlayerViewModel @JvmOverloads constructor(
             hosterIndex,
             selectedHosterState.getChangedAt(videoIndex, resolvedVideo, Video.State.READY),
         )
+        sourceFallbackManager.recordSuccess(sourceId, System.currentTimeMillis() - resolveStartMs)
 
         _currentVideo.update { _ -> resolvedVideo }
 
@@ -1447,6 +1470,14 @@ class PlayerViewModel @JvmOverloads constructor(
 
         activity.setVideo(resolvedVideo)
         return true
+    }
+
+    private fun hosterSourceId(hoster: Hoster): String {
+        return when {
+            hoster.hosterUrl.isNotBlank() -> hoster.hosterUrl
+            hoster.hosterName.isNotBlank() -> hoster.hosterName
+            else -> "unknown"
+        }
     }
 
     fun onVideoClicked(hosterIndex: Int, videoIndex: Int) {

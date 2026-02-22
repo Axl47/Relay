@@ -8,6 +8,9 @@
 - [ ] Pass 7: Binge mode + gesture customization
 
 ## In Progress
+- [ ] Pass 2.1: Source health + anime source priority schema/repository
+- [ ] Pass 2.2: Player fallback integration + status indicator
+- [ ] Pass 2.3: Source priority editor UI on anime detail
 
 ## Done
 - [x] Initialize implementation orchestration from spec + plan
@@ -27,6 +30,8 @@
 - [x] Pass 1.6: Fully remove feed/saved-search leftover domain+data surfaces
 - [x] Pass 1.7: Fully remove deprecated trackers (Kitsu/Shikimori/Bangumi/Simkl)
 - [x] Pass 1.8: Remove remaining TV/community artifacts
+- [x] Compile verification after Pass 1 cuts (`:app:compileDebugKotlin`)
+- [x] Pass 2 core foundation: added `source_health` + `anime_source_priority` tables/migration and wired fallback health recording/order logic into `PlayerViewModel`
 
 ## Verification Log
 - Pass 0.1: Updated file `docs/MODULE_MAP.md` only. No tests run (documentation-only change); confidence signal was direct path/dependency extraction from current Gradle/module files.

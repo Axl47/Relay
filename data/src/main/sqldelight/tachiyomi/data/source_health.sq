@@ -1,0 +1,44 @@
+CREATE TABLE source_health(
+    source_id TEXT NOT NULL PRIMARY KEY,
+    last_check INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'unknown',
+    avg_response_ms INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_failure INTEGER NOT NULL DEFAULT 0
+);
+
+get:
+SELECT *
+FROM source_health
+WHERE source_id = :sourceId;
+
+upsertSuccess:
+INSERT INTO source_health(source_id, last_check, status, avg_response_ms, failure_count, last_failure)
+VALUES (:sourceId, :now, 'healthy', :responseTimeMs, 0, 0)
+ON CONFLICT(source_id)
+DO UPDATE
+SET
+    last_check = :now,
+    status = 'healthy',
+    avg_response_ms = CASE
+        WHEN source_health.avg_response_ms <= 0 THEN :responseTimeMs
+        ELSE ((source_health.avg_response_ms * 4) + :responseTimeMs) / 5
+    END,
+    failure_count = CASE
+        WHEN source_health.failure_count > 0 THEN source_health.failure_count - 1
+        ELSE 0
+    END;
+
+upsertFailure:
+INSERT INTO source_health(source_id, last_check, status, avg_response_ms, failure_count, last_failure)
+VALUES (:sourceId, :now, 'degraded', 0, 1, :now)
+ON CONFLICT(source_id)
+DO UPDATE
+SET
+    last_check = :now,
+    status = CASE
+        WHEN source_health.failure_count + 1 >= 3 THEN 'dead'
+        ELSE 'degraded'
+    END,
+    failure_count = source_health.failure_count + 1,
+    last_failure = :now;

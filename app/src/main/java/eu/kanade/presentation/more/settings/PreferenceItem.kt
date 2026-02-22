@@ -215,7 +215,8 @@ internal fun PreferenceItem(
                     checked = isLoggedIn,
                     onClick = { if (isLoggedIn) item.logout() else item.login() },
                 )
-            }            is Preference.PreferenceItem.InfoPreference -> {
+            }
+            is Preference.PreferenceItem.InfoPreference -> {
                 InfoWidget(text = item.title)
             }
             is Preference.PreferenceItem.CustomPreference -> {

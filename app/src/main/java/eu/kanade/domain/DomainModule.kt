@@ -38,6 +38,7 @@ import tachiyomi.data.custombutton.CustomButtonRepositoryImpl
 import tachiyomi.data.episode.EpisodeRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
+import tachiyomi.data.source.SourceHealthRepositoryImpl
 import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
 import tachiyomi.data.track.TrackRepositoryImpl
@@ -89,6 +90,8 @@ import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
 import tachiyomi.domain.source.interactor.GetRemoteAnime
 import tachiyomi.domain.source.interactor.GetSourcesWithNonLibraryAnime
+import tachiyomi.domain.source.fallback.SourceFallbackManager
+import tachiyomi.domain.source.repository.SourceHealthRepository
 import tachiyomi.domain.source.repository.SourceRepository
 import tachiyomi.domain.source.repository.StubSourceRepository
 import tachiyomi.domain.track.interactor.DeleteTrack
@@ -182,6 +185,8 @@ class DomainModule : InjektModule {
         addFactory { GetUpdates(get()) }
 
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get()) }
+        addSingletonFactory<SourceHealthRepository> { SourceHealthRepositoryImpl(get()) }
+        addSingletonFactory { SourceFallbackManager(get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledSources(get(), get()) }
         addFactory { GetLanguagesWithSources(get(), get()) }

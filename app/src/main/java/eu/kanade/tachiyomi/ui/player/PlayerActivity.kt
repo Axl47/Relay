@@ -636,8 +636,6 @@ class PlayerActivity : BaseActivity() {
             registerSessionListener()
         }
 
-        updateDiscordRPC(exitingPlayer = false)
-
         if (!player.isExiting) {
             super.onResume()
             return

@@ -1,0 +1,24 @@
+CREATE TABLE anime_source_priority(
+    anime_id INTEGER NOT NULL,
+    source_id TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (anime_id, source_id)
+);
+
+getByAnimeId:
+SELECT *
+FROM anime_source_priority
+WHERE anime_id = :animeId
+ORDER BY priority ASC;
+
+upsert:
+INSERT INTO anime_source_priority(anime_id, source_id, priority)
+VALUES (:animeId, :sourceId, :priority)
+ON CONFLICT(anime_id, source_id)
+DO UPDATE
+SET
+    priority = :priority;
+
+clearByAnimeId:
+DELETE FROM anime_source_priority
+WHERE anime_id = :animeId;

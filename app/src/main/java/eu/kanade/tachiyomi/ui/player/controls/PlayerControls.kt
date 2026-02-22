@@ -65,6 +65,7 @@ import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.VideoAspect
+import tachiyomi.domain.source.fallback.SourceFallbackManager
 import eu.kanade.tachiyomi.ui.player.cast.components.CastSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessOverlay
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
@@ -118,6 +119,7 @@ fun PlayerControls(
     val doubleTapSeekAmount by viewModel.doubleTapSeekAmount.collectAsState()
     val seekText by viewModel.seekText.collectAsState()
     val currentChapter by viewModel.currentChapter.collectAsState()
+    val sourceFallbackState by viewModel.sourceFallbackState.collectAsState()
     val chapters by viewModel.chapters.collectAsState()
     val currentBrightness by viewModel.currentBrightness.collectAsState()
 
@@ -177,7 +179,7 @@ fun PlayerControls(
                     volumeSlider, brightnessSlider,
                     unlockControlsButton,
                     bottomRightControls, bottomLeftControls,
-                    centerControls, seekbar, playerUpdates,
+                    centerControls, seekbar, playerUpdates, fallbackStatus,
                 ) = createRefs()
 
                 val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
@@ -313,6 +315,25 @@ fun PlayerControls(
                         )
                         else -> {}
                     }
+                }
+
+                val fallbackText = when (val state = sourceFallbackState) {
+                    SourceFallbackManager.State.Loading -> "Source: loading..."
+                    is SourceFallbackManager.State.Playing -> "Source: ${state.sourceId.take(24)}"
+                    is SourceFallbackManager.State.FallingBack -> "Falling back: ${state.nextSourceId.take(24)}"
+                    SourceFallbackManager.State.AllFailed -> "All sources failed"
+                }
+                AnimatedVisibility(
+                    visible = controlsShown || sourceFallbackState is SourceFallbackManager.State.FallingBack ||
+                        sourceFallbackState is SourceFallbackManager.State.AllFailed,
+                    enter = fadeIn(playerControlsEnterAnimationSpec()),
+                    exit = fadeOut(playerControlsExitAnimationSpec()),
+                    modifier = Modifier.constrainAs(fallbackStatus) {
+                        linkTo(parent.start, parent.end)
+                        linkTo(parent.top, parent.bottom, bias = 0.12f)
+                    },
+                ) {
+                    TextPlayerUpdate(fallbackText)
                 }
 
                 AnimatedVisibility(
