@@ -45,12 +45,14 @@ fun BottomLeftPlayerControls(
     playbackSpeed: Float,
     audioNormalizeEnabled: Boolean,
     audioNormalizeLevel: Float,
+    nightModeEnabled: Boolean,
     currentChapter: Segment?,
     onLockControls: () -> Unit,
     onCycleRotation: () -> Unit,
     onPlaybackSpeedChange: (Float) -> Unit,
     onToggleAudioNormalization: () -> Unit,
     onAdjustAudioNormalization: () -> Unit,
+    onToggleNightMode: () -> Unit,
     onOpenSheet: (Sheets) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -73,7 +75,6 @@ fun BottomLeftPlayerControls(
             onClick = {
                 val newSpeed = if (playbackSpeed >= 2) 0.25f else playbackSpeed + 0.25f
                 onPlaybackSpeedChange(newSpeed)
-                playerPreferences.playerSpeed().set(newSpeed)
             },
             onLongClick = { onOpenSheet(Sheets.PlaybackSpeed) },
         )
@@ -85,6 +86,10 @@ fun BottomLeftPlayerControls(
             },
             onClick = onToggleAudioNormalization,
             onLongClick = onAdjustAudioNormalization,
+        )
+        ControlsButton(
+            text = if (nightModeEnabled) "Moon On" else "Moon Off",
+            onClick = onToggleNightMode,
         )
         AnimatedVisibility(
             currentChapter != null && playerPreferences.showCurrentChapter().get(),

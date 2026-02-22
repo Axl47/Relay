@@ -211,6 +211,8 @@ class PlayerViewModel @JvmOverloads constructor(
     val audioNormalizeEnabled = _audioNormalizeEnabled.asStateFlow()
     private val _audioNormalizeLevel = MutableStateFlow(0.5f)
     val audioNormalizeLevel = _audioNormalizeLevel.asStateFlow()
+    private val _nightModeEnabled = MutableStateFlow(false)
+    val nightModeEnabled = _nightModeEnabled.asStateFlow()
 
     private val _subtitleTracks = MutableStateFlow<List<VideoTrack>>(emptyList())
     val subtitleTracks = _subtitleTracks.asStateFlow()
@@ -248,6 +250,9 @@ class PlayerViewModel @JvmOverloads constructor(
     private var aniSkipSegments: List<TimeStamp> = emptyList()
     private var playbackProfile: PlaybackProfile? = null
     private var playbackProfileSkipPreference: AniSkipPreference? = null
+    private var nightModePreviousBrightness: Float? = null
+    private var nightModePreviousAudioNormalizeEnabled: Boolean? = null
+    private var nightModePreviousAudioNormalizeLevel: Float? = null
 
     private val _pos = MutableStateFlow(0f)
     val pos = _pos.asStateFlow()
@@ -446,15 +451,34 @@ class PlayerViewModel @JvmOverloads constructor(
      * or select the first one in the list if trackSelect fails.
      */
     fun onFinishLoadingTracks() {
-        val preferredSubtitle = trackSelect.getPreferredTrackIndex(subtitleTracks.value)
-        (preferredSubtitle ?: subtitleTracks.value.firstOrNull())?.let {
-            activity.player.sid = it.id
+        val savedSubtitleId = playbackProfile?.subtitleTrack?.toIntOrNull()
+        val selectedSubtitle = when (savedSubtitleId) {
+            -1 -> null
+            else -> savedSubtitleId?.let { targetId ->
+                subtitleTracks.value.firstOrNull { it.id == targetId }
+            } ?: trackSelect.getPreferredTrackIndex(subtitleTracks.value)
+                ?: subtitleTracks.value.firstOrNull()
+        }
+        if (savedSubtitleId == -1) {
+            activity.player.sid = -1
             activity.player.secondarySid = -1
+            _selectedSubtitles.update { Pair(-1, -1) }
+        } else {
+            selectedSubtitle?.let { track ->
+                activity.player.sid = track.id
+                activity.player.secondarySid = -1
+                _selectedSubtitles.update { Pair(track.id, -1) }
+            }
         }
 
-        val preferredAudio = trackSelect.getPreferredTrackIndex(audioTracks.value, subtitle = false)
-        (preferredAudio ?: audioTracks.value.getOrNull(1))?.let {
-            activity.player.aid = it.id
+        val savedAudioId = playbackProfile?.audioTrack?.toIntOrNull()
+        val selectedAudioTrack = savedAudioId?.let { targetId ->
+            audioTracks.value.firstOrNull { it.id == targetId }
+        } ?: trackSelect.getPreferredTrackIndex(audioTracks.value, subtitle = false)
+            ?: audioTracks.value.getOrNull(1)
+        selectedAudioTrack?.let { track ->
+            activity.player.aid = track.id
+            _selectedAudio.update { track.id }
         }
 
         isLoadingTracks.update { _ -> true }
@@ -696,10 +720,15 @@ class PlayerViewModel @JvmOverloads constructor(
 
     fun changeBrightnessTo(
         brightness: Float,
+        persistProfile: Boolean = true,
     ) {
-        currentBrightness.update { _ -> brightness.coerceIn(-0.75f, 1f) }
+        val clampedBrightness = brightness.coerceIn(-0.75f, 1f)
+        currentBrightness.update { _ -> clampedBrightness }
         activity.window.attributes = activity.window.attributes.apply {
-            screenBrightness = brightness.coerceIn(0f, 1f)
+            screenBrightness = clampedBrightness.coerceIn(0f, 1f)
+        }
+        if (persistProfile) {
+            savePlaybackProfile(brightnessOffset = clampedBrightness)
         }
     }
 
@@ -1250,14 +1279,27 @@ class PlayerViewModel @JvmOverloads constructor(
                 val currentEp = currentEpisode.value
                     ?: throw ExceptionWithStringResource("No episode loaded", MR.strings.no_episode_loaded)
                 if (hostList.isNotBlank()) {
-                    currentHosterList = hostList.toHosterList().ifEmpty {
+                    val parsedHosterList = hostList.toHosterList().ifEmpty {
                         currentHosterList = null
                         throw ExceptionWithStringResource(
                             "Hoster selected from empty list",
                             MR.strings.select_hoster_from_empty_list,
                         )
                     }
-                    qualityIndex = Pair(hostIndex, vidIndex)
+                    val orderedHosterList = sourceFallbackManager.orderCandidates(
+                        animeId = anime.id,
+                        candidates = parsedHosterList,
+                        sourceIdSelector = ::hosterSourceId,
+                    )
+                    currentHosterList = orderedHosterList
+                    val reorderedHostIndex = parsedHosterList
+                        .getOrNull(hostIndex)
+                        ?.let(::hosterSourceId)
+                        ?.let { selectedSourceId ->
+                            orderedHosterList.indexOfFirst { hosterSourceId(it) == selectedSourceId }
+                        }
+                        ?.takeIf { it >= 0 }
+                    qualityIndex = Pair(reorderedHostIndex ?: hostIndex, vidIndex)
                 } else {
                     EpisodeLoader.getHosters(currentEp.toDomainEpisode()!!, anime, source)
                         .takeIf { it.isNotEmpty() }
@@ -2143,7 +2185,6 @@ class PlayerViewModel @JvmOverloads constructor(
         val normalizedSpeed = speed.coerceIn(0.25f, 2.0f)
         MPVLib.setPropertyDouble("speed", normalizedSpeed.toDouble())
         playbackSpeed.update { normalizedSpeed }
-        playerPreferences.playerSpeed().set(normalizedSpeed)
         savePlaybackProfile(playbackSpeed = normalizedSpeed)
     }
 
@@ -2183,6 +2224,10 @@ class PlayerViewModel @JvmOverloads constructor(
         val profile = playbackProfileRepository.getByAnimeId(anime.id)
         playbackProfile = profile
         playbackProfileSkipPreference = profile?.skipPreference
+        _nightModeEnabled.update { false }
+        nightModePreviousBrightness = null
+        nightModePreviousAudioNormalizeEnabled = null
+        nightModePreviousAudioNormalizeLevel = null
         if (profile == null) return
 
         profile.preferredSource
@@ -2192,7 +2237,6 @@ class PlayerViewModel @JvmOverloads constructor(
             }
 
         playbackSpeed.update { profile.playbackSpeed }
-        playerPreferences.playerSpeed().set(profile.playbackSpeed)
         MPVLib.setPropertyDouble("speed", profile.playbackSpeed.toDouble())
 
         _audioNormalizeLevel.update { profile.normalizeLevel.coerceIn(0f, 1f) }
@@ -2201,6 +2245,43 @@ class PlayerViewModel @JvmOverloads constructor(
             enabled = profile.audioNormalize,
             level = _audioNormalizeLevel.value,
         )
+        changeBrightnessTo(profile.brightnessOffset, persistProfile = false)
+    }
+
+    fun toggleNightMode() {
+        if (nightModeEnabled.value) {
+            disableNightMode()
+        } else {
+            enableNightMode()
+        }
+    }
+
+    private fun enableNightMode() {
+        if (nightModeEnabled.value) return
+        nightModePreviousBrightness = currentBrightness.value
+        nightModePreviousAudioNormalizeEnabled = audioNormalizeEnabled.value
+        nightModePreviousAudioNormalizeLevel = audioNormalizeLevel.value
+
+        setAudioNormalizationLevel(1f)
+        setAudioNormalizationEnabled(true)
+        val dimmedBrightness = (currentBrightness.value - 0.35f).coerceIn(-0.75f, 1f)
+        changeBrightnessTo(dimmedBrightness)
+        _nightModeEnabled.update { true }
+    }
+
+    private fun disableNightMode() {
+        if (!nightModeEnabled.value) return
+        val restoreAudioLevel = nightModePreviousAudioNormalizeLevel ?: audioNormalizeLevel.value
+        val restoreAudioEnabled = nightModePreviousAudioNormalizeEnabled ?: false
+        val restoreBrightness = nightModePreviousBrightness ?: currentBrightness.value
+
+        setAudioNormalizationLevel(restoreAudioLevel)
+        setAudioNormalizationEnabled(restoreAudioEnabled)
+        changeBrightnessTo(restoreBrightness)
+        _nightModeEnabled.update { false }
+        nightModePreviousBrightness = null
+        nightModePreviousAudioNormalizeEnabled = null
+        nightModePreviousAudioNormalizeLevel = null
     }
 
     private fun savePlaybackProfile(

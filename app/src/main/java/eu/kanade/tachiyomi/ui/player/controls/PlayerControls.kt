@@ -535,6 +535,7 @@ fun PlayerControls(
                 val playbackSpeed by viewModel.playbackSpeed.collectAsState()
                 val audioNormalizeEnabled by viewModel.audioNormalizeEnabled.collectAsState()
                 val audioNormalizeLevel by viewModel.audioNormalizeLevel.collectAsState()
+                val nightModeEnabled by viewModel.nightModeEnabled.collectAsState()
                 AnimatedVisibility(
                     controlsShown && !areControlsLocked,
                     enter = if (!reduceMotion) {
@@ -560,12 +561,14 @@ fun PlayerControls(
                         playbackSpeed = playbackSpeed,
                         audioNormalizeEnabled = audioNormalizeEnabled,
                         audioNormalizeLevel = audioNormalizeLevel,
+                        nightModeEnabled = nightModeEnabled,
                         currentChapter = currentChapter?.toSegment(),
                         onLockControls = viewModel::lockControls,
                         onCycleRotation = viewModel::cycleScreenRotations,
                         onPlaybackSpeedChange = viewModel::setPlaybackSpeed,
                         onToggleAudioNormalization = viewModel::toggleAudioNormalization,
                         onAdjustAudioNormalization = viewModel::cycleAudioNormalizationLevel,
+                        onToggleNightMode = viewModel::toggleNightMode,
                         onOpenSheet = viewModel::showSheet,
                     )
                 }
