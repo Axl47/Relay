@@ -21,8 +21,8 @@ android {
     defaultConfig {
         applicationId = "dev.relay.app"
 
-        versionCode = 5
-        versionName = "0.1.5"
+        versionCode = 1
+        versionName = "0.1.0"
 
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")

@@ -374,10 +374,15 @@ class AnimeScreen(
             is AnimeScreenModel.Dialog.ChangeAniSkipPreference -> {
                 AlertDialog(
                     onDismissRequest = onDismissRequest,
-                    title = { androidx.compose.material3.Text("AniSkip preference") },
+                    title = { androidx.compose.material3.Text("AniSkip mode") },
                     text = {
                         androidx.compose.foundation.layout.Column {
                             AniSkipPreference.entries.forEach { preference ->
+                                val label = when (preference) {
+                                    AniSkipPreference.AUTO -> "Auto skip"
+                                    AniSkipPreference.BUTTON -> "Show button"
+                                    AniSkipPreference.OFF -> stringResource(MR.strings.off)
+                                }
                                 androidx.compose.foundation.layout.Row(
                                     modifier = Modifier.selectable(
                                         selected = preference == dialog.currentPreference,
@@ -395,8 +400,7 @@ class AnimeScreen(
                                         },
                                     )
                                     androidx.compose.material3.Text(
-                                        text = preference.name.lowercase()
-                                            .replaceFirstChar { it.uppercase() },
+                                        text = label,
                                     )
                                 }
                             }
@@ -405,7 +409,7 @@ class AnimeScreen(
                     confirmButton = {},
                     dismissButton = {
                         TextButton(onClick = onDismissRequest) {
-                            androidx.compose.material3.Text("Cancel")
+                            androidx.compose.material3.Text(stringResource(MR.strings.action_cancel))
                         }
                     },
                 )

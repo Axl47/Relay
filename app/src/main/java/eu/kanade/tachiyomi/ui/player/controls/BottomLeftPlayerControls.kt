@@ -24,9 +24,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.ModeNight
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.vivvvek.seeker.Segment
@@ -57,6 +60,7 @@ fun BottomLeftPlayerControls(
     modifier: Modifier = Modifier,
 ) {
     val playerPreferences = remember { Injekt.get<PlayerPreferences>() }
+    val activeColor = MaterialTheme.colorScheme.primary
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -86,10 +90,13 @@ fun BottomLeftPlayerControls(
             },
             onClick = onToggleAudioNormalization,
             onLongClick = onAdjustAudioNormalization,
+            color = if (audioNormalizeEnabled) activeColor else Color.White,
         )
         ControlsButton(
-            text = if (nightModeEnabled) "Moon On" else "Moon Off",
+            icon = Icons.Default.ModeNight,
             onClick = onToggleNightMode,
+            color = if (nightModeEnabled) activeColor else Color.White,
+            title = if (nightModeEnabled) "Night mode enabled" else "Night mode disabled",
         )
         AnimatedVisibility(
             currentChapter != null && playerPreferences.showCurrentChapter().get(),

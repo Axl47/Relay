@@ -146,7 +146,7 @@ fun AnimeToolbar(
                                 if (onClickAniSkipPreference != null) {
                                     add(
                                         AppBar.OverflowAction(
-                                            title = "AniSkip preference",
+                                            title = "AniSkip mode",
                                             onClick = onClickAniSkipPreference,
                                         ),
                                     )
