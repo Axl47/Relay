@@ -1,0 +1,13 @@
+CREATE TABLE session_bookmark (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    anime_id INTEGER NOT NULL,
+    episode_id INTEGER,
+    capture_type TEXT NOT NULL,
+    media_uri TEXT,
+    position_ms INTEGER NOT NULL DEFAULT 0,
+    note TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX session_bookmark_created_at_index ON session_bookmark(created_at DESC);
+CREATE INDEX session_bookmark_anime_id_index ON session_bookmark(anime_id);

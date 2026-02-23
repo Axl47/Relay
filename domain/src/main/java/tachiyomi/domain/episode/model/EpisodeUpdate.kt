@@ -8,6 +8,7 @@ data class EpisodeUpdate(
     // AM (FILLERMARK) -->
     val fillermark: Boolean? = null,
     // AM (FILLERMARK) <--
+    val episodeType: EpisodeType? = null,
     val lastSecondSeen: Long? = null,
     val totalSeconds: Long? = null,
     val dateFetch: Long? = null,
@@ -29,6 +30,7 @@ fun Episode.toEpisodeUpdate(): EpisodeUpdate {
         // AM (FILLERMARK) -->
         fillermark,
         // AM (FILLERMARK) <--
+        episodeType,
         lastSecondSeen,
         totalSeconds,
         dateFetch,

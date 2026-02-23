@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.model.Download
 import me.saket.swipe.SwipeableActionsBox
+import tachiyomi.domain.episode.model.EpisodeType
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
@@ -63,6 +64,7 @@ fun AnimeEpisodeListItem(
     // AM (FILLERMARK) -->
     fillermark: Boolean,
     // <-- AM (FILLERMARK)
+    episodeType: EpisodeType,
     selected: Boolean,
     downloadIndicatorEnabled: Boolean,
     downloadStateProvider: () -> Download.State,
@@ -157,6 +159,20 @@ fun AnimeEpisodeListItem(
                         Spacer(modifier = Modifier.width(2.dp))
                     }
                     // <-- AM (FILLERMARK)
+                    val badge = when (episodeType) {
+                        EpisodeType.FILLER -> "FILLER"
+                        EpisodeType.MIXED -> "MIXED"
+                        EpisodeType.RECAP -> "RECAP"
+                        else -> null
+                    }
+                    if (badge != null) {
+                        Text(
+                            text = badge,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text(
                         text = title,
                         style = MaterialTheme.typography.bodyMedium,

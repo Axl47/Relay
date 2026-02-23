@@ -279,6 +279,9 @@ class AnimeScreen(
                 // AM (FILLERMARK) -->
                 onFillermarkedFilterChanged = screenModel::setFillermarkedFilter,
                 // <-- AM (FILLERMARK)
+                onHideFillerChanged = screenModel::setHideFiller,
+                onSkipFillerChanged = screenModel::setSkipFiller,
+                onNextEpisodeCardCountdownChanged = screenModel::setNextEpisodeCardCountdown,
                 onSortModeChanged = screenModel::setSorting,
                 onDisplayModeChanged = screenModel::setDisplayMode,
                 onSetAsDefault = screenModel::setCurrentSettingsAsDefault,

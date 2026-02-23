@@ -73,6 +73,7 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.source.NoResultsException
 import tachiyomi.domain.aniskip.model.AniSkipPreference
+import tachiyomi.domain.aniskip.repository.AniSkipRepository
 import tachiyomi.domain.anime.interactor.GetAnimeWithEpisodes
 import tachiyomi.domain.anime.interactor.GetDuplicateLibraryAnime
 import tachiyomi.domain.anime.interactor.SetAnimeEpisodeFlags
@@ -89,9 +90,11 @@ import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.episode.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.episode.model.EpisodeType
 import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.service.calculateChapterGap
 import tachiyomi.domain.episode.service.getEpisodeSort
+import tachiyomi.domain.filler.repository.FillerRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.source.repository.SourceHealthRepository
@@ -139,6 +142,8 @@ class AnimeScreenModel(
     private val filterEpisodesForDownload: FilterEpisodesForDownload = Injekt.get(),
     private val sourceHealthRepository: SourceHealthRepository = Injekt.get(),
     internal val setAnimeViewerFlags: SetAnimeViewerFlags = Injekt.get(),
+    private val aniSkipRepository: AniSkipRepository = Injekt.get(),
+    private val fillerRepository: FillerRepository = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
     // AM (FILE_SIZE) -->
     private val storagePreferences: StoragePreferences = Injekt.get(),
@@ -261,6 +266,7 @@ class AnimeScreenModel(
 
             // Initial loading finished
             updateSuccessState { it.copy(isRefreshingData = false) }
+            syncFillerTypesForCurrentAnime()
         }
     }
 
@@ -272,9 +278,48 @@ class AnimeScreenModel(
                 async { fetchEpisodesFromSource(manualFetch) },
             )
             fetchFromSourceTasks.awaitAll()
+            syncFillerTypesForCurrentAnime()
             updateSuccessState { it.copy(isRefreshingData = false) }
             successState?.let { updateAiringTime(it.anime, it.trackItems, manualFetch) }
         }
+    }
+
+    private suspend fun syncFillerTypesForCurrentAnime() {
+        val state = successState ?: return
+        val tracks = getTracks.await(state.anime.id)
+        val malId = tracks.firstNotNullOfOrNull { track ->
+            when (track.trackerId) {
+                1L -> track.remoteId.takeIf { it > 0 }
+                TrackerManager.ANILIST -> aniSkipRepository.getMalIdFromAniList(track.remoteId)
+                else -> null
+            }
+        } ?: return
+
+        val remoteTypes = fillerRepository.getEpisodeTypes(malId)
+        if (remoteTypes.isEmpty()) return
+
+        val updates = state.episodes.mapNotNull { item ->
+            val episode = item.episode
+            val mappedType = mapEpisodeType(remoteTypes, episode.episodeNumber) ?: return@mapNotNull null
+            if (mappedType == EpisodeType.UNKNOWN || mappedType == episode.episodeType) {
+                null
+            } else {
+                EpisodeUpdate(id = episode.id, episodeType = mappedType)
+            }
+        }
+        if (updates.isNotEmpty()) {
+            updateEpisode.awaitAll(updates)
+        }
+    }
+
+    private fun mapEpisodeType(
+        remote: Map<Double, EpisodeType>,
+        episodeNumber: Double,
+    ): EpisodeType? {
+        val direct = remote[episodeNumber]
+        if (direct != null) return direct
+        val floor = floor(episodeNumber)
+        return remote[floor] ?: remote[kotlin.math.ceil(episodeNumber)]
     }
 
     // Anime info - start
@@ -1029,6 +1074,27 @@ class AnimeScreenModel(
     }
     // <-- AM (FILLERMARK)
 
+    fun setHideFiller(enabled: Boolean) {
+        val anime = successState?.anime ?: return
+        screenModelScope.launchNonCancellable {
+            setAnimeViewerFlags.awaitSetHideFiller(anime.id, enabled)
+        }
+    }
+
+    fun setSkipFiller(enabled: Boolean) {
+        val anime = successState?.anime ?: return
+        screenModelScope.launchNonCancellable {
+            setAnimeViewerFlags.awaitSetSkipFiller(anime.id, enabled)
+        }
+    }
+
+    fun setNextEpisodeCardCountdown(seconds: Int) {
+        val anime = successState?.anime ?: return
+        screenModelScope.launchNonCancellable {
+            setAnimeViewerFlags.awaitSetNextEpisodeCardCountdown(anime.id, seconds)
+        }
+    }
+
     /**
      * Sets the active display mode.
      * @param mode the mode to set.
@@ -1512,6 +1578,9 @@ class AnimeScreenModel(
                     // AM (FILLERMARK) -->
                     .filter { (episode) -> applyFilter(fillermarkedFilter) { episode.fillermark } }
                     // <-- AM (FILLERMARK)
+                    .filter { (episode) ->
+                        !anime.hideFiller || !(episode.episodeType == EpisodeType.FILLER || episode.fillermark)
+                    }
                     .filter { applyFilter(downloadedFilter) { it.isDownloaded || isLocalAnime } }
                     .sortedWith { (episode1), (episode2) ->
                         getEpisodeSort(anime).invoke(

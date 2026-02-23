@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Subtitles
@@ -58,6 +61,13 @@ fun TopRightPlayerControls(
     // more
     onMoreClick: () -> Unit,
     onMoreLongClick: () -> Unit,
+
+    // capture
+    onCameraClick: () -> Unit,
+    onCameraLongClick: () -> Unit,
+    onBookmarkClick: () -> Unit,
+    isBingeActive: Boolean,
+    onBingeClick: () -> Unit,
 
     // cast
     castState: CastManager.CastState,
@@ -109,6 +119,25 @@ fun TopRightPlayerControls(
             icon = Icons.Default.MoreVert,
             onClick = onMoreClick,
             onLongClick = onMoreLongClick,
+            horizontalSpacing = MaterialTheme.padding.mediumSmall,
+        )
+        ControlsButton(
+            icon = Icons.Default.PhotoCamera,
+            onClick = onCameraClick,
+            onLongClick = onCameraLongClick,
+            horizontalSpacing = MaterialTheme.padding.mediumSmall,
+        )
+        ControlsButton(
+            icon = Icons.Default.BookmarkAdd,
+            onClick = onBookmarkClick,
+            onLongClick = onBookmarkClick,
+            horizontalSpacing = MaterialTheme.padding.mediumSmall,
+        )
+        ControlsButton(
+            icon = Icons.Default.Bolt,
+            onClick = onBingeClick,
+            onLongClick = onBingeClick,
+            color = if (isBingeActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             horizontalSpacing = MaterialTheme.padding.mediumSmall,
         )
     }

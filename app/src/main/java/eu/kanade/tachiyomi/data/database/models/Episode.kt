@@ -5,6 +5,7 @@ package eu.kanade.tachiyomi.data.database.models
 import eu.kanade.tachiyomi.source.model.SEpisode
 import java.io.Serializable
 import tachiyomi.domain.episode.model.Episode as DomainEpisode
+import tachiyomi.domain.episode.model.EpisodeType
 
 interface Episode : SEpisode, Serializable {
 
@@ -19,6 +20,8 @@ interface Episode : SEpisode, Serializable {
     // AM (FILLERMARK) -->
     var fillermark: Boolean
     // <-- AM (FILLERMARK)
+
+    var episode_type: String
 
     var last_second_seen: Long
 
@@ -43,6 +46,7 @@ fun Episode.toDomainEpisode(): DomainEpisode? {
         // AM (FILLERMARK) -->
         fillermark = fillermark,
         // <-- AM (FILLERMARK)
+        episodeType = EpisodeType.fromDb(episode_type),
         lastSecondSeen = last_second_seen,
         totalSeconds = total_seconds,
         dateFetch = date_fetch,

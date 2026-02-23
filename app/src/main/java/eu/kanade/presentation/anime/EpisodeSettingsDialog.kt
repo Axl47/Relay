@@ -42,6 +42,9 @@ fun EpisodeSettingsDialog(
     // AM (FILLERMARK) -->
     onFillermarkedFilterChanged: (TriState) -> Unit,
     // <-- AM (FILLERMARK)
+    onHideFillerChanged: (Boolean) -> Unit,
+    onSkipFillerChanged: (Boolean) -> Unit,
+    onNextEpisodeCardCountdownChanged: (Int) -> Unit,
     onSortModeChanged: (Long) -> Unit,
     onDisplayModeChanged: (Long) -> Unit,
     onSetAsDefault: (applyToExistingAnime: Boolean) -> Unit,
@@ -100,6 +103,12 @@ fun EpisodeSettingsDialog(
                         fillermarkedFilter = anime?.fillermarkedFilter ?: TriState.DISABLED,
                         onFillermarkedFilterChanged = onFillermarkedFilterChanged,
                         // <-- AM (FILLERMARK)
+                        hideFiller = anime?.hideFiller == true,
+                        onHideFillerChanged = onHideFillerChanged,
+                        skipFiller = anime?.skipFiller == true,
+                        onSkipFillerChanged = onSkipFillerChanged,
+                        nextEpisodeCardCountdown = anime?.nextEpisodeCardCountdown ?: 5,
+                        onNextEpisodeCardCountdownChanged = onNextEpisodeCardCountdownChanged,
                     )
                 }
                 1 -> {
@@ -132,6 +141,12 @@ private fun ColumnScope.FilterPage(
     fillermarkedFilter: TriState,
     onFillermarkedFilterChanged: (TriState) -> Unit,
     // <-- AM (FILLERMARK)
+    hideFiller: Boolean,
+    onHideFillerChanged: (Boolean) -> Unit,
+    skipFiller: Boolean,
+    onSkipFillerChanged: (Boolean) -> Unit,
+    nextEpisodeCardCountdown: Int,
+    onNextEpisodeCardCountdownChanged: (Int) -> Unit,
 ) {
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
@@ -155,6 +170,32 @@ private fun ColumnScope.FilterPage(
         onClick = onFillermarkedFilterChanged,
     )
     // <-- AM (FILLERMARK)
+    LabeledCheckbox(
+        label = "Hide filler episodes",
+        checked = hideFiller,
+        onCheckedChange = onHideFillerChanged,
+    )
+    LabeledCheckbox(
+        label = "Auto-skip filler in autoplay",
+        checked = skipFiller,
+        onCheckedChange = onSkipFillerChanged,
+    )
+    Text(
+        text = "Next episode card countdown",
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    listOf(
+        "3 seconds" to 3,
+        "5 seconds" to 5,
+        "10 seconds" to 10,
+        "Off" to 0,
+    ).forEach { (label, value) ->
+        RadioItem(
+            label = label,
+            selected = nextEpisodeCardCountdown == value,
+            onClick = { onNextEpisodeCardCountdownChanged(value) },
+        )
+    }
 }
 
 @Composable

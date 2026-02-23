@@ -1,0 +1,7 @@
+CREATE TABLE filler_cache (
+    mal_id INTEGER NOT NULL,
+    episode_number REAL NOT NULL,
+    episode_type TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (mal_id, episode_number)
+);

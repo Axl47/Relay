@@ -1,0 +1,32 @@
+CREATE TABLE session_bookmark(
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    anime_id INTEGER NOT NULL,
+    episode_id INTEGER,
+    capture_type TEXT NOT NULL,
+    media_uri TEXT,
+    position_ms INTEGER NOT NULL DEFAULT 0,
+    note TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX session_bookmark_created_at_index ON session_bookmark(created_at DESC);
+CREATE INDEX session_bookmark_anime_id_index ON session_bookmark(anime_id);
+
+getAll:
+SELECT *
+FROM session_bookmark
+ORDER BY created_at DESC, _id DESC;
+
+getByAnimeId:
+SELECT *
+FROM session_bookmark
+WHERE anime_id = :animeId
+ORDER BY created_at DESC, _id DESC;
+
+insertEntry:
+INSERT INTO session_bookmark(anime_id, episode_id, capture_type, media_uri, position_ms, note, created_at)
+VALUES (:animeId, :episodeId, :captureType, :mediaUri, :positionMs, :note, :createdAt);
+
+deleteByIds:
+DELETE FROM session_bookmark
+WHERE _id IN :ids;

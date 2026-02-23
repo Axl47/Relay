@@ -1017,6 +1017,7 @@ private fun LazyListScope.sharedEpisodeItems(
                     // AM (FILLERMARK) -->
                     fillermark = item.episode.fillermark,
                     // <-- AM (FILLERMARK)
+                    episodeType = item.episode.episodeType,
                     selected = item.selected,
                     downloadIndicatorEnabled = !isAnyEpisodeSelected && !anime.isLocal(),
                     downloadStateProvider = { item.downloadState },

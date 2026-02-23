@@ -24,10 +24,12 @@ import androidx.compose.runtime.Composable
 import dev.vivvvek.seeker.Segment
 import eu.kanade.tachiyomi.ui.player.Decoder
 import eu.kanade.tachiyomi.ui.player.Panels
+import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel.VideoTrack
 import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.AudioTracksSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.ChaptersSheet
+import eu.kanade.tachiyomi.ui.player.controls.components.sheets.ClipSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.HosterState
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.MoreSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.PlaybackSpeedSheet
@@ -80,6 +82,7 @@ fun PlayerSheets(
     // More sheet
     sleepTimerTimeRemaining: Int,
     onStartSleepTimer: (Int) -> Unit,
+    onOpenClipMode: () -> Unit,
     buttons: ImmutableList<CustomButton>,
 
     // Screenshot sheet
@@ -91,6 +94,15 @@ fun PlayerSheets(
     onSave: (() -> InputStream) -> Unit,
     takeScreenshot: (String, Boolean) -> InputStream?,
     onDismissScreenshot: () -> Unit,
+
+    // Clip sheet
+    clipState: PlayerViewModel.ClipEditorState?,
+    onMarkClipIn: () -> Unit,
+    onMarkClipOut: () -> Unit,
+    onClipModeChange: (PlayerViewModel.ClipExportMode) -> Unit,
+    onClipNoteChange: (String) -> Unit,
+    onExportClip: () -> Unit,
+    onDismissClip: () -> Unit,
 
     onOpenPanel: (Panels) -> Unit,
     onDismissRequest: () -> Unit,
@@ -164,6 +176,7 @@ fun PlayerSheets(
                 onSelectDecoder = onUpdateDecoder,
                 remainingTime = sleepTimerTimeRemaining,
                 onStartTimer = onStartSleepTimer,
+                onOpenClipMode = onOpenClipMode,
                 onDismissRequest = onDismissRequest,
                 onEnterFiltersPanel = { onOpenPanel(Panels.VideoFilters) },
                 customButtons = buttons,
@@ -189,6 +202,18 @@ fun PlayerSheets(
                 onSave = onSave,
                 takeScreenshot = takeScreenshot,
                 onDismissRequest = onDismissScreenshot,
+            )
+        }
+        Sheets.Clip -> {
+            val state = clipState ?: return
+            ClipSheet(
+                state = state,
+                onMarkIn = onMarkClipIn,
+                onMarkOut = onMarkClipOut,
+                onModeChange = onClipModeChange,
+                onNoteChange = onClipNoteChange,
+                onExport = onExportClip,
+                onDismissRequest = onDismissClip,
             )
         }
     }

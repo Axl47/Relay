@@ -1,0 +1,29 @@
+CREATE TABLE filler_cache(
+    mal_id INTEGER NOT NULL,
+    episode_number REAL NOT NULL,
+    episode_type TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL,
+    PRIMARY KEY (mal_id, episode_number)
+);
+
+getByMalId:
+SELECT *
+FROM filler_cache
+WHERE mal_id = :malId
+ORDER BY episode_number ASC;
+
+upsert:
+INSERT INTO filler_cache(mal_id, episode_number, episode_type, fetched_at)
+VALUES (:malId, :episodeNumber, :episodeType, :fetchedAt)
+ON CONFLICT(mal_id, episode_number)
+DO UPDATE
+SET
+    episode_type = :episodeType,
+    fetched_at = :fetchedAt;
+
+clearByMalId:
+DELETE FROM filler_cache
+WHERE mal_id = :malId;
+
+clearAll:
+DELETE FROM filler_cache;

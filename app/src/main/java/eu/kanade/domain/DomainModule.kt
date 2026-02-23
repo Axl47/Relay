@@ -36,8 +36,11 @@ import tachiyomi.data.aniskip.AniSkipApi
 import tachiyomi.data.aniskip.AniSkipRepositoryImpl
 import tachiyomi.data.anime.AnimeRepositoryImpl
 import tachiyomi.data.category.CategoryRepositoryImpl
+import tachiyomi.data.capture.CaptureRepositoryImpl
 import tachiyomi.data.custombutton.CustomButtonRepositoryImpl
 import tachiyomi.data.episode.EpisodeRepositoryImpl
+import tachiyomi.data.filler.FillerApi
+import tachiyomi.data.filler.FillerRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.playback.PlaybackProfileRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
@@ -77,6 +80,7 @@ import tachiyomi.domain.custombuttons.interactor.ReorderCustomButton
 import tachiyomi.domain.custombuttons.interactor.ToggleFavoriteCustomButton
 import tachiyomi.domain.custombuttons.interactor.UpdateCustomButton
 import tachiyomi.domain.custombuttons.repository.CustomButtonRepository
+import tachiyomi.domain.capture.repository.CaptureRepository
 import tachiyomi.domain.episode.interactor.GetEpisode
 import tachiyomi.domain.episode.interactor.GetEpisodeByUrlAndAnimeId
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
@@ -84,6 +88,7 @@ import tachiyomi.domain.episode.interactor.SetAnimeDefaultEpisodeFlags
 import tachiyomi.domain.episode.interactor.ShouldUpdateDbEpisode
 import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.repository.EpisodeRepository
+import tachiyomi.domain.filler.repository.FillerRepository
 import tachiyomi.domain.history.interactor.GetHistory
 import tachiyomi.domain.history.interactor.GetNextEpisodes
 import tachiyomi.domain.history.interactor.GetTotalWatchDuration
@@ -188,12 +193,15 @@ class DomainModule : InjektModule {
 
         addSingletonFactory<UpdatesRepository> { UpdatesRepositoryImpl(get()) }
         addFactory { GetUpdates(get()) }
+        addSingletonFactory<CaptureRepository> { CaptureRepositoryImpl(get()) }
 
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get()) }
         addSingletonFactory<SourceHealthRepository> { SourceHealthRepositoryImpl(get()) }
         addSingletonFactory<PlaybackProfileRepository> { PlaybackProfileRepositoryImpl(get()) }
         addSingletonFactory { AniSkipApi(get(), get()) }
         addSingletonFactory<AniSkipRepository> { AniSkipRepositoryImpl(get(), get()) }
+        addSingletonFactory { FillerApi(get(), get()) }
+        addSingletonFactory<FillerRepository> { FillerRepositoryImpl(get(), get()) }
         addSingletonFactory { SourceFallbackManager(get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
         addFactory { GetEnabledSources(get(), get()) }

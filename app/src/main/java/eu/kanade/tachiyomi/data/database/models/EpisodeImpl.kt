@@ -22,6 +22,8 @@ class EpisodeImpl : Episode {
     override var fillermark: Boolean = false
     // <-- AM (FILLERMARK)
 
+    override var episode_type: String = "canon"
+
     override var last_second_seen: Long = 0
 
     override var total_seconds: Long = 0

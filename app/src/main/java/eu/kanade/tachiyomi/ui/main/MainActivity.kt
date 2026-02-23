@@ -501,6 +501,7 @@ class MainActivity : BaseActivity() {
             animeId: Long,
             episodeId: Long,
             extPlayer: Boolean,
+            startPositionMs: Long? = null,
             video: Video? = null,
             hosterIndex: Int = -1,
             videoIndex: Int = -1,
@@ -524,6 +525,7 @@ class MainActivity : BaseActivity() {
                         hosterList,
                         hosterIndex,
                         videoIndex,
+                        startPositionMs = startPositionMs,
                     ),
                 )
             }

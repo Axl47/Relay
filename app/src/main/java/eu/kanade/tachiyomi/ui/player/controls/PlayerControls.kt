@@ -35,9 +35,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -68,8 +71,10 @@ import eu.kanade.tachiyomi.ui.player.VideoAspect
 import tachiyomi.domain.source.fallback.SourceFallbackManager
 import eu.kanade.tachiyomi.ui.player.cast.components.CastSheet
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessOverlay
+import eu.kanade.tachiyomi.ui.player.controls.components.BingeReminderCard
 import eu.kanade.tachiyomi.ui.player.controls.components.BrightnessSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.ControlsButton
+import eu.kanade.tachiyomi.ui.player.controls.components.NextEpisodeCard
 import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
 import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
 import eu.kanade.tachiyomi.ui.player.controls.components.VolumeSlider
@@ -118,6 +123,11 @@ fun PlayerControls(
     val doubleTapSeekAmount by viewModel.doubleTapSeekAmount.collectAsState()
     val seekText by viewModel.seekText.collectAsState()
     val currentChapter by viewModel.currentChapter.collectAsState()
+    val nextEpisodeCard by viewModel.nextEpisodeCard.collectAsState()
+    val clipEditorState by viewModel.clipEditorState.collectAsState()
+    val bingeSessionState by viewModel.bingeSessionState.collectAsState()
+    val bingeReminderState by viewModel.bingeReminderState.collectAsState()
+    val showBingeExplainer by viewModel.showBingeExplainer.collectAsState()
     val sourceFallbackState by viewModel.sourceFallbackState.collectAsState()
     val chapters by viewModel.chapters.collectAsState()
     val currentBrightness by viewModel.currentBrightness.collectAsState()
@@ -178,7 +188,7 @@ fun PlayerControls(
                     volumeSlider, brightnessSlider,
                     unlockControlsButton,
                     bottomRightControls, bottomLeftControls,
-                    centerControls, seekbar, playerUpdates, fallbackStatus,
+                    centerControls, seekbar, playerUpdates, fallbackStatus, nextEpisodeCardRef, bingeReminderRef,
                 ) = createRefs()
 
                 val hasPreviousEpisode by viewModel.hasPreviousEpisode.collectAsState()
@@ -382,6 +392,41 @@ fun PlayerControls(
                     )
                 }
                 AnimatedVisibility(
+                    visible = nextEpisodeCard != null,
+                    enter = fadeIn(playerControlsEnterAnimationSpec()),
+                    exit = fadeOut(playerControlsExitAnimationSpec()),
+                    modifier = Modifier.constrainAs(nextEpisodeCardRef) {
+                        linkTo(parent.start, parent.end)
+                        linkTo(parent.top, parent.bottom, bias = 0.68f)
+                    },
+                ) {
+                    nextEpisodeCard?.let { state ->
+                        NextEpisodeCard(
+                            state = state,
+                            onPlayNow = viewModel::playNextEpisodeNow,
+                            onStop = viewModel::cancelNextEpisodeCard,
+                        )
+                    }
+                }
+                AnimatedVisibility(
+                    visible = bingeReminderState != null,
+                    enter = fadeIn(playerControlsEnterAnimationSpec()),
+                    exit = fadeOut(playerControlsExitAnimationSpec()),
+                    modifier = Modifier.constrainAs(bingeReminderRef) {
+                        linkTo(parent.start, parent.end)
+                        linkTo(parent.top, parent.bottom, bias = 0.2f)
+                    },
+                ) {
+                    bingeReminderState?.let { state ->
+                        BingeReminderCard(
+                            state = state,
+                            onDismiss = viewModel::dismissBingeReminder,
+                            onRemindLater = { viewModel.snoozeBingeReminder(30) },
+                            onEndSession = viewModel::deactivateBingeMode,
+                        )
+                    }
+                }
+                AnimatedVisibility(
                     visible = (controlsShown || seekBarShown) && !areControlsLocked,
                     enter = if (!reduceMotion) {
                         slideInVertically(playerControlsEnterAnimationSpec()) { it } +
@@ -481,6 +526,15 @@ fun PlayerControls(
                         isEpisodeOnline = isEpisodeOnline,
                         onMoreClick = { viewModel.showSheet(Sheets.More) },
                         onMoreLongClick = { viewModel.showPanel(Panels.VideoFilters) },
+                        onCameraClick = {
+                            viewModel.captureScreenshotQuick(
+                                subtitlePreferences.screenshotSubtitles().get(),
+                            )
+                        },
+                        onCameraLongClick = { viewModel.showSheet(Sheets.Screenshot) },
+                        onBookmarkClick = viewModel::addTimestampBookmark,
+                        isBingeActive = bingeSessionState.active,
+                        onBingeClick = viewModel::toggleBingeMode,
                         castState = castState,
                         onCastClick = { showCastSheet = true },
                         isCastEnabled = { playerPreferences.enableCast().get() },
@@ -625,6 +679,7 @@ fun PlayerControls(
             onSpeedChange = { viewModel.setPlaybackSpeed(it.toFixed(2)) },
             sleepTimerTimeRemaining = sleepTimerTimeRemaining,
             onStartSleepTimer = viewModel::startTimer,
+            onOpenClipMode = viewModel::openClipMode,
             buttons = customButtons.getButtons().toImmutableList(),
 
             showSubtitles = showSubtitles,
@@ -638,6 +693,13 @@ fun PlayerControls(
                 viewModel.showSheet(Sheets.None)
                 viewModel.unpause()
             },
+            clipState = clipEditorState,
+            onMarkClipIn = viewModel::markClipInAtCurrentPosition,
+            onMarkClipOut = viewModel::markClipOutAtCurrentPosition,
+            onClipModeChange = viewModel::updateClipExportMode,
+            onClipNoteChange = viewModel::updateClipNote,
+            onExportClip = viewModel::exportCurrentClip,
+            onDismissClip = viewModel::closeClipMode,
             onOpenPanel = viewModel::showPanel,
             onDismissRequest = { viewModel.showSheet(Sheets.None) },
             dismissSheet = dismissSheet,
@@ -678,6 +740,19 @@ fun PlayerControls(
             castManager = castManager,
             viewModel = viewModel,
             onDismissRequest = { showCastSheet = false },
+        )
+    }
+
+    if (showBingeExplainer) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissBingeExplainer,
+            title = { Text("Binge mode") },
+            text = { Text("Autoplay is forced on while binge mode is active. You'll get periodic reminders and can end the session anytime.") },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissBingeExplainer) {
+                    Text("Got it")
+                }
+            },
         )
     }
 }

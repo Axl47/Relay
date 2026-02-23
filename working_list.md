@@ -1,28 +1,26 @@
 # Working List
 ## Pending
-- [ ] None
+- [ ] Manual QA scenarios for Passes 5-7 on device/emulator
 
 ## In Progress
-- [ ] None
+- [~] None
 
 ## Done
-- [x] Implement 403/download reliability hardening
-- [x] Add shared stream header/cookie resolver utility in `app/src/main/java/eu/kanade/tachiyomi/ui/player/StreamRequestHeaders.kt`
-- [x] Add unit tests for stream header merge/format in `app/src/test/java/eu/kanade/tachiyomi/ui/player/StreamRequestHeadersTest.kt`
-- [x] Integrate resolver into internal player header setup in `app/src/main/java/eu/kanade/tachiyomi/ui/player/PlayerActivity.kt`
-- [x] Add runtime HTTP playback fallback in `app/src/main/java/eu/kanade/tachiyomi/ui/player/PlayerObserver.kt`, `app/src/main/java/eu/kanade/tachiyomi/ui/player/PlayerActivity.kt`, and `app/src/main/java/eu/kanade/tachiyomi/ui/player/PlayerViewModel.kt`
-- [x] Extend hoster loader with resolved candidate list API in `app/src/main/java/eu/kanade/tachiyomi/ui/player/loader/HosterLoader.kt`
-- [x] Add unit tests for resolved candidate ordering/filtering in `app/src/test/java/eu/kanade/tachiyomi/ui/player/loader/HosterLoaderTest.kt`
-- [x] Upgrade downloader to exhaust candidates and improve terminal errors in `app/src/main/java/eu/kanade/tachiyomi/data/download/Downloader.kt`
-- [x] Integrate resolver into downloader ffmpeg/external header usage in `app/src/main/java/eu/kanade/tachiyomi/data/download/Downloader.kt`
-- [x] Run targeted tests: `./gradlew :app:testDebugUnitTest --tests "eu.kanade.tachiyomi.ui.player.StreamRequestHeadersTest" --tests "eu.kanade.tachiyomi.ui.player.loader.HosterLoaderTest"`
+- [x] Set up Pass 5-7 combined rollout checklist
+- [x] Add Pass 5-7 schema/migration foundations (`133.sqm`-`135.sqm`, SQLDelight tables/queries)
+- [x] Thread `episodeType` through episode database/domain/app models and mappers
+- [x] Add filler domain/data stack (Jikan API, cache repo, DI wiring, MAL resolution + anime sync flow)
+- [x] Add per-anime filler preferences (`hide_filler`, `skip_filler`, next-card countdown) and expose in anime UI
+- [x] Implement smart completion chain + post-credits awareness + next-episode transition card logic
+- [x] Add capture stack (capture models/repo/table usage) and persist screenshot/bookmark captures
+- [x] Implement Bookmarks home tab (capture feed) and move Updates entry to More while preserving shortcuts
+- [x] Add bookmark timestamp jump handoff into player start position
+- [x] Implement full gesture remap preferences + left-handed mode + long-press ownership
+- [x] Add clip/export baseline with downloaded-only guard, auto-download gate, notification progress, and capture feed entry
+- [x] Implement binge mode session state, reminders/snooze, background restore, and player toggle/explainer
 - [x] Run compile gate: `./gradlew :app:compileDebugKotlin`
-- [x] Plan finalized and locked decisions captured
-- [x] Set up remediation execution checklist
-- [x] Restore upstream English strings into `core/common/src/main/res/values/strings.xml` with Relay branding and compatibility aliases
-- [x] Add one-time official extension repo bootstrap in `app/src/main/java/eu/kanade/tachiyomi/extension/api/ExtensionApi.kt`
-- [x] Run compile gate: `./gradlew :app:compileDebugKotlin`
+- [x] Run unit tests: `./gradlew :app:testDebugUnitTest`
 - [x] Run build gate: `./gradlew :app:assembleDebug`
 
 ## Blocked
-- [!] Manual smoke checks (fresh install bootstrap, existing repos unchanged, labels readable) require device/emulator runtime interaction
+- [!] Manual smoke checks require runtime interaction (device/emulator)

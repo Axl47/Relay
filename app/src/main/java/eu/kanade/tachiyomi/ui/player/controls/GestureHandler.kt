@@ -56,15 +56,13 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.player.components.LeftSideOvalShape
 import eu.kanade.presentation.player.components.RightSideOvalShape
 import eu.kanade.presentation.theme.playerRippleConfiguration
+import eu.kanade.tachiyomi.ui.player.GestureAction
 import eu.kanade.tachiyomi.ui.player.Panels
-import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
-import eu.kanade.tachiyomi.ui.player.Sheets
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapSeekTriangles
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import `is`.xyz.mpv.MPVLib
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import tachiyomi.i18n.MR
@@ -103,7 +101,7 @@ fun GestureHandler(
     }
 
     val gestureVolumeBrightness = gesturePreferences.gestureVolumeBrightness().get()
-    val swapVolumeBrightness by gesturePreferences.swapVolumeBrightness().collectAsState()
+    val leftHandedMode by gesturePreferences.leftHandedMode().collectAsState()
     val seekGesture by gesturePreferences.gestureHorizontalSeek().collectAsState()
     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
     val showSeekbar by gesturePreferences.showSeekBar().collectAsState()
@@ -118,22 +116,28 @@ fun GestureHandler(
         modifier = modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeGestures)
-            .pointerInput(Unit) {
-                val originalSpeed = viewModel.playbackSpeed.value
+            .pointerInput(leftHandedMode) {
                 detectTapGestures(
                     onTap = {
                         if (controlsShown) viewModel.hideControls() else viewModel.showControls()
                     },
                     onDoubleTap = {
                         if (areControlsLocked || isDoubleTapSeeking) return@detectTapGestures
+                        val leftAction = gesturePreferences.leftDoubleTapAction().get()
+                        val rightAction = gesturePreferences.rightDoubleTapAction().get()
+                        val (logicalLeftAction, logicalRightAction) = if (leftHandedMode) {
+                            rightAction to leftAction
+                        } else {
+                            leftAction to rightAction
+                        }
                         if (it.x > size.width * 3 / 5) {
                             if (!isSeekingForwards) viewModel.updateSeekAmount(0)
-                            viewModel.handleRightDoubleTap()
-                            isDoubleTapSeeking = true
+                            viewModel.triggerGestureAction(logicalRightAction)
+                            isDoubleTapSeeking = logicalRightAction == GestureAction.SEEK_FORWARD
                         } else if (it.x < size.width * 2 / 5) {
                             if (isSeekingForwards) viewModel.updateSeekAmount(0)
-                            viewModel.handleLeftDoubleTap()
-                            isDoubleTapSeeking = true
+                            viewModel.triggerGestureAction(logicalLeftAction)
+                            isDoubleTapSeeking = logicalLeftAction == GestureAction.SEEK_BACKWARD
                         } else {
                             viewModel.handleCenterDoubleTap()
                         }
@@ -146,12 +150,19 @@ fun GestureHandler(
                             it.copy(x = if (it.x > size.width * 3 / 5) it.x - size.width * 0.6f else it.x),
                         )
                         if (!areControlsLocked && isDoubleTapSeeking && seekAmount != 0) {
+                            val leftAction = gesturePreferences.leftDoubleTapAction().get()
+                            val rightAction = gesturePreferences.rightDoubleTapAction().get()
+                            val (logicalLeftAction, logicalRightAction) = if (leftHandedMode) {
+                                rightAction to leftAction
+                            } else {
+                                leftAction to rightAction
+                            }
                             if (it.x > size.width * 3 / 5) {
                                 if (!isSeekingForwards) viewModel.updateSeekAmount(0)
-                                viewModel.handleRightDoubleTap()
+                                viewModel.triggerGestureAction(logicalRightAction)
                             } else if (it.x < size.width * 2 / 5) {
                                 if (isSeekingForwards) viewModel.updateSeekAmount(0)
-                                viewModel.handleLeftDoubleTap()
+                                viewModel.triggerGestureAction(logicalLeftAction)
                             } else {
                                 viewModel.handleCenterDoubleTap()
                             }
@@ -162,8 +173,7 @@ fun GestureHandler(
                         tryAwaitRelease()
                         if (isLongPressing) {
                             isLongPressing = false
-                            MPVLib.setPropertyDouble("speed", originalSpeed.toDouble())
-                            viewModel.playerUpdate.update { PlayerUpdates.None }
+                            viewModel.onLongPressGestureEnd()
                         }
                         interactionSource.emit(PressInteraction.Release(press))
                     },
@@ -172,8 +182,8 @@ fun GestureHandler(
                         if (!isLongPressing) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             isLongPressing = true
-                            viewModel.pause()
-                            viewModel.sheetShown.update { Sheets.Screenshot }
+                            val action = gesturePreferences.longPressAction().get()
+                            viewModel.onLongPressGestureStart(action)
                         }
                     },
                 )
@@ -289,10 +299,17 @@ fun GestureHandler(
                         )
                         viewModel.displayBrightnessSlider()
                     }
-                    if (swapVolumeBrightness) {
-                        if (change.position.x > size.width / 2) changeBrightness() else changeVolume()
+                    val physicalLeftZone = change.position.x < size.width / 2
+                    val logicalLeftZone = if (leftHandedMode) !physicalLeftZone else physicalLeftZone
+                    val action = if (logicalLeftZone) {
+                        gesturePreferences.verticalSwipeLeftAction().get()
                     } else {
-                        if (change.position.x < size.width / 2) changeBrightness() else changeVolume()
+                        gesturePreferences.verticalSwipeRightAction().get()
+                    }
+                    when (action) {
+                        GestureAction.BRIGHTNESS -> changeBrightness()
+                        GestureAction.VOLUME -> changeVolume()
+                        else -> Unit
                     }
                 }
             },

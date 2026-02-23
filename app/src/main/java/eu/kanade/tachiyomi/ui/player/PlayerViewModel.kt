@@ -27,10 +27,14 @@ import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.Immutable
+import androidx.core.content.contentValuesOf
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -39,6 +43,12 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import dev.icerock.moko.resources.StringResource
+import com.arthenica.ffmpegkit.FFmpegKitConfig
+import com.arthenica.ffmpegkit.FFmpegSession
+import com.arthenica.ffmpegkit.Level
+import com.arthenica.ffmpegkit.LogCallback
+import com.arthenica.ffmpegkit.ReturnCode
+import com.arthenica.ffmpegkit.StatisticsCallback
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.domain.anime.interactor.SetAnimeViewerFlags
 import eu.kanade.domain.base.BasePreferences
@@ -46,6 +56,9 @@ import eu.kanade.domain.episode.model.toDbEpisode
 import eu.kanade.domain.track.interactor.TrackEpisode
 import eu.kanade.domain.track.service.TrackPreferences
 import eu.kanade.domain.ui.UiPreferences
+import tachiyomi.domain.capture.model.CaptureEntry
+import tachiyomi.domain.capture.model.CaptureType
+import tachiyomi.domain.capture.repository.CaptureRepository
 import eu.kanade.presentation.more.settings.screen.player.custombutton.CustomButtonFetchState
 import eu.kanade.presentation.more.settings.screen.player.custombutton.getButtons
 import eu.kanade.tachiyomi.animesource.AnimeSource
@@ -79,6 +92,7 @@ import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.storage.cacheImageDir
+import eu.kanade.tachiyomi.util.storage.toFFmpegString
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.Utils
@@ -118,6 +132,7 @@ import tachiyomi.domain.custombuttons.model.CustomButton
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.episode.interactor.UpdateEpisode
+import tachiyomi.domain.episode.model.EpisodeType
 import tachiyomi.domain.episode.model.EpisodeUpdate
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.history.interactor.GetNextEpisodes
@@ -174,6 +189,7 @@ class PlayerViewModel @JvmOverloads constructor(
     private val sourceHealthRepository: SourceHealthRepository = Injekt.get(),
     private val aniSkipRepository: AniSkipRepository = Injekt.get(),
     private val playbackProfileRepository: PlaybackProfileRepository = Injekt.get(),
+    private val captureRepository: CaptureRepository = Injekt.get(),
     uiPreferences: UiPreferences = Injekt.get(),
 ) : ViewModel() {
 
@@ -249,6 +265,18 @@ class PlayerViewModel @JvmOverloads constructor(
     val currentChapter = _currentChapter.asStateFlow()
     private val _skipIntroText = MutableStateFlow<String?>(null)
     val skipIntroText = _skipIntroText.asStateFlow()
+    private val _postCreditsAhead = MutableStateFlow(false)
+    val postCreditsAhead = _postCreditsAhead.asStateFlow()
+    private val _nextEpisodeCard = MutableStateFlow<NextEpisodeCardState?>(null)
+    val nextEpisodeCard = _nextEpisodeCard.asStateFlow()
+    private val _clipEditorState = MutableStateFlow<ClipEditorState?>(null)
+    val clipEditorState = _clipEditorState.asStateFlow()
+    private val _bingeSessionState = MutableStateFlow(BingeSessionState())
+    val bingeSessionState = _bingeSessionState.asStateFlow()
+    private val _bingeReminderState = MutableStateFlow<BingeReminderState?>(null)
+    val bingeReminderState = _bingeReminderState.asStateFlow()
+    private val _showBingeExplainer = MutableStateFlow(false)
+    val showBingeExplainer = _showBingeExplainer.asStateFlow()
     private var aniSkipSegments: List<TimeStamp> = emptyList()
     private var playbackProfile: PlaybackProfile? = null
     private var playbackProfileSkipPreference: AniSkipPreference? = null
@@ -311,6 +339,14 @@ class PlayerViewModel @JvmOverloads constructor(
     val isSeekingForwards = _isSeekingForwards.asStateFlow()
 
     private var timerJob: Job? = null
+    private var nextEpisodeJob: Job? = null
+    private var bingeReminderJob: Job? = null
+    private var bingePreviousAutoplay: Boolean? = null
+    private var bingeSessionStartedAtMs: Long = 0L
+    private var bingePausedAtMs: Long? = null
+    private var bingePausedAccumulatedMs: Long = 0L
+    private var longPressGestureAction: GestureAction? = null
+    private var longPressOriginalSpeed: Float? = null
     private val _remainingTime = MutableStateFlow(0)
     val remainingTime = _remainingTime.asStateFlow()
 
@@ -623,6 +659,10 @@ class PlayerViewModel @JvmOverloads constructor(
     fun pause() {
         activity.player.paused = true
         _paused.update { true }
+        if (bingeSessionState.value.active && bingePausedAtMs == null) {
+            bingePausedAtMs = System.currentTimeMillis()
+            refreshBingeWatchElapsed()
+        }
         runCatching {
             activity.setPictureInPictureParams(activity.createPipParams())
         }
@@ -631,6 +671,13 @@ class PlayerViewModel @JvmOverloads constructor(
     fun unpause() {
         activity.player.paused = false
         _paused.update { false }
+        if (bingeSessionState.value.active) {
+            bingePausedAtMs?.let { pausedAt ->
+                bingePausedAccumulatedMs += (System.currentTimeMillis() - pausedAt)
+            }
+            bingePausedAtMs = null
+            refreshBingeWatchElapsed()
+        }
     }
 
     private val showStatusBar = playerPreferences.showSystemStatusBar().get()
@@ -783,6 +830,105 @@ class PlayerViewModel @JvmOverloads constructor(
         }
         playerUpdate.update { PlayerUpdates.ShowTextResource(textRes) }
         playerPreferences.autoplayEnabled().set(value)
+    }
+
+    fun toggleBingeMode() {
+        if (bingeSessionState.value.active) {
+            deactivateBingeMode()
+        } else {
+            activateBingeMode()
+        }
+    }
+
+    fun deactivateBingeMode() {
+        if (!bingeSessionState.value.active) return
+        refreshBingeWatchElapsed()
+        bingeReminderJob?.cancel()
+        bingeReminderJob = null
+        _bingeReminderState.update { null }
+
+        bingePreviousAutoplay?.let { previous ->
+            playerPreferences.autoplayEnabled().set(previous)
+        }
+        bingePreviousAutoplay = null
+        bingePausedAtMs = null
+
+        _bingeSessionState.update { it.copy(active = false) }
+        playerUpdate.update { PlayerUpdates.ShowText("Binge mode disabled") }
+    }
+
+    fun onAppBackgrounded() {
+        if (bingeSessionState.value.active) {
+            deactivateBingeMode()
+        }
+    }
+
+    fun dismissBingeReminder() {
+        _bingeReminderState.update { null }
+        scheduleBingeReminder(delayMinutes = bingeSessionState.value.reminderIntervalMinutes)
+    }
+
+    fun snoozeBingeReminder(minutes: Int = 30) {
+        _bingeReminderState.update { null }
+        scheduleBingeReminder(delayMinutes = minutes)
+    }
+
+    fun dismissBingeExplainer() {
+        _showBingeExplainer.update { false }
+    }
+
+    private fun activateBingeMode() {
+        if (bingeSessionState.value.active) return
+
+        bingePreviousAutoplay = playerPreferences.autoplayEnabled().get()
+        playerPreferences.autoplayEnabled().set(true)
+
+        val reminderInterval = playerPreferences.bingeReminderIntervalMinutes().get()
+        bingeSessionStartedAtMs = System.currentTimeMillis()
+        bingePausedAccumulatedMs = 0L
+        bingePausedAtMs = if (paused.value) System.currentTimeMillis() else null
+        _bingeSessionState.update {
+            BingeSessionState(
+                active = true,
+                episodesWatched = 0,
+                elapsedWatchMs = 0L,
+                reminderIntervalMinutes = reminderInterval,
+            )
+        }
+
+        if (!playerPreferences.bingeExplainerSeen().get()) {
+            playerPreferences.bingeExplainerSeen().set(true)
+            _showBingeExplainer.update { true }
+        }
+
+        scheduleBingeReminder(delayMinutes = reminderInterval)
+        playerUpdate.update { PlayerUpdates.ShowText("Binge mode enabled") }
+    }
+
+    private fun scheduleBingeReminder(delayMinutes: Int) {
+        bingeReminderJob?.cancel()
+        if (!bingeSessionState.value.active) return
+        bingeReminderJob = viewModelScope.launch {
+            delay(delayMinutes * 60_000L)
+            if (!bingeSessionState.value.active) return@launch
+            refreshBingeWatchElapsed()
+            _bingeReminderState.update {
+                BingeReminderState(
+                    episodesWatched = bingeSessionState.value.episodesWatched,
+                    elapsedWatchMs = bingeSessionState.value.elapsedWatchMs,
+                )
+            }
+        }
+    }
+
+    private fun refreshBingeWatchElapsed() {
+        if (!bingeSessionState.value.active) return
+        val now = System.currentTimeMillis()
+        val pausedDelta = bingePausedAtMs?.let { now - it } ?: 0L
+        val elapsed = (now - bingeSessionStartedAtMs) - bingePausedAccumulatedMs - pausedDelta
+        _bingeSessionState.update {
+            it.copy(elapsedWatchMs = elapsed.coerceAtLeast(0L))
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -1018,6 +1164,95 @@ class PlayerViewModel @JvmOverloads constructor(
         )
     }
 
+    fun onEpisodeEnded(eofReached: Boolean) {
+        if (!eofReached) return
+        if (!playerPreferences.autoplayEnabled().get()) return
+
+        val anime = currentAnime.value ?: return
+        if (bingeSessionState.value.active) {
+            refreshBingeWatchElapsed()
+            _bingeSessionState.update {
+                it.copy(episodesWatched = it.episodesWatched + 1)
+            }
+        }
+        val resolution = resolveNextEpisodeForTransition(skipFiller = anime.skipFiller) ?: return
+        if (resolution.skippedFillerCount > 0) {
+            playerUpdate.update {
+                PlayerUpdates.ShowText("Skipped ${resolution.skippedFillerCount} filler episode(s)")
+            }
+        }
+
+        val countdown = if (bingeSessionState.value.active) {
+            3
+        } else {
+            anime.nextEpisodeCardCountdown
+        }
+        if (countdown == 0) {
+            activity.changeEpisode(episodeId = resolution.episodeId, autoPlay = true)
+            return
+        }
+
+        nextEpisodeJob?.cancel()
+        _nextEpisodeCard.update {
+            NextEpisodeCardState(
+                nextEpisodeId = resolution.episodeId,
+                nextEpisodeTitle = resolution.title,
+                countdownSeconds = countdown,
+                skippedFillerCount = resolution.skippedFillerCount,
+            )
+        }
+        nextEpisodeJob = viewModelScope.launch {
+            for (remaining in countdown downTo 1) {
+                _nextEpisodeCard.update { current ->
+                    current?.copy(countdownSeconds = remaining)
+                }
+                delay(1000)
+            }
+            playNextEpisodeNow()
+        }
+    }
+
+    fun playNextEpisodeNow() {
+        val card = nextEpisodeCard.value ?: return
+        cancelNextEpisodeCard()
+        activity.changeEpisode(episodeId = card.nextEpisodeId, autoPlay = true)
+    }
+
+    fun cancelNextEpisodeCard() {
+        nextEpisodeJob?.cancel()
+        nextEpisodeJob = null
+        _nextEpisodeCard.update { null }
+    }
+
+    private data class NextEpisodeResolution(
+        val episodeId: Long,
+        val title: String,
+        val skippedFillerCount: Int,
+    )
+
+    private fun resolveNextEpisodeForTransition(skipFiller: Boolean): NextEpisodeResolution? {
+        val currentIndex = getCurrentEpisodeIndex()
+        if (currentIndex < 0) return null
+        val playlist = currentPlaylist.value
+        if (currentIndex >= playlist.lastIndex) return null
+
+        var skipped = 0
+        for (index in (currentIndex + 1)..playlist.lastIndex) {
+            val episode = playlist[index]
+            val isFiller = EpisodeType.fromDb(episode.episode_type) == EpisodeType.FILLER || episode.fillermark
+            if (skipFiller && isFiller) {
+                skipped++
+                continue
+            }
+            return NextEpisodeResolution(
+                episodeId = episode.id ?: return null,
+                title = episode.name,
+                skippedFillerCount = skipped,
+            )
+        }
+        return null
+    }
+
     fun handleLeftDoubleTap() {
         when (gesturePreferences.leftDoubleTapGesture().get()) {
             SingleActionGesture.Seek -> {
@@ -1032,6 +1267,49 @@ class PlayerViewModel @JvmOverloads constructor(
             SingleActionGesture.None -> {}
             SingleActionGesture.Switch -> changeEpisode(true)
         }
+    }
+
+    fun triggerGestureAction(action: GestureAction) {
+        when (action) {
+            GestureAction.NONE -> Unit
+            GestureAction.SEEK_BACKWARD -> leftSeek()
+            GestureAction.SEEK_FORWARD -> rightSeek()
+            GestureAction.BRIGHTNESS -> Unit
+            GestureAction.VOLUME -> Unit
+            GestureAction.SPEED_BOOST -> {
+                longPressOriginalSpeed = playbackSpeed.value
+                MPVLib.setPropertyDouble("speed", 2.0)
+                playerUpdate.update { PlayerUpdates.ShowText("2x speed") }
+            }
+            GestureAction.SCREENSHOT -> captureScreenshotQuick(showSubtitles = false)
+            GestureAction.BOOKMARK -> addTimestampBookmark()
+        }
+    }
+
+    fun onLongPressGestureStart(action: GestureAction) {
+        longPressGestureAction = action
+        when (action) {
+            GestureAction.SPEED_BOOST -> {
+                if (longPressOriginalSpeed == null) {
+                    longPressOriginalSpeed = playbackSpeed.value
+                    MPVLib.setPropertyDouble("speed", 2.0)
+                    playerUpdate.update { PlayerUpdates.ShowText("2x speed") }
+                }
+            }
+            GestureAction.SCREENSHOT -> captureScreenshotQuick(showSubtitles = false)
+            GestureAction.BOOKMARK -> addTimestampBookmark()
+            else -> Unit
+        }
+    }
+
+    fun onLongPressGestureEnd() {
+        if (longPressGestureAction == GestureAction.SPEED_BOOST) {
+            val restoreSpeed = longPressOriginalSpeed ?: playbackSpeed.value
+            MPVLib.setPropertyDouble("speed", restoreSpeed.toDouble())
+            playerUpdate.update { PlayerUpdates.None }
+            longPressOriginalSpeed = null
+        }
+        longPressGestureAction = null
     }
 
     fun handleCenterDoubleTap() {
@@ -1065,6 +1343,8 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     override fun onCleared() {
+        nextEpisodeJob?.cancel()
+        bingeReminderJob?.cancel()
         if (currentEpisode.value != null) {
             saveWatchingProgress(currentEpisode.value!!)
             episodeToDownload?.let {
@@ -1127,6 +1407,41 @@ class PlayerViewModel @JvmOverloads constructor(
 
     private var episodeToDownload: Download? = null
 
+    data class NextEpisodeCardState(
+        val nextEpisodeId: Long,
+        val nextEpisodeTitle: String,
+        val countdownSeconds: Int,
+        val skippedFillerCount: Int,
+    )
+
+    enum class ClipExportMode {
+        FAST_COPY,
+        REENCODE_NO_SUBS,
+        BURN_IN_SUBS,
+    }
+
+    data class ClipEditorState(
+        val inputUri: String,
+        val markInMs: Long,
+        val markOutMs: Long,
+        val exportMode: ClipExportMode = ClipExportMode.FAST_COPY,
+        val burnInSupported: Boolean = false,
+        val note: String = "",
+        val isExporting: Boolean = false,
+    )
+
+    data class BingeSessionState(
+        val active: Boolean = false,
+        val episodesWatched: Int = 0,
+        val elapsedWatchMs: Long = 0L,
+        val reminderIntervalMinutes: Int = 45,
+    )
+
+    data class BingeReminderState(
+        val episodesWatched: Int,
+        val elapsedWatchMs: Long,
+    )
+
     private fun filterEpisodeList(episodes: List<Episode>): List<Episode> {
         val anime = currentAnime.value ?: return episodes
         val selectedEpisode = episodes.find { it.id == episodeId }
@@ -1159,7 +1474,9 @@ class PlayerViewModel @JvmOverloads constructor(
                 anime.fillermarkedFilterRaw == Anime.EPISODE_SHOW_FILLERMARKED &&
                 !it.fillermark ||
                 anime.fillermarkedFilterRaw == Anime.EPISODE_SHOW_NOT_FILLERMARKED &&
-                it.fillermark
+                it.fillermark ||
+                anime.hideFiller &&
+                (EpisodeType.fromDb(it.episode_type) == EpisodeType.FILLER || it.fillermark)
             // <-- AM (FILLERMARK)
         }.toMutableList()
 
@@ -1708,7 +2025,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         val progress = playerPreferences.progressPreference().get()
         val shouldTrack = !incognitoMode || hasTrackers
-        if (seconds >= totalSeconds * progress && shouldTrack) {
+        if (isCompletionReached(seconds, totalSeconds, progress) && shouldTrack) {
             currentEp.seen = true
             updateTrackEpisodeSeen(currentEp)
             deleteEpisodeIfNeeded(currentEp)
@@ -1743,6 +2060,22 @@ class PlayerViewModel @JvmOverloads constructor(
                 .take(downloadAheadAmount)
             downloadManager.downloadEpisodes(anime, episodesToDownload)
         }
+    }
+
+    private fun isCompletionReached(
+        seconds: Long,
+        totalSeconds: Long,
+        progressThreshold: Float,
+    ): Boolean {
+        val endingStartMs = aniSkipSegments
+            .firstOrNull { it.type == ChapterType.Ending }
+            ?.start
+            ?.times(1000)
+            ?.toLong()
+
+        if (endingStartMs != null && seconds >= endingStartMs) return true
+        if (seconds >= (totalSeconds - 90_000L)) return true
+        return seconds >= (totalSeconds * progressThreshold)
     }
 
     /**
@@ -1825,6 +2158,232 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    fun addTimestampBookmark(note: String? = null) {
+        val anime = currentAnime.value ?: return
+        val episode = currentEpisode.value ?: return
+        viewModelScope.launchIO {
+            captureRepository.insert(
+                CaptureEntry(
+                    id = 0L,
+                    animeId = anime.id,
+                    episodeId = episode.id,
+                    type = CaptureType.BOOKMARK,
+                    mediaUri = null,
+                    positionMs = pos.value.toLong() * 1000L,
+                    note = note,
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+            playerUpdate.update { PlayerUpdates.ShowText("Bookmark saved") }
+        }
+    }
+
+    fun openClipMode() {
+        val anime = currentAnime.value ?: return
+        val episode = currentEpisode.value ?: return
+        val source = currentSource.value ?: return
+        val domainEpisode = episode.toDomainEpisode() ?: return
+
+        val isLocalEpisode = anime.isLocal()
+        val isDownloadedEpisode = isLocalEpisode || EpisodeLoader.isDownload(domainEpisode, anime)
+        if (!isDownloadedEpisode) {
+            downloadManager.downloadEpisodes(anime, listOf(domainEpisode), autoStart = true)
+            activity.showToast("Clip mode requires a downloaded episode. Download started.")
+            return
+        }
+
+        val localVideo = runCatching {
+            downloadManager.buildVideo(source, anime, domainEpisode)
+        }.getOrElse {
+            activity.showToast(it.message ?: "Unable to load local video for clipping.")
+            return
+        }
+
+        val currentMs = (pos.value * 1000L).toLong().coerceAtLeast(0L)
+        val durationMs = (duration.value * 1000L).toLong().takeIf { it > 0L } ?: (currentMs + 30_000L)
+        val defaultOut = (currentMs + 30_000L).coerceAtMost(durationMs)
+        val selectedSubtitleId = selectedSubtitles.value.first
+        val burnInSupported = selectedSubtitleId != -1 && Uri.parse(localVideo.videoUrl).scheme != "content"
+
+        _clipEditorState.update {
+            ClipEditorState(
+                inputUri = localVideo.videoUrl,
+                markInMs = currentMs.coerceAtMost(defaultOut),
+                markOutMs = defaultOut,
+                exportMode = ClipExportMode.FAST_COPY,
+                burnInSupported = burnInSupported,
+            )
+        }
+        showSheet(Sheets.Clip)
+    }
+
+    fun closeClipMode() {
+        _clipEditorState.update { null }
+        showSheet(Sheets.None)
+    }
+
+    fun markClipInAtCurrentPosition() {
+        val currentMs = (pos.value * 1000L).toLong().coerceAtLeast(0L)
+        _clipEditorState.update { state ->
+            if (state == null) return@update null
+            state.copy(markInMs = currentMs.coerceAtMost(state.markOutMs - 500L))
+        }
+    }
+
+    fun markClipOutAtCurrentPosition() {
+        val currentMs = (pos.value * 1000L).toLong().coerceAtLeast(0L)
+        _clipEditorState.update { state ->
+            if (state == null) return@update null
+            state.copy(markOutMs = currentMs.coerceAtLeast(state.markInMs + 500L))
+        }
+    }
+
+    fun updateClipNote(note: String) {
+        _clipEditorState.update { state ->
+            state?.copy(note = note)
+        }
+    }
+
+    fun updateClipExportMode(mode: ClipExportMode) {
+        _clipEditorState.update { state ->
+            state?.copy(exportMode = mode)
+        }
+    }
+
+    fun exportCurrentClip() {
+        val state = clipEditorState.value ?: return
+        if (state.isExporting) return
+        val anime = currentAnime.value ?: return
+        val episode = currentEpisode.value ?: return
+
+        val clipStartMs = state.markInMs
+        val clipEndMs = state.markOutMs
+        if (clipEndMs <= clipStartMs + 500L) {
+            activity.showToast("Clip out point must be after clip in point.")
+            return
+        }
+
+        _clipEditorState.update { it?.copy(isExporting = true) }
+
+        viewModelScope.launchIO {
+            val notifier = ClipExportNotifier(activity)
+            notifier.onProgress(0)
+            try {
+                val outputUri = createClipOutputUri() ?: error("Unable to create clip output file.")
+                val ffmpegCommand = buildClipFfmpegCommand(
+                    state = state,
+                    inputPath = Uri.parse(state.inputUri).toFFmpegString(activity),
+                    outputPath = outputUri.toFFmpegString(activity),
+                )
+                val clipDurationMs = (clipEndMs - clipStartMs).coerceAtLeast(1L)
+                val session = FFmpegSession.create(
+                    FFmpegKitConfig.parseArguments(ffmpegCommand),
+                    {},
+                    LogCallback { log ->
+                        if (log.level <= Level.AV_LOG_WARNING) {
+                            log.message?.let { message ->
+                                logcat(LogPriority.ERROR) { "Clip export: $message" }
+                            }
+                        }
+                    },
+                    StatisticsCallback { statistics ->
+                        val progress = ((statistics.time.toDouble() / clipDurationMs) * 100.0)
+                            .toInt()
+                            .coerceIn(0, 100)
+                        notifier.onProgress(progress)
+                    },
+                )
+                FFmpegKitConfig.ffmpegExecute(session)
+                if (!ReturnCode.isSuccess(session.returnCode)) {
+                    error("Clip export failed.")
+                }
+
+                DiskUtil.scanMedia(activity, outputUri)
+                captureRepository.insert(
+                    CaptureEntry(
+                        id = 0L,
+                        animeId = anime.id,
+                        episodeId = episode.id,
+                        type = CaptureType.CLIP,
+                        mediaUri = outputUri.toString(),
+                        positionMs = clipStartMs,
+                        note = state.note.takeIf { it.isNotBlank() },
+                        createdAt = System.currentTimeMillis(),
+                    ),
+                )
+                notifier.onComplete(outputUri)
+                withUIContext {
+                    playerUpdate.update { PlayerUpdates.ShowText("Clip saved") }
+                    closeClipMode()
+                }
+            } catch (e: Throwable) {
+                notifier.onError(e.message ?: "Clip export failed.")
+                withUIContext {
+                    activity.showToast(e.message ?: "Clip export failed.")
+                    _clipEditorState.update { it?.copy(isExporting = false) }
+                }
+            }
+        }
+    }
+
+    private fun buildClipFfmpegCommand(
+        state: ClipEditorState,
+        inputPath: String,
+        outputPath: String,
+    ): String {
+        val clipStartSeconds = state.markInMs / 1000.0
+        val clipEndSeconds = state.markOutMs / 1000.0
+        val mode = when {
+            state.exportMode == ClipExportMode.BURN_IN_SUBS && !state.burnInSupported -> {
+                ClipExportMode.REENCODE_NO_SUBS
+            }
+            else -> state.exportMode
+        }
+        return when (mode) {
+            ClipExportMode.FAST_COPY -> {
+                "-ss $clipStartSeconds -to $clipEndSeconds -i \"$inputPath\" " +
+                    "-c copy -movflags +faststart \"$outputPath\" -y"
+            }
+            ClipExportMode.REENCODE_NO_SUBS -> {
+                "-ss $clipStartSeconds -to $clipEndSeconds -i \"$inputPath\" " +
+                    "-map 0:v:0 -map 0:a? -sn -c:v libx264 -preset veryfast -crf 22 -c:a aac " +
+                    "-movflags +faststart \"$outputPath\" -y"
+            }
+            ClipExportMode.BURN_IN_SUBS -> {
+                "-ss $clipStartSeconds -to $clipEndSeconds -i \"$inputPath\" " +
+                    "-vf subtitles=\"$inputPath\" -map 0:v:0 -map 0:a? -sn " +
+                    "-c:v libx264 -preset medium -crf 22 -c:a aac -movflags +faststart \"$outputPath\" -y"
+            }
+        }
+    }
+
+    private fun createClipOutputUri(): Uri? {
+        val fileName = "relay_clip_${System.currentTimeMillis()}.mp4"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = contentValuesOf(
+                MediaStore.MediaColumns.DISPLAY_NAME to fileName,
+                MediaStore.MediaColumns.MIME_TYPE to "video/mp4",
+                MediaStore.MediaColumns.RELATIVE_PATH to listOf(
+                    Environment.DIRECTORY_MOVIES,
+                    activity.stringResource(MR.strings.app_name),
+                    "Clips",
+                ).joinToString(File.separator),
+            )
+            activity.contentResolver.insert(
+                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                values,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+                "${activity.stringResource(MR.strings.app_name)}/Clips",
+            )
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, fileName).toURI().let { Uri.parse(it.toString()) }
+        }
+    }
+
     // AM (FILLERMARK) -->
     /**
      * Fillermarks the currently active episode.
@@ -1854,6 +2413,11 @@ class PlayerViewModel @JvmOverloads constructor(
         return newFile.takeIf { it.exists() }?.inputStream()
     }
 
+    fun captureScreenshotQuick(showSubtitles: Boolean) {
+        val screenshot = takeScreenshot(cachePath, showSubtitles) ?: return
+        saveImage(imageStream = { screenshot }, timePos = pos.value.toInt())
+    }
+
     /**
      * Saves the screenshot on the pictures directory and notifies the UI of the result.
      * There's also a notification to allow sharing the image somewhere else or deleting it.
@@ -1879,6 +2443,18 @@ class PlayerViewModel @JvmOverloads constructor(
                         inputStream = imageStream,
                         name = filename,
                         location = Location.Pictures(relativePath),
+                    ),
+                )
+                captureRepository.insert(
+                    CaptureEntry(
+                        id = 0L,
+                        animeId = anime.id,
+                        episodeId = currentEpisode.value?.id,
+                        type = CaptureType.SCREENSHOT,
+                        mediaUri = uri.toString(),
+                        positionMs = (timePos ?: pos.value.toInt()).toLong() * 1000L,
+                        note = null,
+                        createdAt = System.currentTimeMillis(),
                     ),
                 )
                 notifier.onComplete(uri)
@@ -2090,12 +2666,14 @@ class PlayerViewModel @JvmOverloads constructor(
 
             if (chapter.chapterType == ChapterType.Other) {
                 _skipIntroText.update { _ -> null }
+                _postCreditsAhead.update { false }
                 waitingSkipIntro = defaultWaitingTime
             } else {
                 val aniSkipPreference = getAniSkipPreference()
                 val isAniSkipChapter = isAniSkipChapter(chapter)
                 if (isAniSkipChapter && aniSkipPreference == AniSkipPreference.OFF) {
                     _skipIntroText.update { _ -> null }
+                    _postCreditsAhead.update { false }
                     waitingSkipIntro = defaultWaitingTime
                     return
                 }
@@ -2103,10 +2681,21 @@ class PlayerViewModel @JvmOverloads constructor(
                 val nextChapterPos = chapters.value.getOrNull(chapterIndex + 1)?.start ?: pos.value
                 val useNetflixStyle = netflixStyle &&
                     !(isAniSkipChapter && aniSkipPreference == AniSkipPreference.BUTTON)
+                val bingeOpeningAutoSkip = bingeSessionState.value.active &&
+                    bingeSessionState.value.episodesWatched > 0 &&
+                    (chapter.chapterType == ChapterType.Opening || chapter.chapterType == ChapterType.MixedOp)
                 val shouldAutoSkip = if (isAniSkipChapter) {
                     aniSkipPreference == AniSkipPreference.AUTO
                 } else {
-                    autoSkip
+                    autoSkip || bingeOpeningAutoSkip
+                }
+                val suppressEndingSkip = shouldSuppressEndingAutoSkip(chapter, shouldAutoSkip)
+                if (suppressEndingSkip) {
+                    _postCreditsAhead.update { true }
+                    _skipIntroText.update { _ -> "Post-credits ahead" }
+                    return
+                } else {
+                    _postCreditsAhead.update { false }
                 }
 
                 if (useNetflixStyle) {
@@ -2184,6 +2773,20 @@ class PlayerViewModel @JvmOverloads constructor(
         return chapters.value.withIndex()
             .filter { it.value.start <= (position ?: pos.value) }
             .maxByOrNull { it.value.start }
+    }
+
+    private fun shouldSuppressEndingAutoSkip(
+        chapter: IndexedSegment,
+        shouldAutoSkip: Boolean,
+    ): Boolean {
+        val isEnding = chapter.chapterType == ChapterType.Ending
+        if (!isEnding || !shouldAutoSkip) return false
+        val ending = aniSkipSegments
+            .firstOrNull { it.type == ChapterType.Ending }
+            ?: return false
+        val durationMs = duration.value.toLong() * 1000L
+        val tailMs = durationMs - (ending.end * 1000L).toLong()
+        return tailMs >= 45_000L
     }
 
     fun getAniSkipPreference(): AniSkipPreference {

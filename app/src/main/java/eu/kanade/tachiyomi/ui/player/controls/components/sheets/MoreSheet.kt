@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.KeyboardAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.Schedule
@@ -86,6 +87,7 @@ fun MoreSheet(
     onSelectDecoder: (Decoder) -> Unit,
     remainingTime: Int,
     onStartTimer: (Int) -> Unit,
+    onOpenClipMode: () -> Unit,
     onDismissRequest: () -> Unit,
     onEnterFiltersPanel: () -> Unit,
     customButtons: ImmutableList<CustomButton>,
@@ -153,6 +155,15 @@ fun MoreSheet(
                         ) {
                             Icon(imageVector = Icons.Default.Tune, contentDescription = null)
                             Text(text = stringResource(MR.strings.player_sheets_filters_title))
+                        }
+                    }
+                    TextButton(onClick = onOpenClipMode) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                        ) {
+                            Icon(imageVector = Icons.Default.ContentCut, contentDescription = null)
+                            Text(text = "Clip mode")
                         }
                     }
                 }

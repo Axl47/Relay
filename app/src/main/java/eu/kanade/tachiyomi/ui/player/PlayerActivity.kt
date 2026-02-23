@@ -134,6 +134,7 @@ class PlayerActivity : BaseActivity() {
     private var restoreAudioFocus: () -> Unit = {}
 
     private var pipRect: Rect? = null
+    private var pendingStartPositionMs: Long? = null
     val isPipSupportedAndEnabled by lazy {
         packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
             playerPreferences.enablePip().get()
@@ -159,6 +160,7 @@ class PlayerActivity : BaseActivity() {
             hostList: List<Hoster>? = null,
             hostIndex: Int? = null,
             vidIndex: Int? = null,
+            startPositionMs: Long? = null,
         ): Intent {
             return Intent(context, PlayerActivity::class.java).apply {
                 putExtra("animeId", animeId)
@@ -166,6 +168,7 @@ class PlayerActivity : BaseActivity() {
                 hostIndex?.let { putExtra("hostIndex", it) }
                 vidIndex?.let { putExtra("vidIndex", it) }
                 hostList?.let { putExtra("hostList", it.serialize()) }
+                startPositionMs?.let { putExtra("startPositionMs", it) }
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
         }
@@ -180,6 +183,7 @@ class PlayerActivity : BaseActivity() {
         val hostList = intent.extras?.getString("hostList") ?: ""
         val hostIndex = intent.extras?.getInt("hostIndex") ?: -1
         val vidIndex = intent.extras?.getInt("vidIndex") ?: -1
+        pendingStartPositionMs = intent.extras?.getLong("startPositionMs")
         if (animeId == -1L || episodeId == -1L) {
             finish()
             return
@@ -318,6 +322,7 @@ class PlayerActivity : BaseActivity() {
 
     override fun onPause() {
         viewModel.saveCurrentEpisodeWatchingProgress()
+        viewModel.onAppBackgrounded()
 
         // Mantener sesión Cast activa
         castManager.maintainCastSessionBackground()
@@ -1120,11 +1125,13 @@ class PlayerActivity : BaseActivity() {
             viewModel.currentEpisode.value?.let { episode ->
                 val preservePos = playerPreferences.preserveWatchingPosition().get()
                 val resumePosition = position
+                    ?: pendingStartPositionMs
                     ?: if (episode.seen && !preservePos) {
                         0L
                     } else {
                         episode.last_second_seen
                     }
+                pendingStartPositionMs = null
                 MPVLib.command(arrayOf("set", "start", "${resumePosition / 1000F}"))
             }
         } else {
@@ -1362,9 +1369,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun endFile(eofReached: Boolean) {
-        if (eofReached && playerPreferences.autoplayEnabled().get()) {
-            viewModel.changeEpisode(previous = false, autoPlay = true)
-        }
+        viewModel.onEpisodeEnded(eofReached)
     }
 
 }

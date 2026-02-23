@@ -537,25 +537,25 @@ private fun VideoList(
                     onExtPlayerClicked = {
                         scope.launch {
                             MainActivity.startPlayerActivity(
-                                context,
-                                anime.id,
-                                episode.id,
-                                true,
-                                currentVideo,
+                                context = context,
+                                animeId = anime.id,
+                                episodeId = episode.id,
+                                extPlayer = true,
+                                video = currentVideo,
                             )
                         }
                     },
                     onIntPlayerClicked = {
                         scope.launch {
                             MainActivity.startPlayerActivity(
-                                context,
-                                anime.id,
-                                episode.id,
-                                false,
-                                currentVideo,
-                                selectedHosterVideoIndex.first,
-                                selectedHosterVideoIndex.second,
-                                getHosterList(),
+                                context = context,
+                                animeId = anime.id,
+                                episodeId = episode.id,
+                                extPlayer = false,
+                                video = currentVideo,
+                                hosterIndex = selectedHosterVideoIndex.first,
+                                videoIndex = selectedHosterVideoIndex.second,
+                                hosterList = getHosterList(),
                             )
                         }
                     },

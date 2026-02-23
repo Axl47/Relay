@@ -10,6 +10,7 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
+import eu.kanade.tachiyomi.ui.bookmarks.BookmarksTab
 import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
 import eu.kanade.tachiyomi.ui.more.MoreTab
@@ -37,7 +38,7 @@ enum class NavStyle(
         get() {
             return mutableListOf(
                 LibraryTab,
-                UpdatesTab,
+                BookmarksTab,
                 HistoryTab,
                 BrowseTab,
                 MoreTab,

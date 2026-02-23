@@ -52,6 +52,7 @@ fun MoreScreen(
     onClickStats: () -> Unit,
     onClickDataAndStorage: () -> Unit,
     onClickPlayerSettings: () -> Unit,
+    onClickUpdates: () -> Unit,
     onClickSettings: () -> Unit,
     onClickAbout: () -> Unit,
 ) {
@@ -184,6 +185,13 @@ fun MoreScreen(
                     title = stringResource(MR.strings.label_player_settings),
                     icon = Icons.Outlined.VideoSettings,
                     onPreferenceClick = onClickPlayerSettings,
+                )
+            }
+            item {
+                TextPreferenceWidget(
+                    title = stringResource(MR.strings.label_recent_updates),
+                    icon = ImageVector.vectorResource(R.drawable.ic_updates_outline_24dp),
+                    onPreferenceClick = onClickUpdates,
                 )
             }
             item {

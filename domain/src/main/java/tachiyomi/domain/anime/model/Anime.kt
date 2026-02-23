@@ -120,6 +120,20 @@ data class Anime(
             else -> AniSkipPreference.BUTTON
         }
 
+    val hideFiller: Boolean
+        get() = (viewerFlags and ANIME_HIDE_FILLER_MASK) == ANIME_HIDE_FILLER_MASK
+
+    val skipFiller: Boolean
+        get() = (viewerFlags and ANIME_SKIP_FILLER_MASK) == ANIME_SKIP_FILLER_MASK
+
+    val nextEpisodeCardCountdown: Int
+        get() = when (viewerFlags and ANIME_NEXT_CARD_COUNTDOWN_MASK) {
+            ANIME_NEXT_CARD_COUNTDOWN_3 -> 3
+            ANIME_NEXT_CARD_COUNTDOWN_10 -> 10
+            ANIME_NEXT_CARD_COUNTDOWN_OFF -> 0
+            else -> 5
+        }
+
     val unseenFilter: TriState
         get() = when (unseenFilterRaw) {
             EPISODE_SHOW_UNSEEN -> TriState.ENABLED_IS
@@ -195,6 +209,13 @@ data class Anime(
         const val ANIME_ANISKIP_PREF_MASK = 0x0000000000300000L
         const val ANIME_ANISKIP_PREF_AUTO = 0x0000000000100000L
         const val ANIME_ANISKIP_PREF_OFF = 0x0000000000200000L
+        const val ANIME_HIDE_FILLER_MASK = 0x0000000000400000L
+        const val ANIME_SKIP_FILLER_MASK = 0x0000000000800000L
+        const val ANIME_NEXT_CARD_COUNTDOWN_MASK = 0x0E00000000000000L
+        const val ANIME_NEXT_CARD_COUNTDOWN_OFF = 0x0000000000000000L
+        const val ANIME_NEXT_CARD_COUNTDOWN_3 = 0x0200000000000000L
+        const val ANIME_NEXT_CARD_COUNTDOWN_5 = 0x0400000000000000L
+        const val ANIME_NEXT_CARD_COUNTDOWN_10 = 0x0600000000000000L
 
         fun create() = Anime(
             id = -1L,

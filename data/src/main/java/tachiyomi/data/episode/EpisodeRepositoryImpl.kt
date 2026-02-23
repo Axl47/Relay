@@ -27,6 +27,7 @@ class EpisodeRepositoryImpl(
                         // AM (FILLERMARK) -->
                         episode.fillermark,
                         // <-- AM (FILLERMARK)
+                        episode.episodeType.toDbValue(),
                         episode.lastSecondSeen,
                         episode.totalSeconds,
                         episode.episodeNumber,
@@ -66,6 +67,7 @@ class EpisodeRepositoryImpl(
                     // AM (FILLERMARK) -->
                     fillermark = episodeUpdate.fillermark,
                     // <-- AM (FILLERMARK)
+                    episodeType = episodeUpdate.episodeType?.toDbValue(),
                     lastSecondSeen = episodeUpdate.lastSecondSeen,
                     totalSeconds = episodeUpdate.totalSeconds,
                     episodeNumber = episodeUpdate.episodeNumber,

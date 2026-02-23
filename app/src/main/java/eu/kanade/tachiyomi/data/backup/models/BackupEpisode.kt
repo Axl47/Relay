@@ -60,6 +60,7 @@ val backupEpisodeMapper = {
         // AM (FILLERMARK) -->
         fillermark: Boolean,
         // <-- AM (FILLERMARK)
+        _: String,
         lastSecondSeen: Long,
         totalSeconds: Long,
         episodeNumber: Double,

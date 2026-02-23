@@ -71,6 +71,17 @@ enum class CustomKeyCodes(val keyCode: String) {
     MediaNext("0x10006"),
 }
 
+enum class GestureAction {
+    NONE,
+    SEEK_BACKWARD,
+    SEEK_FORWARD,
+    BRIGHTNESS,
+    VOLUME,
+    SPEED_BOOST,
+    SCREENSHOT,
+    BOOKMARK,
+}
+
 enum class Decoder(val title: String, val value: String) {
     AutoCopy("Auto", "auto-copy"),
     Auto("Auto", "auto"),
@@ -98,6 +109,7 @@ enum class Sheets {
     Chapters,
     More,
     Screenshot,
+    Clip,
 }
 
 enum class Panels {

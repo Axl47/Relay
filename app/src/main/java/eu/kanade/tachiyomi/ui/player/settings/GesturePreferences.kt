@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
+import eu.kanade.tachiyomi.ui.player.GestureAction
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
@@ -27,6 +28,12 @@ class GesturePreferences(
     fun leftDoubleTapGesture() = preferenceStore.getEnum("pref_left_double_tap", SingleActionGesture.Seek)
     fun centerDoubleTapGesture() = preferenceStore.getEnum("pref_center_double_tap", SingleActionGesture.PlayPause)
     fun rightDoubleTapGesture() = preferenceStore.getEnum("pref_right_double_tap", SingleActionGesture.Seek)
+    fun leftDoubleTapAction() = preferenceStore.getEnum("pref_gesture_action_double_tap_left", GestureAction.SEEK_BACKWARD)
+    fun rightDoubleTapAction() = preferenceStore.getEnum("pref_gesture_action_double_tap_right", GestureAction.SEEK_FORWARD)
+    fun verticalSwipeLeftAction() = preferenceStore.getEnum("pref_gesture_action_vertical_left", GestureAction.BRIGHTNESS)
+    fun verticalSwipeRightAction() = preferenceStore.getEnum("pref_gesture_action_vertical_right", GestureAction.VOLUME)
+    fun longPressAction() = preferenceStore.getEnum("pref_gesture_action_long_press", GestureAction.SPEED_BOOST)
+    fun leftHandedMode() = preferenceStore.getBoolean("pref_gesture_left_handed_mode", false)
 
     // Media controls
 

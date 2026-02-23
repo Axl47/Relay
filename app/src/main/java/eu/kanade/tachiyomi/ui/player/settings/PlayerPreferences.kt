@@ -85,4 +85,6 @@ class PlayerPreferences(
     // Old
 
     fun autoplayEnabled() = preferenceStore.getBoolean("pref_auto_play_enabled", false)
+    fun bingeReminderIntervalMinutes() = preferenceStore.getInt("pref_binge_reminder_interval_minutes", 45)
+    fun bingeExplainerSeen() = preferenceStore.getBoolean("pref_binge_explainer_seen", false)
 }

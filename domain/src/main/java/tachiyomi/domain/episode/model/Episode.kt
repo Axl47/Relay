@@ -10,6 +10,7 @@ data class Episode(
     // AM (FILLERMARK) -->
     val fillermark: Boolean,
     // <-- AM (FILLERMARK)
+    val episodeType: EpisodeType,
     val lastSecondSeen: Long,
     val totalSeconds: Long,
     val dateFetch: Long,
@@ -44,6 +45,7 @@ data class Episode(
             // AM (FILLERMARK) -->
             fillermark = false,
             // <-- AM (FILLERMARK)
+            episodeType = EpisodeType.CANON,
             lastSecondSeen = 0,
             totalSeconds = 0,
             dateFetch = 0,

@@ -42,6 +42,51 @@ class SetAnimeViewerFlags(
         )
     }
 
+    suspend fun awaitSetHideFiller(id: Long, enabled: Boolean) {
+        val anime = animeRepository.getAnimeById(id)
+        animeRepository.update(
+            AnimeUpdate(
+                id = id,
+                viewerFlags = anime.viewerFlags.setFlag(
+                    if (enabled) Anime.ANIME_HIDE_FILLER_MASK else 0L,
+                    Anime.ANIME_HIDE_FILLER_MASK,
+                ),
+            ),
+        )
+    }
+
+    suspend fun awaitSetSkipFiller(id: Long, enabled: Boolean) {
+        val anime = animeRepository.getAnimeById(id)
+        animeRepository.update(
+            AnimeUpdate(
+                id = id,
+                viewerFlags = anime.viewerFlags.setFlag(
+                    if (enabled) Anime.ANIME_SKIP_FILLER_MASK else 0L,
+                    Anime.ANIME_SKIP_FILLER_MASK,
+                ),
+            ),
+        )
+    }
+
+    suspend fun awaitSetNextEpisodeCardCountdown(id: Long, seconds: Int) {
+        val anime = animeRepository.getAnimeById(id)
+        val flag = when (seconds) {
+            0 -> Anime.ANIME_NEXT_CARD_COUNTDOWN_OFF
+            3 -> Anime.ANIME_NEXT_CARD_COUNTDOWN_3
+            10 -> Anime.ANIME_NEXT_CARD_COUNTDOWN_10
+            else -> Anime.ANIME_NEXT_CARD_COUNTDOWN_5
+        }
+        animeRepository.update(
+            AnimeUpdate(
+                id = id,
+                viewerFlags = anime.viewerFlags.setFlag(
+                    flag,
+                    Anime.ANIME_NEXT_CARD_COUNTDOWN_MASK,
+                ),
+            ),
+        )
+    }
+
     private suspend fun awaitSetNextEpisodeToAir(id: Long, flag: Long) {
         val anime = animeRepository.getAnimeById(id)
         animeRepository.update(

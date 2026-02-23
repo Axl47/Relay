@@ -48,6 +48,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.ui.anime.AnimeScreen
+import eu.kanade.tachiyomi.ui.bookmarks.BookmarksTab
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.history.HistoryTab
@@ -217,6 +218,7 @@ object HomeScreen : Screen() {
                     openTabEvent.receiveAsFlow().collectLatest {
                         tabNavigator.current = when (it) {
                             is Tab.AnimeLib -> LibraryTab
+                            is Tab.Bookmarks -> BookmarksTab
                             is Tab.Updates -> UpdatesTab
                             is Tab.History -> HistoryTab
                             is Tab.Browse -> {
@@ -379,6 +381,7 @@ object HomeScreen : Screen() {
 
     sealed interface Tab {
         data class AnimeLib(val animeIdToOpen: Long? = null) : Tab
+        data object Bookmarks : Tab
         data object Updates : Tab
         data object History : Tab
         data class Browse(val toExtensions: Boolean = false, val anime: Boolean = false) : Tab

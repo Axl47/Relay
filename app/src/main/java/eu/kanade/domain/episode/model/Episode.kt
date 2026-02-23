@@ -37,6 +37,7 @@ fun Episode.toDbEpisode(): DbEpisode = EpisodeImpl().also {
     // AM (FILLERMARK) -->
     it.fillermark = fillermark
     // <-- AM (FILLERMARK)
+    it.episode_type = episodeType.toDbValue()
     it.last_second_seen = lastSecondSeen
     it.total_seconds = totalSeconds
     it.date_fetch = dateFetch

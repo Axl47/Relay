@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.tachiyomi.ui.player.GestureAction
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -44,8 +45,86 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         return listOf(
             getSlidersGroup(gesturePreferences = gesturePreferences),
             getSeekingGroup(gesturePreferences = gesturePreferences),
+            getGestureActionsGroup(gesturePreferences = gesturePreferences),
             getDoubleTapGroup(gesturePreferences = gesturePreferences),
             getMediaControlsGroup(gesturePreferences = gesturePreferences),
+        )
+    }
+
+    @Composable
+    private fun getGestureActionsGroup(gesturePreferences: GesturePreferences): Preference.PreferenceGroup {
+        val leftHanded = gesturePreferences.leftHandedMode()
+        val leftDoubleTap = gesturePreferences.leftDoubleTapAction()
+        val rightDoubleTap = gesturePreferences.rightDoubleTapAction()
+        val verticalLeft = gesturePreferences.verticalSwipeLeftAction()
+        val verticalRight = gesturePreferences.verticalSwipeRightAction()
+        val longPress = gesturePreferences.longPressAction()
+
+        fun label(action: GestureAction): String {
+            return when (action) {
+                GestureAction.NONE -> "None"
+                GestureAction.SEEK_BACKWARD -> "Seek backward"
+                GestureAction.SEEK_FORWARD -> "Seek forward"
+                GestureAction.BRIGHTNESS -> "Brightness"
+                GestureAction.VOLUME -> "Volume"
+                GestureAction.SPEED_BOOST -> "Speed boost"
+                GestureAction.SCREENSHOT -> "Screenshot"
+                GestureAction.BOOKMARK -> "Bookmark"
+            }
+        }
+
+        val doubleTapEntries = listOf(
+            GestureAction.NONE,
+            GestureAction.SEEK_BACKWARD,
+            GestureAction.SEEK_FORWARD,
+            GestureAction.SCREENSHOT,
+            GestureAction.BOOKMARK,
+        ).associateWith(::label).toPersistentMap()
+        val verticalEntries = listOf(
+            GestureAction.BRIGHTNESS,
+            GestureAction.VOLUME,
+            GestureAction.NONE,
+        ).associateWith(::label).toPersistentMap()
+        val longPressEntries = listOf(
+            GestureAction.SPEED_BOOST,
+            GestureAction.SCREENSHOT,
+            GestureAction.BOOKMARK,
+            GestureAction.NONE,
+        ).associateWith(::label).toPersistentMap()
+
+        return Preference.PreferenceGroup(
+            title = "Gesture remap",
+            preferenceItems = persistentListOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    pref = leftHanded,
+                    title = "Left-handed mode",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = leftDoubleTap,
+                    title = "Double tap left",
+                    entries = doubleTapEntries,
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = rightDoubleTap,
+                    title = "Double tap right",
+                    entries = doubleTapEntries,
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = verticalLeft,
+                    title = "Vertical swipe left zone",
+                    entries = verticalEntries,
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = verticalRight,
+                    title = "Vertical swipe right zone",
+                    entries = verticalEntries,
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    pref = longPress,
+                    title = "Long press",
+                    entries = longPressEntries,
+                ),
+            ),
         )
     }
 

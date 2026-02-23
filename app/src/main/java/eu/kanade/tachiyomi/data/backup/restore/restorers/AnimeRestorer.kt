@@ -226,6 +226,7 @@ class AnimeRestorer(
                     // AM (FILLERMARK) -->
                     episode.fillermark,
                     // <-- AM (FILLERMARK)
+                    episode.episodeType.toDbValue(),
                     episode.lastSecondSeen,
                     episode.totalSeconds,
                     episode.episodeNumber,
@@ -251,6 +252,7 @@ class AnimeRestorer(
                     // AM (FILLERMARK) -->
                     fillermark = episode.fillermark,
                     // <-- AM (FILLERMARK)
+                    episodeType = episode.episodeType.toDbValue(),
                     lastSecondSeen = episode.lastSecondSeen,
                     totalSeconds = episode.totalSeconds,
                     episodeNumber = null,

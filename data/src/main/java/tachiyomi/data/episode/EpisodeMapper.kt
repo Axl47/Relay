@@ -1,6 +1,7 @@
 package tachiyomi.data.episode
 
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.episode.model.EpisodeType
 
 object EpisodeMapper {
     fun mapEpisode(
@@ -14,6 +15,7 @@ object EpisodeMapper {
         // AM (FILLERMARK) -->
         fillermark: Boolean,
         // <-- AM (FILLERMARK)
+        episodeType: String,
         lastSecondSeen: Long,
         totalSeconds: Long,
         episodeNumber: Double,
@@ -32,6 +34,7 @@ object EpisodeMapper {
         // AM (FILLERMARK) -->
         fillermark = fillermark,
         // <-- AM (FILLERMARK)
+        episodeType = EpisodeType.fromDb(episodeType),
         lastSecondSeen = lastSecondSeen,
         totalSeconds = totalSeconds,
         dateFetch = dateFetch,
