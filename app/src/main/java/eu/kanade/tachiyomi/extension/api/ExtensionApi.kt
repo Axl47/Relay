@@ -14,6 +14,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import logcat.LogPriority
+import mihon.domain.extensionrepo.interactor.CreateExtensionRepo
 import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
@@ -29,6 +30,7 @@ internal class ExtensionApi {
 
     private val networkService: NetworkHelper by injectLazy()
     private val preferenceStore: PreferenceStore by injectLazy()
+    private val createExtensionRepo: CreateExtensionRepo by injectLazy()
     private val getExtensionRepo: GetExtensionRepo by injectLazy()
     private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
     private val extensionManager: ExtensionManager by injectLazy()
@@ -38,8 +40,13 @@ internal class ExtensionApi {
         preferenceStore.getLong("last_ext_check", 0)
     }
 
+    private val extensionReposBootstrapped: Preference<Boolean> by lazy {
+        preferenceStore.getBoolean(Preference.appStateKey(EXTENSION_REPOS_BOOTSTRAPPED_KEY), false)
+    }
+
     suspend fun findExtensions(): List<Extension.Available> {
         return withIOContext {
+            bootstrapOfficialRepoIfNeeded()
             getExtensionRepo.getAll()
                 .map { async { getExtensions(it) } }
                 .awaitAll()
@@ -62,6 +69,29 @@ internal class ExtensionApi {
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e) { "Failed to get extensions from $repoBaseUrl" }
             emptyList()
+        }
+    }
+
+    private suspend fun bootstrapOfficialRepoIfNeeded() {
+        if (extensionReposBootstrapped.get()) return
+
+        val existingRepos = getExtensionRepo.getAll()
+        if (existingRepos.isNotEmpty()) {
+            extensionReposBootstrapped.set(true)
+            return
+        }
+
+        val repoIndexUrl = "${CreateExtensionRepo.OFFICIAL_REPO_BASE_URL}/index.min.json"
+        val result = createExtensionRepo.await(repoIndexUrl)
+
+        when (result) {
+            CreateExtensionRepo.Result.Success,
+            CreateExtensionRepo.Result.RepoAlreadyExists,
+            is CreateExtensionRepo.Result.DuplicateFingerprint,
+            -> extensionReposBootstrapped.set(true)
+            CreateExtensionRepo.Result.InvalidUrl,
+            CreateExtensionRepo.Result.Error,
+            -> Unit
         }
     }
 
@@ -139,6 +169,10 @@ internal class ExtensionApi {
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {
         return version.substringBeforeLast('.').toDouble()
+    }
+
+    companion object {
+        private const val EXTENSION_REPOS_BOOTSTRAPPED_KEY = "extension_repos_bootstrapped"
     }
 }
 
