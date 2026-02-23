@@ -2,15 +2,13 @@ package eu.kanade.domain.base
 
 import android.content.Context
 import eu.kanade.domain.base.BasePreferences.ExtensionInstaller
-import eu.kanade.tachiyomi.util.system.hasMiuiPackageInstaller
-import eu.kanade.tachiyomi.util.system.isShizukuInstalled
 import kotlinx.coroutines.CoroutineScope
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
 class ExtensionInstallerPreference(
-    private val context: Context,
+    context: Context,
     preferenceStore: PreferenceStore,
 ) : Preference<ExtensionInstaller> {
 
@@ -18,32 +16,11 @@ class ExtensionInstallerPreference(
 
     override fun key() = "extension_installer"
 
-    val entries get() = ExtensionInstaller.entries.run {
-        if (context.hasMiuiPackageInstaller) {
-            filter { it != ExtensionInstaller.PACKAGEINSTALLER }
-        } else {
-            toList()
-        }
-    }
+    val entries get() = listOf(ExtensionInstaller.PRIVATE)
 
-    override fun defaultValue() = if (context.hasMiuiPackageInstaller) {
-        ExtensionInstaller.LEGACY
-    } else {
-        ExtensionInstaller.PACKAGEINSTALLER
-    }
+    override fun defaultValue() = ExtensionInstaller.PRIVATE
 
-    private fun check(value: ExtensionInstaller): ExtensionInstaller {
-        when (value) {
-            ExtensionInstaller.PACKAGEINSTALLER -> {
-                if (context.hasMiuiPackageInstaller) return ExtensionInstaller.LEGACY
-            }
-            ExtensionInstaller.SHIZUKU -> {
-                if (!context.isShizukuInstalled) return defaultValue()
-            }
-            else -> {}
-        }
-        return value
-    }
+    private fun check(value: ExtensionInstaller): ExtensionInstaller = ExtensionInstaller.PRIVATE
 
     override fun get(): ExtensionInstaller {
         val value = basePref.get()

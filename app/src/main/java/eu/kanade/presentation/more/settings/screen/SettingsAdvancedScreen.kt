@@ -12,11 +12,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.net.toUri
@@ -48,13 +45,13 @@ import eu.kanade.tachiyomi.network.PREF_DOH_QUAD101
 import eu.kanade.tachiyomi.network.PREF_DOH_QUAD9
 import eu.kanade.tachiyomi.network.PREF_DOH_SHECAN
 import eu.kanade.tachiyomi.util.CrashLogUtil
-import eu.kanade.tachiyomi.util.system.isShizukuInstalled
 import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -304,58 +301,21 @@ object SettingsAdvancedScreen : SearchableSettings {
         basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val uriHandler = LocalUriHandler.current
         val extensionInstallerPref = basePreferences.extensionInstaller()
-        var shizukuMissing by rememberSaveable { mutableStateOf(false) }
         val trustExtension = remember { Injekt.get<TrustExtension>() }
-
-        if (shizukuMissing) {
-            val dismiss = { shizukuMissing = false }
-            AlertDialog(
-                onDismissRequest = dismiss,
-                title = { Text(text = stringResource(MR.strings.ext_installer_shizuku)) },
-                text = {
-                    Text(
-                        text = stringResource(MR.strings.ext_installer_shizuku_unavailable_dialog),
-                    )
-                },
-                dismissButton = {
-                    TextButton(onClick = dismiss) {
-                        Text(text = stringResource(MR.strings.action_cancel))
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            dismiss()
-                            uriHandler.openUri("https://shizuku.rikka.app/download")
-                        },
-                    ) {
-                        Text(text = stringResource(MR.strings.action_ok))
-                    }
-                },
-            )
-        }
-        return Preference.PreferenceGroup(
-            title = stringResource(MR.strings.label_extensions),
-            preferenceItems = persistentListOf(
-                Preference.PreferenceItem.ListPreference(
-                    pref = extensionInstallerPref,
-                    title = stringResource(MR.strings.ext_installer_pref),
-                    entries = extensionInstallerPref.entries
-                        .associateWith { stringResource(it.titleRes) }
-                        .toImmutableMap(),
-                    onValueChanged = {
-                        if (it == BasePreferences.ExtensionInstaller.SHIZUKU &&
-                            !context.isShizukuInstalled
-                        ) {
-                            shizukuMissing = true
-                            false
-                        } else {
-                            true
-                        }
-                    },
-                ),
+        val preferenceItems = buildList {
+            if (extensionInstallerPref.entries.size > 1) {
+                add(
+                    Preference.PreferenceItem.ListPreference(
+                        pref = extensionInstallerPref,
+                        title = stringResource(MR.strings.ext_installer_pref),
+                        entries = extensionInstallerPref.entries
+                            .associateWith { stringResource(it.titleRes) }
+                            .toImmutableMap(),
+                    ),
+                )
+            }
+            add(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.ext_revoke_trust),
                     onClick = {
@@ -363,7 +323,11 @@ object SettingsAdvancedScreen : SearchableSettings {
                         context.toast(MR.strings.requires_app_restart)
                     },
                 ),
-            ),
+            )
+        }
+        return Preference.PreferenceGroup(
+            title = stringResource(MR.strings.label_extensions),
+            preferenceItems = preferenceItems.toPersistentList(),
         )
     }
 
