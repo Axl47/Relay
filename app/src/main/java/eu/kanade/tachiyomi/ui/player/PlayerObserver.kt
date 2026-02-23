@@ -1,7 +1,5 @@
 package eu.kanade.tachiyomi.ui.player
 
-import android.widget.Toast
-import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -35,18 +33,16 @@ class PlayerObserver(val activity: PlayerActivity) :
     }
 
     override fun efEvent(err: String?) {
-        var errorMessage = err ?: "Error: File ended"
-        if (!httpError.isNullOrEmpty()) {
-            errorMessage += ": $httpError"
-            httpError = null
-        }
+        val errorMessage = err ?: "Error: File ended"
         logcat(LogPriority.ERROR) { errorMessage }
-        activity.runOnUiThread {
-            activity.toast(errorMessage, Toast.LENGTH_LONG)
-        }
+        activity.onPlaybackStreamError(errorMessage, httpError, httpStatus)
+        httpError = null
+        httpStatus = null
     }
 
     private var httpError: String? = null
+    private var httpStatus: Int? = null
+    private val httpErrorRegex = Regex("HTTP\\s+error\\s+(\\d{3})", RegexOption.IGNORE_CASE)
 
     override fun logMessage(prefix: String, level: Int, text: String) {
         val logPriority = when (level) {
@@ -55,7 +51,10 @@ class PlayerObserver(val activity: PlayerActivity) :
             MPVLib.mpvLogLevel.MPV_LOG_LEVEL_INFO -> LogPriority.INFO
             else -> LogPriority.VERBOSE
         }
-        if (text.contains("HTTP error")) httpError = text
+        if (text.contains("HTTP error", ignoreCase = true)) {
+            httpError = text
+            httpStatus = httpErrorRegex.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        }
         logcat.logcat("mpv/$prefix", logPriority) { text }
     }
 }

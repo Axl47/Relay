@@ -736,7 +736,7 @@ After all 4 sub-agents complete:
 
 ---
 
-## Execution Notes for Claude Code
+## Execution Notes for Agents
 
 ### Sub-Agent Coordination Rules
 
@@ -746,22 +746,7 @@ After all 4 sub-agents complete:
 
 3. **Compilation checkpoints**: After each pass, run `./gradlew assembleDebug`. Fix all errors before proceeding. This is a hard gate.
 
-4. **Git discipline**: 
-   - Each pass is a branch: `relay/pass-1-strip`, `relay/pass-2-fallback`, etc.
-   - Each sub-agent commits to the same branch (they touch different files)
-   - At pass completion: squash-merge to `relay/main`, tag
-
-5. **When stuck on a file path**: If a file referenced in the Pass 0 maps doesn't exist at the expected location, search for it by class name or feature keyword. The Anikku codebase inherits naming from Tachiyomi/Aniyomi/Komikku, so things may be in unexpected places.
-
-6. **String resources**: After removing i18n modules, the app needs a single English `strings.xml`. If the build breaks on missing string resources, consolidate all needed English strings into `app/src/main/res/values/strings.xml`. The i18n modules were overlays — the base strings should already exist.
-
-### Priority if Time-Constrained
-
-If you need to ship something fast:
-- **Pass 0 + Pass 1** = Usable stripped app (ship as v0.0.1)
-- **+ Pass 2** = Source fallback (ship as v0.1.0) — this is the killer feature
-- **+ Pass 3** = AniSkip (ship as v0.1.1) — high-visibility improvement
-- Everything else is iterative improvement
+4. **When stuck on a file path**: If a file referenced in the Pass 0 maps doesn't exist at the expected location, search for it by class name or feature keyword. The Anikku codebase inherits naming from Tachiyomi/Aniyomi/Komikku, so things may be in unexpected places.
 
 ### Testing Checklist Per Pass
 

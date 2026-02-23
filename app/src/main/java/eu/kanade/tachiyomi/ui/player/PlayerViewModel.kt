@@ -96,6 +96,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
@@ -1360,6 +1362,7 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     private var getHosterVideoLinksJob: Job? = null
+    private val runtimeFallbackMutex = Mutex()
 
     fun cancelHosterVideoLinksJob() {
         getHosterVideoLinksJob?.cancel()
@@ -1531,6 +1534,59 @@ class PlayerViewModel @JvmOverloads constructor(
 
         activity.setVideo(resolvedVideo)
         return true
+    }
+
+    suspend fun recoverFromRuntimePlaybackFailure(httpStatus: Int): Boolean {
+        if (httpStatus !in 400..599) return false
+
+        return runtimeFallbackMutex.withLock {
+            if (isLoadingHosters.value || hosterState.value.isEmpty()) return@withLock false
+
+            val source = currentSource.value as? AnimeSource ?: return@withLock false
+            val (failedHosterIndex, failedVideoIndex) = selectedHosterVideoIndex.value
+            val failedHosterState = hosterState.value.getOrNull(failedHosterIndex) as? HosterState.Ready
+                ?: return@withLock false
+            val failedVideo = failedHosterState.videoList.getOrNull(failedVideoIndex) ?: return@withLock false
+
+            val failedSourceId = hosterList.value.getOrNull(failedHosterIndex)?.let(::hosterSourceId)
+            if (failedSourceId != null) {
+                sourceFallbackManager.recordFailure(failedSourceId)
+            }
+            _hosterState.updateAt(
+                failedHosterIndex,
+                failedHosterState.getChangedAt(failedVideoIndex, failedVideo, Video.State.ERROR),
+            )
+
+            var (nextHosterIndex, nextVideoIndex) = HosterLoader.selectBestVideo(hosterState.value)
+            while (nextHosterIndex != -1) {
+                val nextHosterState = hosterState.value.getOrNull(nextHosterIndex) as? HosterState.Ready
+                val nextVideo = nextHosterState?.videoList?.getOrNull(nextVideoIndex)
+                if (nextHosterState == null || nextVideo == null) {
+                    break
+                }
+
+                val nextSourceId = hosterList.value.getOrNull(nextHosterIndex)?.let(::hosterSourceId)
+                if (nextSourceId != null) {
+                    sourceFallbackManager.setFallingBack(nextSourceId)
+                    val nextHosterName = hosterList.value.getOrNull(nextHosterIndex)?.hosterName ?: "next source"
+                    withUIContext {
+                        activity.toast("Source failed, trying $nextHosterName...")
+                    }
+                }
+
+                val recovered = loadVideo(source, nextVideo, nextHosterIndex, nextVideoIndex)
+                if (recovered) {
+                    return@withLock true
+                }
+
+                val nextSelection = HosterLoader.selectBestVideo(hosterState.value)
+                nextHosterIndex = nextSelection.first
+                nextVideoIndex = nextSelection.second
+            }
+
+            sourceFallbackManager.setAllFailed()
+            false
+        }
     }
 
     private fun hosterSourceId(hoster: Hoster): String {

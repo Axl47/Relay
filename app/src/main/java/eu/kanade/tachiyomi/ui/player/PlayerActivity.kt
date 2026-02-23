@@ -664,6 +664,34 @@ class PlayerActivity : BaseActivity() {
         runOnUiThread { toast(message) }
     }
 
+    fun onPlaybackStreamError(
+        playerError: String,
+        httpError: String?,
+        httpStatus: Int?,
+    ) {
+        val errorMessage = if (!httpError.isNullOrBlank()) {
+            "$playerError: $httpError"
+        } else {
+            playerError
+        }
+
+        if (httpError.isNullOrBlank() || httpStatus == null) {
+            runOnUiThread {
+                toast(errorMessage, android.widget.Toast.LENGTH_LONG)
+            }
+            return
+        }
+
+        lifecycleScope.launch {
+            val recovered = viewModel.recoverFromRuntimePlaybackFailure(httpStatus)
+            if (!recovered) {
+                runOnUiThread {
+                    toast(errorMessage, android.widget.Toast.LENGTH_LONG)
+                }
+            }
+        }
+    }
+
     // A bunch of observers
 
     internal fun onObserverEvent(property: String, value: Long) {
@@ -1169,14 +1197,8 @@ class PlayerActivity : BaseActivity() {
         if (viewModel.isEpisodeOnline() != true) return
         val source = viewModel.currentSource.value as? HttpSource ?: return
 
-        val headers = (video.headers ?: source.headers)
-            .toMultimap()
-            .mapValues { it.value.firstOrNull() ?: "" }
-            .toMutableMap()
-
-        val httpHeaderString = headers.map {
-            it.key + ": " + it.value.replace(",", "\\,")
-        }.joinToString(",")
+        val headers = StreamRequestHeaders.resolve(source, video, video.videoUrl)
+        val httpHeaderString = StreamRequestHeaders.toMpvHttpHeaderFields(headers)
 
         MPVLib.setOptionString("http-header-fields", httpHeaderString)
 

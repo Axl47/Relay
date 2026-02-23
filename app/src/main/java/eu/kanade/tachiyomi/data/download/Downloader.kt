@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.torrentServer.TorrentServerApi
 import eu.kanade.tachiyomi.torrentServer.TorrentServerUtils
+import eu.kanade.tachiyomi.ui.player.StreamRequestHeaders
 import eu.kanade.tachiyomi.ui.player.loader.EpisodeLoader
 import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
 import eu.kanade.tachiyomi.util.storage.DiskUtil
@@ -358,20 +359,36 @@ class Downloader(
             val episodeDirname = provider.getEpisodeDirName(download.episode.name, download.episode.scanlator)
             val tmpDir = animeDir.createDirectory(episodeDirname + TMP_DIR_SUFFIX)!!
 
-            if (download.video == null) {
-                // Pull video from network and add them to download object
-                try {
-                    val hosters = EpisodeLoader.getHosters(download.episode, download.anime, download.source)
-                    val fetchedVideo = HosterLoader.getBestVideo(download.source, hosters)!!
+            val candidates = resolveVideoCandidates(download)
+            val failureReasons = mutableListOf<String>()
 
-                    download.video = fetchedVideo
+            var candidateSucceeded = false
+            for ((index, candidate) in candidates.withIndex()) {
+                download.video = candidate
+
+                try {
+                    getOrDownloadVideoFile(
+                        download = download,
+                        tmpDir = tmpDir,
+                        notifyOnError = index == candidates.lastIndex,
+                    )
+                    candidateSucceeded = true
+                    break
                 } catch (e: Exception) {
-                    logcat(LogPriority.ERROR, e)
-                    throw Exception(context.stringResource(MR.strings.video_list_empty_error))
+                    failureReasons += e.message ?: "Unknown candidate error"
+                    if (index < candidates.lastIndex) {
+                        notifier.onWarning(
+                            "Video candidate ${index + 1}/${candidates.size} failed, trying next...",
+                        )
+                    }
                 }
             }
 
-            getOrDownloadVideoFile(download, tmpDir)
+            if (!candidateSucceeded) {
+                val reason = failureReasons.lastOrNull()
+                val suffix = if (reason.isNullOrBlank()) "" else " Last error: $reason"
+                throw Exception("All ${candidates.size} video candidates failed.$suffix")
+            }
 
             ensureSuccessfulAnimeDownload(download, animeDir, tmpDir, episodeDirname)
         } catch (e: Exception) {
@@ -379,6 +396,23 @@ class Downloader(
             notifier.onError(e.message, download.episode.name, download.anime.title, download.anime.id)
         } finally {
             notifier.dismissProgress()
+        }
+    }
+
+    private suspend fun resolveVideoCandidates(download: Download): List<Video> {
+        if (download.video != null) {
+            return listOf(download.video!!)
+        }
+
+        return try {
+            val hosters = EpisodeLoader.getHosters(download.episode, download.anime, download.source)
+            HosterLoader.getResolvedVideos(download.source, hosters)
+                .takeIf { it.isNotEmpty() }
+                ?: throw Exception(context.stringResource(MR.strings.video_list_empty_error))
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e)
+            val suffix = e.message?.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty()
+            throw Exception(context.stringResource(MR.strings.video_list_empty_error) + suffix)
         }
     }
 
@@ -391,6 +425,7 @@ class Downloader(
     private suspend fun getOrDownloadVideoFile(
         download: Download,
         tmpDir: UniFile,
+        notifyOnError: Boolean = true,
     ): Video {
         val video = download.video!!
 
@@ -442,7 +477,9 @@ class Downloader(
             progressJob?.cancel()
         } catch (e: Exception) {
             video.status = Video.State.ERROR
-            notifier.onError(e.message, download.episode.name, download.anime.title, download.anime.id)
+            if (notifyOnError) {
+                notifier.onError(e.message, download.episode.name, download.anime.title, download.anime.id)
+            }
             progressJob?.cancel()
 
             logcat(LogPriority.ERROR, e)
@@ -541,10 +578,8 @@ class Downloader(
 
         val ffmpegFilename = { videoFile.uri.toFFmpegString(context) }
 
-        val headers = video.headers ?: download.source.headers
-        val headerOptions = headers.joinToString("", "-headers '", "'") {
-            "${it.first}: ${it.second}\r\n"
-        }
+        val headers = StreamRequestHeaders.resolve(download.source, video, video.videoUrl)
+        val headerOptions = StreamRequestHeaders.toFfmpegHeaderOptions(headers)
 
         val ffmpegOptions = getFFmpegOptions(video, headerOptions, ffmpegFilename())
         val ffprobeCommand = { file: String, ffprobeHeaders: String? ->
@@ -666,6 +701,7 @@ class Downloader(
     ): UniFile {
         try {
             val file = tmpDir.createFile("${filename}_tmp.mkv")!!
+            val resolvedHeaders = StreamRequestHeaders.resolve(source, video, video.videoUrl)
             withUIContext {
                 context.copyToClipboard("Episode download location", tmpDir.filePath!!.substringBeforeLast("_tmp"))
             }
@@ -682,7 +718,7 @@ class Downloader(
                 when {
                     // 1DM
                     pkgName.startsWith("idm.internet.download.manager") -> {
-                        val headers = (video.headers ?: source.headers).toMap()
+                        val headers = resolvedHeaders.toMap()
                         val bundle = Bundle()
                         for ((key, value) in headers) {
                             bundle.putString(key, value)
@@ -702,7 +738,7 @@ class Downloader(
                     }
                     // ADM
                     pkgName.startsWith("com.dv.adm") -> {
-                        val headers = (video.headers ?: source.headers).toList()
+                        val headers = resolvedHeaders.toList()
                         val bundle = Bundle()
                         headers.forEach { a ->
                             bundle.putString(
