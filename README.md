@@ -1,17 +1,21 @@
 ---
 created_at: 2026-02-22T04:27
-updated_at: 2026-02-22T04:32
+updated_at: 2026-02-23T04:32
 ---
 <div align="center">
 
 <a href="https://anikku-app.github.io">
-    <img src="./.github/assets/icon.png" alt="anikku logo" title="anikku logo" width="80"/>
+    <img src="./.github/assets/icon.png" alt="Relay logo" title="Relay logo" width="80"/>
 </a>
 
-# Anikku [App](#)
+# Relay [App](#)
 
 ### Full-featured player, based on Aniyomi.
 Discover and watch anime, cartoons, series, and more – easier than ever on your Android device.
+
+## Fork notice
+
+Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained with Relay-specific branding and workflow changes.
 
 | Releases | Preview |
 |----------|---------|
@@ -39,7 +43,7 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
 
 ### Features include:
 
-* **Anikku**:
+* **Relay**:
   * `Anime Suggestions` automatically showing source-website's recommendations / suggestions / related to current entry for all sources.
   * `Auto theme color` based on each entry's cover for entry View & Reader.
   * `App custom theme` with `Color palettes` for endless color lover.
@@ -66,6 +70,8 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
   * `Grouped updates` in Update tab (inspired by J2K).
   * Drag & Drop re-order `Categories`.
   * Ability to `enable/disable repo`, with icon.
+  * Streamlined extension install flow using `PRIVATE` installer mode only.
+  * Extension download/install now runs in foreground worker with `retry + resume` to avoid stuck `Downloading`.
   * `Search for sources` & Quick NSFW sources filter in Extensions, Browse & Migration screen.
   * In-app `progress banner` shows Library syncing / Backup restoring / Library updating progress.
   * Long-click to add/remove single entry to/from library, everywhere.
@@ -136,7 +142,7 @@ See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 Thank you to all the people who have contributed!
 
 <a href="https://github.com/komikku-app/anikku/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=aniyomiorg/aniyomi" alt="Anikku app contributors" title="Anikku app contributors" width="800"/>
+    <img src="https://contrib.rocks/image?repo=aniyomiorg/aniyomi" alt="Relay app contributors" title="Relay app contributors" width="800"/>
 </a>
 
 ![Visitor Count](https://count.getloli.com/get/@komikku-app?theme=capoo-2)
