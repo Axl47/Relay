@@ -16,12 +16,15 @@ import mihon.domain.extensionrepo.interactor.GetExtensionRepo
 import mihon.domain.extensionrepo.interactor.ReplaceExtensionRepo
 import mihon.domain.extensionrepo.interactor.UpdateExtensionRepo
 import mihon.domain.extensionrepo.model.ExtensionRepo
+import tachiyomi.core.common.preference.Preference
+import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class ExtensionReposScreenModel(
+    private val preferenceStore: PreferenceStore = Injekt.get(),
     private val getExtensionRepo: GetExtensionRepo = Injekt.get(),
     private val createExtensionRepo: CreateExtensionRepo = Injekt.get(),
     private val deleteExtensionRepo: DeleteExtensionRepo = Injekt.get(),
@@ -31,6 +34,10 @@ class ExtensionReposScreenModel(
 
     private val _events: Channel<RepoEvent> = Channel(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
+
+    private val extensionReposBootstrapped by lazy {
+        preferenceStore.getBoolean(Preference.appStateKey(EXTENSION_REPOS_BOOTSTRAPPED_KEY), false)
+    }
 
     init {
         screenModelScope.launchIO {
@@ -42,6 +49,50 @@ class ExtensionReposScreenModel(
                         )
                     }
                 }
+        }
+        screenModelScope.launchIO {
+            bootstrapOfficialRepoIfNeeded()
+        }
+    }
+
+    private suspend fun bootstrapOfficialRepoIfNeeded() {
+        if (extensionReposBootstrapped.get()) return
+
+        val existingRepos = getExtensionRepo.getAll()
+        val existingBaseUrls = existingRepos.map { it.baseUrl }.toSet()
+        val knownBootstrapBaseUrls = CreateExtensionRepo.OFFICIAL_BOOTSTRAP_REPO_BASE_URLS.toSet()
+
+        if (existingRepos.isNotEmpty() && existingBaseUrls.none { it in knownBootstrapBaseUrls }) {
+            extensionReposBootstrapped.set(true)
+            return
+        }
+
+        val missingRepoIndexUrls = CreateExtensionRepo.OFFICIAL_BOOTSTRAP_REPO_INDEX_URLS
+            .filter { indexUrl ->
+                val baseUrl = indexUrl.removeSuffix("/index.min.json")
+                baseUrl !in existingBaseUrls
+            }
+        if (missingRepoIndexUrls.isEmpty()) {
+            extensionReposBootstrapped.set(true)
+            return
+        }
+
+        val results = missingRepoIndexUrls.map { repoIndexUrl ->
+            createExtensionRepo.await(repoIndexUrl)
+        }
+
+        if (results.any { result ->
+            when (result) {
+                CreateExtensionRepo.Result.Success,
+                CreateExtensionRepo.Result.RepoAlreadyExists,
+                is CreateExtensionRepo.Result.DuplicateFingerprint,
+                -> true
+                CreateExtensionRepo.Result.InvalidUrl,
+                CreateExtensionRepo.Result.Error,
+                -> false
+            }
+        }) {
+            extensionReposBootstrapped.set(true)
         }
     }
 
@@ -144,3 +195,5 @@ sealed class RepoScreenState {
             get() = repos.isEmpty()
     }
 }
+
+private const val EXTENSION_REPOS_BOOTSTRAPPED_KEY = "extension_repos_bootstrapped_v2"

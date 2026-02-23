@@ -71,11 +71,24 @@ class CreateExtensionRepo(
     }
 
     companion object {
-        const val OFFICIAL_REPO_WEBSITE = "https://anikku-app.github.io"
-        const val OFFICIAL_REPO_BASE_URL = "https://raw.githubusercontent.com/anikku-app/extensions/repo"
+        const val OFFICIAL_REPO_WEBSITE = "https://github.com/aniyomiorg/aniyomi-extensions"
+        const val OFFICIAL_REPO_BASE_URL = "https://raw.githubusercontent.com/aniyomiorg/aniyomi-extensions/repo"
+        const val IMMORTAL_FOREST_REPO_BASE_URL = "https://raw.githubusercontent.com/immortal-forest/aniyomi-extensions/repo"
+        const val ADLY_AR_REPO_BASE_URL = "https://raw.githubusercontent.com/adly98/aniyomi-ar-extensions/repo"
 
-        // cuong-tran's key
-        const val OFFICIAL_REPO_SIGNATURE = "cbec121aa82ebb02aaa73806992e0368a97d47b5451ed6524816d03084c45905"
+        const val OFFICIAL_REPO_SIGNATURE = "50ab1d1e3a20d204d0ad6d334c7691c632e41b98dfa132bf385695fdfa63839c"
+        const val IMMORTAL_FOREST_REPO_SIGNATURE = "c6607aa6ea581cfb012f673cb4db447d7f7200f62a915ad1ca9c44bbe321024f"
+        const val ADLY_AR_REPO_SIGNATURE = "2976976a0fc115f259dac80ccf7aa073387e62ee4c6bee6ce4c53ef7d4796189"
         const val KEIYOUSHI_REPO_SIGNATURE = "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2"
+
+        val OFFICIAL_BOOTSTRAP_REPO_BASE_URLS = listOf(
+            OFFICIAL_REPO_BASE_URL,
+            IMMORTAL_FOREST_REPO_BASE_URL,
+            ADLY_AR_REPO_BASE_URL,
+        )
+
+        val OFFICIAL_BOOTSTRAP_REPO_INDEX_URLS = OFFICIAL_BOOTSTRAP_REPO_BASE_URLS.map {
+            "$it/index.min.json"
+        }
     }
 }

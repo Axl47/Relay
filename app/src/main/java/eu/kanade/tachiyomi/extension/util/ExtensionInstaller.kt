@@ -102,6 +102,7 @@ internal class ExtensionInstaller(private val context: Context) {
             when (downloadStatus) {
                 DownloadManager.STATUS_PENDING -> InstallStep.Pending
                 DownloadManager.STATUS_RUNNING -> InstallStep.Downloading
+                DownloadManager.STATUS_FAILED -> InstallStep.Error
                 else -> null
             }
         }

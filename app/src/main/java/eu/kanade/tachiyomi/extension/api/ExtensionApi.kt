@@ -76,22 +76,40 @@ internal class ExtensionApi {
         if (extensionReposBootstrapped.get()) return
 
         val existingRepos = getExtensionRepo.getAll()
-        if (existingRepos.isNotEmpty()) {
+        val existingBaseUrls = existingRepos.map { it.baseUrl }.toSet()
+        val knownBootstrapBaseUrls = CreateExtensionRepo.OFFICIAL_BOOTSTRAP_REPO_BASE_URLS.toSet()
+
+        if (existingRepos.isNotEmpty() && existingBaseUrls.none { it in knownBootstrapBaseUrls }) {
             extensionReposBootstrapped.set(true)
             return
         }
 
-        val repoIndexUrl = "${CreateExtensionRepo.OFFICIAL_REPO_BASE_URL}/index.min.json"
-        val result = createExtensionRepo.await(repoIndexUrl)
+        val missingRepoIndexUrls = CreateExtensionRepo.OFFICIAL_BOOTSTRAP_REPO_INDEX_URLS
+            .filter { indexUrl ->
+                val baseUrl = indexUrl.removeSuffix("/index.min.json")
+                baseUrl !in existingBaseUrls
+            }
+        if (missingRepoIndexUrls.isEmpty()) {
+            extensionReposBootstrapped.set(true)
+            return
+        }
 
-        when (result) {
-            CreateExtensionRepo.Result.Success,
-            CreateExtensionRepo.Result.RepoAlreadyExists,
-            is CreateExtensionRepo.Result.DuplicateFingerprint,
-            -> extensionReposBootstrapped.set(true)
-            CreateExtensionRepo.Result.InvalidUrl,
-            CreateExtensionRepo.Result.Error,
-            -> Unit
+        val results = missingRepoIndexUrls.map { repoIndexUrl ->
+            createExtensionRepo.await(repoIndexUrl)
+        }
+
+        if (results.any { result ->
+            when (result) {
+                CreateExtensionRepo.Result.Success,
+                CreateExtensionRepo.Result.RepoAlreadyExists,
+                is CreateExtensionRepo.Result.DuplicateFingerprint,
+                -> true
+                CreateExtensionRepo.Result.InvalidUrl,
+                CreateExtensionRepo.Result.Error,
+                -> false
+            }
+        }) {
+            extensionReposBootstrapped.set(true)
         }
     }
 
@@ -172,7 +190,7 @@ internal class ExtensionApi {
     }
 
     companion object {
-        private const val EXTENSION_REPOS_BOOTSTRAPPED_KEY = "extension_repos_bootstrapped"
+        private const val EXTENSION_REPOS_BOOTSTRAPPED_KEY = "extension_repos_bootstrapped_v2"
     }
 }
 

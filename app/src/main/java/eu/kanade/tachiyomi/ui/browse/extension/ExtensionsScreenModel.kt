@@ -182,6 +182,7 @@ class ExtensionsScreenModel(
 
     fun cancelInstallUpdateExtension(extension: Extension) {
         extensionManager.cancelInstallUpdateExtension(extension)
+        removeDownloadState(extension)
     }
 
     private fun addDownloadState(extension: Extension, installStep: InstallStep) {
@@ -193,10 +194,20 @@ class ExtensionsScreenModel(
     }
 
     private suspend fun Flow<InstallStep>.collectToInstallUpdate(extension: Extension) =
-        this
-            .onEach { installStep -> addDownloadState(extension, installStep) }
-            .onCompletion { removeDownloadState(extension) }
-            .collect()
+        run {
+            var lastStep: InstallStep = InstallStep.Idle
+            this@collectToInstallUpdate
+                .onEach { installStep ->
+                    lastStep = installStep
+                    addDownloadState(extension, installStep)
+                }
+                .onCompletion {
+                    if (lastStep != InstallStep.Error) {
+                        removeDownloadState(extension)
+                    }
+                }
+                .collect()
+        }
 
     fun uninstallExtension(extension: Extension) {
         extensionManager.uninstallExtension(extension)
