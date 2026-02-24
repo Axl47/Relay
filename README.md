@@ -35,6 +35,8 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
   * `Extension install flow` using `PRIVATE` installer mode only.
   * `Extension download/install` now runs in foreground worker to improve speed.
   * `Episode download` optimized using streaming resolver, making downloads start faster.
+  * `Screenshot support` for all sources while watching an episode.
+  * `Bookmark and Clipping support` to save your favorite moments and share them, with or without subtitles.
   * `Tracker support` (trimmed): [MyAnimeList](https://myanimelist.net/) and [AniList](https://anilist.co/)
 * **Anikku**:
   * `Anime Suggestions` automatically showing source-website's recommendations / suggestions / related to current entry for all sources.

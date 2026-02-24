@@ -1,5 +1,6 @@
 package tachiyomi.data.capture
 
+import kotlinx.coroutines.flow.Flow
 import tachiyomi.data.DatabaseHandler
 import tachiyomi.domain.capture.model.CaptureEntry
 import tachiyomi.domain.capture.model.CaptureType
@@ -8,6 +9,18 @@ import tachiyomi.domain.capture.repository.CaptureRepository
 class CaptureRepositoryImpl(
     private val handler: DatabaseHandler,
 ) : CaptureRepository {
+
+    override fun subscribeAll(): Flow<List<CaptureEntry>> {
+        return handler.subscribeToList {
+            session_bookmarkQueries.getAll(::mapRow)
+        }
+    }
+
+    override fun subscribeByAnimeId(animeId: Long): Flow<List<CaptureEntry>> {
+        return handler.subscribeToList {
+            session_bookmarkQueries.getByAnimeId(animeId, ::mapRow)
+        }
+    }
 
     override suspend fun getAll(): List<CaptureEntry> {
         return handler.awaitList { session_bookmarkQueries.getAll(::mapRow) }
@@ -27,6 +40,25 @@ class CaptureRepositoryImpl(
                 positionMs = entry.positionMs,
                 note = entry.note,
                 createdAt = entry.createdAt,
+            )
+        }
+    }
+
+    override suspend fun updateNote(id: Long, note: String?) {
+        handler.await {
+            session_bookmarkQueries.updateNoteById(
+                id = id,
+                note = note,
+            )
+        }
+    }
+
+    override suspend fun updateReference(id: Long, animeId: Long, episodeId: Long?) {
+        handler.await {
+            session_bookmarkQueries.updateReferenceById(
+                id = id,
+                animeId = animeId,
+                episodeId = episodeId,
             )
         }
     }

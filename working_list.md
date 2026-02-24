@@ -1,6 +1,6 @@
 # Working List
 ## Pending
-- [ ] Manual QA scenarios for Passes 5-7 on device/emulator
+- [ ] Manual QA scenarios for Bookmarks Tab Pass 2 on device/emulator
 
 ## In Progress
 - [~] None
@@ -21,6 +21,14 @@
 - [x] Run compile gate: `./gradlew :app:compileDebugKotlin`
 - [x] Run unit tests: `./gradlew :app:testDebugUnitTest`
 - [x] Run build gate: `./gradlew :app:assembleDebug`
+- [x] Update capture data layer contracts and SQLDelight queries
+- [x] Implement capture repository reactive/update methods
+- [x] Integrate capture remap into source migration flow (`Migrate` only)
+- [x] Build Bookmarks overview screen model + presentation (show-first list)
+- [x] Build Bookmarks show detail screen model + presentation (clips/bookmarks list)
+- [x] Refactor `BookmarksTab` to navigation entry + new screens
+- [x] Add Bookmarks strings and remove hardcoded labels
+- [x] Run compile gate and targeted verification
 
 ## Blocked
 - [!] Manual smoke checks require runtime interaction (device/emulator)

@@ -40,8 +40,10 @@ import tachiyomi.domain.anime.model.Anime
 import tachiyomi.domain.anime.model.AnimeUpdate
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.interactor.SetAnimeCategories
+import tachiyomi.domain.capture.repository.CaptureRepository
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.episode.interactor.UpdateEpisode
+import tachiyomi.domain.episode.model.Episode
 import tachiyomi.domain.episode.model.toEpisodeUpdate
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
@@ -54,6 +56,7 @@ import tachiyomi.presentation.core.screens.LoadingScreen
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.time.Instant
+import java.util.Locale
 
 @Composable
 internal fun MigrateDialog(
@@ -158,6 +161,7 @@ internal class MigrateDialogScreenModel(
     private val getTracks: GetTracks = Injekt.get(),
     private val insertTrack: InsertTrack = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
+    private val captureRepository: CaptureRepository = Injekt.get(),
     private val preferenceStore: PreferenceStore = Injekt.get(),
 ) : StateScreenModel<MigrateDialogScreenModel.State>(State()) {
 
@@ -252,6 +256,15 @@ internal class MigrateDialogScreenModel(
 
             val episodeUpdates = updatedAnimeEpisodes.map { it.toEpisodeUpdate() }
             updateEpisode.awaitAll(episodeUpdates)
+
+            if (replace) {
+                remapCapturesToMigratedAnime(
+                    oldAnime = oldAnime,
+                    newAnime = newAnime,
+                    oldEpisodes = prevAnimeEpisodes,
+                    newEpisodes = animeEpisodes,
+                )
+            }
         }
 
         // Update categories
@@ -304,6 +317,53 @@ internal class MigrateDialogScreenModel(
                 dateAdded = if (replace) oldAnime.dateAdded else Instant.now().toEpochMilli(),
             ),
         )
+    }
+
+    private suspend fun remapCapturesToMigratedAnime(
+        oldAnime: Anime,
+        newAnime: Anime,
+        oldEpisodes: List<Episode>,
+        newEpisodes: List<Episode>,
+    ) {
+        val oldToNewEpisodeIds = buildEpisodeRemap(oldEpisodes, newEpisodes)
+        captureRepository.getByAnimeId(oldAnime.id).forEach { capture ->
+            val remappedEpisodeId = capture.episodeId?.let { oldToNewEpisodeIds[it] }
+            captureRepository.updateReference(
+                id = capture.id,
+                animeId = newAnime.id,
+                episodeId = remappedEpisodeId,
+            )
+        }
+    }
+
+    private fun buildEpisodeRemap(
+        oldEpisodes: List<Episode>,
+        newEpisodes: List<Episode>,
+    ): Map<Long, Long?> {
+        val newByNumber = newEpisodes
+            .filter { it.isRecognizedNumber }
+            .groupBy { it.episodeNumber }
+        val newBySourceOrder = newEpisodes.associateBy { it.sourceOrder }
+        val newByName = newEpisodes
+            .filter { it.name.isNotBlank() }
+            .groupBy { it.name.trim().lowercase(Locale.ROOT) }
+            .mapValues { (_, episodes) -> episodes.singleOrNull() }
+
+        return oldEpisodes.associate { oldEpisode ->
+            val mapped = when {
+                oldEpisode.isRecognizedNumber -> {
+                    newByNumber[oldEpisode.episodeNumber]?.firstOrNull()
+                }
+                else -> null
+            } ?: newBySourceOrder[oldEpisode.sourceOrder]
+                ?: oldEpisode.name
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+                    ?.lowercase(Locale.ROOT)
+                    ?.let(newByName::get)
+
+            oldEpisode.id to mapped?.id
+        }
     }
 
     @Immutable

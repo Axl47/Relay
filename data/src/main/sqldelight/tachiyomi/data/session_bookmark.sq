@@ -30,3 +30,14 @@ VALUES (:animeId, :episodeId, :captureType, :mediaUri, :positionMs, :note, :crea
 deleteByIds:
 DELETE FROM session_bookmark
 WHERE _id IN :ids;
+
+updateNoteById:
+UPDATE session_bookmark
+SET note = :note
+WHERE _id = :id;
+
+updateReferenceById:
+UPDATE session_bookmark
+SET anime_id = :animeId,
+    episode_id = :episodeId
+WHERE _id = :id;

@@ -192,6 +192,8 @@ class PlayerViewModel @JvmOverloads constructor(
     private val captureRepository: CaptureRepository = Injekt.get(),
     uiPreferences: UiPreferences = Injekt.get(),
 ) : ViewModel() {
+    private val genericChapterTitleRegex = Regex("^\\s*(?:#\\d+|chapter\\s+\\d+)\\s*$", RegexOption.IGNORE_CASE)
+
 
     private val _currentPlaylist = MutableStateFlow<List<Episode>>(emptyList())
     val currentPlaylist = _currentPlaylist.asStateFlow()
@@ -532,20 +534,32 @@ class PlayerViewModel @JvmOverloads constructor(
     )
 
     fun loadChapters() {
-        val chapters = mutableListOf<IndexedSegment>()
         val count = MPVLib.getPropertyInt("chapter-list/count")!!
-        for (i in 0 until count) {
-            val title = MPVLib.getPropertyString("chapter-list/$i/title")
-            val time = MPVLib.getPropertyInt("chapter-list/$i/time")!!
-            chapters.add(
-                IndexedSegment(
-                    name = title,
-                    start = time.toFloat(),
-                    index = 0,
-                ),
+        val rawChapters = (0 until count).map { i ->
+            Pair(
+                MPVLib.getPropertyString("chapter-list/$i/title"),
+                MPVLib.getPropertyInt("chapter-list/$i/time")!!,
+            )
+        }
+        val chapters = rawChapters.mapIndexed { index, (title, time) ->
+            val nextTime = rawChapters.getOrNull(index + 1)?.second
+            IndexedSegment(
+                name = resolveChapterTitle(title, time, nextTime),
+                start = time.toFloat(),
+                index = 0,
             )
         }
         updateChapters(chapters.sortedBy { it.start })
+    }
+
+    private fun resolveChapterTitle(title: String?, startTime: Int, nextStartTime: Int?): String {
+        val cleanTitle = title?.trim().orEmpty()
+        if (cleanTitle.isNotBlank() && !genericChapterTitleRegex.matches(cleanTitle)) {
+            return cleanTitle
+        }
+        val startLabel = Utils.prettyTime(startTime)
+        val endLabel = nextStartTime?.let { Utils.prettyTime(it) }
+        return if (endLabel != null) "$startLabel - $endLabel" else startLabel
     }
 
     fun updateChapters(chapters: List<IndexedSegment>) {
