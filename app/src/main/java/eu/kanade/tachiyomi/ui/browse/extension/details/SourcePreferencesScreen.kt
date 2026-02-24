@@ -25,9 +25,12 @@ import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.DialogPreference
 import androidx.preference.EditTextPreference
+import androidx.preference.ListPreference
+import androidx.preference.MultiSelectListPreference
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceGroup
 import androidx.preference.PreferenceScreen
-import androidx.preference.forEach
 import androidx.preference.getOnBindEditTextListener
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -38,6 +41,7 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.preference.SharedPreferencesDataStore
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.sourcePreferences
+import eu.kanade.tachiyomi.util.lang.resolveResourceLabel
 import eu.kanade.tachiyomi.widget.TachiyomiTextInputEditText.Companion.setIncognito
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -141,9 +145,10 @@ class SourcePreferencesFragment : PreferenceFragmentCompat() {
             preferenceManager.preferenceDataStore = dataStore
 
             source.setupPreferenceScreen(sourceScreen)
-            sourceScreen.forEach { pref ->
+            sourceScreen.walkPreferences { pref ->
                 pref.isIconSpaceReserved = false
                 pref.isSingleLineTitle = false
+                pref.localizeLabels()
                 if (pref is DialogPreference && pref.dialogTitle.isNullOrEmpty()) {
                     pref.dialogTitle = pref.title
                 }
@@ -160,6 +165,35 @@ class SourcePreferencesFragment : PreferenceFragmentCompat() {
         }
 
         return sourceScreen
+    }
+
+    private fun PreferenceGroup.walkPreferences(action: (Preference) -> Unit) {
+        for (index in 0 until preferenceCount) {
+            val pref = getPreference(index)
+            action(pref)
+            if (pref is PreferenceGroup) {
+                pref.walkPreferences(action)
+            }
+        }
+    }
+
+    private fun Preference.localizeLabels() {
+        title = title?.toString()?.let(requireContext()::resolveResourceLabel)
+        summary = summary?.toString()?.let(requireContext()::resolveResourceLabel)
+        if (this is DialogPreference) {
+            dialogTitle = dialogTitle?.toString()?.let(requireContext()::resolveResourceLabel)
+            dialogMessage = dialogMessage?.toString()?.let(requireContext()::resolveResourceLabel)
+        }
+        if (this is ListPreference) {
+            entries = entries
+                ?.map { requireContext().resolveResourceLabel(it.toString()) as CharSequence }
+                ?.toTypedArray()
+        }
+        if (this is MultiSelectListPreference) {
+            entries = entries
+                ?.map { requireContext().resolveResourceLabel(it.toString()) as CharSequence }
+                ?.toTypedArray()
+        }
     }
 
     companion object {

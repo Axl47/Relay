@@ -14,11 +14,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.tachiyomi.animesource.model.AnimeFilter
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.util.lang.resolveResourceLabel
 import tachiyomi.core.common.preference.TriState
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.CheckboxItem
@@ -78,16 +80,19 @@ fun SourceFilterDialog(
 
 @Composable
 private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
+    val context = LocalContext.current
+    fun resolveLabel(label: String): String = context.resolveResourceLabel(label)
+
     when (filter) {
         is AnimeFilter.Header -> {
-            HeadingItem(filter.name)
+            HeadingItem(resolveLabel(filter.name))
         }
         is AnimeFilter.Separator -> {
             HorizontalDivider()
         }
         is AnimeFilter.CheckBox -> {
             CheckboxItem(
-                label = filter.name,
+                label = resolveLabel(filter.name),
                 checked = filter.state,
             ) {
                 filter.state = !filter.state
@@ -96,7 +101,7 @@ private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
         }
         is AnimeFilter.TriState -> {
             TriStateItem(
-                label = filter.name,
+                label = resolveLabel(filter.name),
                 state = filter.state.toTriStateFilter(),
             ) {
                 filter.state = filter.state.toTriStateFilter().next().toTriStateInt()
@@ -105,7 +110,7 @@ private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
         }
         is AnimeFilter.Text -> {
             TextItem(
-                label = filter.name,
+                label = resolveLabel(filter.name),
                 value = filter.state,
             ) {
                 filter.state = it
@@ -113,9 +118,10 @@ private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
             }
         }
         is AnimeFilter.Select<*> -> {
+            val options = filter.values.map { resolveLabel(it.toString()) }.toTypedArray()
             SelectItem(
-                label = filter.name,
-                options = filter.values,
+                label = resolveLabel(filter.name),
+                options = options,
                 selectedIndex = filter.state,
                 onSelect = {
                     filter.state = it
@@ -125,12 +131,12 @@ private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
         }
         is AnimeFilter.Sort -> {
             CollapsibleBox(
-                heading = filter.name,
+                heading = resolveLabel(filter.name),
             ) {
                 Column {
                     filter.values.mapIndexed { index, item ->
                         SortItem(
-                            label = item,
+                            label = resolveLabel(item),
                             sortDescending = filter.state?.ascending?.not()
                                 ?.takeIf { index == filter.state?.index },
                         ) {
@@ -151,7 +157,7 @@ private fun FilterItem(filter: AnimeFilter<*>, onUpdate: () -> Unit) {
         }
         is AnimeFilter.Group<*> -> {
             CollapsibleBox(
-                heading = filter.name,
+                heading = resolveLabel(filter.name),
             ) {
                 Column {
                     filter.state

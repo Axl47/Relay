@@ -55,14 +55,11 @@ object StreamRequestHeaders {
             }
     }
 
-    fun toFfmpegHeaderOptions(headers: Headers): String {
-        if (headers.size == 0) return ""
-
-        val joined = headers.toList().joinToString("") { (key, value) ->
+    fun toFfmpegHeaderValue(headers: Headers): String? {
+        if (headers.size == 0) return null
+        return headers.toList().joinToString("") { (key, value) ->
             "$key: $value\r\n"
         }
-        val escaped = joined.replace("'", "'\\''")
-        return "-headers '$escaped'"
     }
 
     private fun containsHeader(headers: Headers, headerName: String): Boolean {
