@@ -13,10 +13,6 @@ Discover and watch anime, cartoons, series, and more – easier than ever on you
 
 Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained with Relay-specific branding and workflow changes.
 
-| Releases | Preview |
-|----------|---------|
-| <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku/releases) [![Stable build](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku/build_release.yml?labelColor=27303D&label=Stable&labelColor=06599d&color=043b69)](https://github.com/komikku-app/anikku/actions/workflows/build_release.yml) | <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku-preview/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku-preview/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku-preview/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku-preview/releases) [![Preview build](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku-preview/build_app.yml?labelColor=27303D&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/anikku-preview/actions/workflows/build_app.yml) |
-
 [![CI](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku/build_push.yml?labelColor=27303D&label=CI)](https://github.com/komikku-app/anikku/actions/workflows/build_push.yml)
 [![License: Apache-2.0](https://img.shields.io/github/license/komikku-app/anikku?labelColor=27303D&color=0877d2)](/LICENSE)
 
@@ -25,7 +21,7 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
 [![Stable](https://img.shields.io/github/release/komikku-app/anikku.svg?maxAge=3600&label=Stable&labelColor=06599d&color=043b69)](https://github.com/komikku-app/anikku/releases/latest)
 [![Preview](https://img.shields.io/github/v/release/komikku-app/anikku-preview.svg?maxAge=3600&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/anikku-preview/releases/latest)
 
-*Requires Android 8.0 or higher.*
+*Requires Android 10.0 or higher.*
 
 ## Features
 
@@ -36,24 +32,28 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
 ### Features include:
 
 * **Relay**:
+  * `Extension install flow` using `PRIVATE` installer mode only.
+  * `Extension download/install` now runs in foreground worker to improve speed.
+  * `Episode download` optimized using streaming resolver, making downloads start faster.
+  * `Tracker support` (trimmed): [MyAnimeList](https://myanimelist.net/) and [AniList](https://anilist.co/)
+* **Anikku**:
   * `Anime Suggestions` automatically showing source-website's recommendations / suggestions / related to current entry for all sources.
   * `Auto theme color` based on each entry's cover for entry View & Reader.
   * `App custom theme` with `Color palettes` for endless color lover.
   * `Bulk-favorite` multiple entries all at once.
   * `Fast browsing` (for who with large library experiencing slow loading)
   * Auto `2-way sync` progress with trackers.
-  * From SY:
-    * `Anime Recommendations` from Anilist and MyAnimeList.
-    * Edit `Anime Info` manually, or fill data from MyAnimeList.
-    * `Custom cover` with files or URL.
-    * `Pin anime` to top of Library with `Tag` sort.
-    * `Merge anime` allow merging separated anime/episodes into one entry.
-    * `Tracking filter`, filter your tracked anime so you can see them or see non-tracked anime.
-    * `Search tracking` status in library.
-    * `Mass-migration` all your anime from one source to another at same time.
-    * `Dynamic Categories`, view the library in multiple ways.
-    * `Custom categories` for sources, liked the pinned sources, but you can make your own versions and put any sources in them.
-    * Cross device `Library sync` with SyncYomi & Google Drive.
+  * `Anime Recommendations` from Anilist and MyAnimeList.
+  * Edit `Anime Info` manually, or fill data from MyAnimeList.
+  * `Custom cover` with files or URL.
+  * `Pin anime` to top of Library with `Tag` sort.
+  * `Merge anime` allow merging separated anime/episodes into one entry.
+  * `Tracking filter`, filter your tracked anime so you can see them or see non-tracked anime.
+  * `Search tracking` status in library.
+  * `Mass-migration` all your anime from one source to another at same time.
+  * `Dynamic Categories`, view the library in multiple ways.
+  * `Custom categories` for sources, liked the pinned sources, but you can make your own versions and put any sources in them.
+  * Cross device `Library sync` with SyncYomi & Google Drive.
   * Anime `cover on Updates notification`.
   * `Panorama cover` showing wide cover in full.
   * `to-be-updated` screen: which entries are going to be checked with smart-update?
@@ -62,25 +62,21 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
   * `Grouped updates` in Update tab (inspired by J2K).
   * Drag & Drop re-order `Categories`.
   * Ability to `enable/disable repo`, with icon.
-  * Streamlined extension install flow using `PRIVATE` installer mode only.
-  * Extension download/install now runs in foreground worker with `retry + resume` to avoid stuck `Downloading`.
   * `Search for sources` & Quick NSFW sources filter in Extensions, Browse & Migration screen.
   * In-app `progress banner` shows Library syncing / Backup restoring / Library updating progress.
   * Long-click to add/remove single entry to/from library, everywhere.
   * Docking Watch/Resume button to left/right.
   * Auto-install app update.
   * Configurable interval to refresh entries from downloaded storage.
-* Aniyomi:
+  * Torrent support (Needs right extensions)
+  * Support for Cast functionality
+  * Group by tags in library
+* **Aniyomi**:
   * Watching videos
   * Local watching of downloaded content
   * A configurable player built on mpv-android with multiple options and settings
-  * Tracker support: [MyAnimeList](https://myanimelist.net/) and [AniList](https://anilist.co/)
   * Categories to organize your library
   * Create backups locally to watch offline or to your desired cloud service
-* Other forks' features:
-  * Torrent support (Needs right extensions) (@Diegopyl1209)
-  * Support for Cast functionality (Animetail)
-  * Group by tags in library (Kuukiyomi)
 
 # Issues, Feature Requests and Contributing
 
