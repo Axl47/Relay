@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.BookmarkAdd
-import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.MoreVert
@@ -66,8 +66,7 @@ fun TopRightPlayerControls(
     onCameraClick: () -> Unit,
     onCameraLongClick: () -> Unit,
     onBookmarkClick: () -> Unit,
-    isBingeActive: Boolean,
-    onBingeClick: () -> Unit,
+    onClipClick: () -> Unit,
 
     // cast
     castState: CastManager.CastState,
@@ -134,10 +133,9 @@ fun TopRightPlayerControls(
             horizontalSpacing = MaterialTheme.padding.mediumSmall,
         )
         ControlsButton(
-            icon = Icons.Default.Bolt,
-            onClick = onBingeClick,
-            onLongClick = onBingeClick,
-            color = if (isBingeActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            icon = Icons.Default.ContentCut,
+            onClick = onClipClick,
+            onLongClick = onClipClick,
             horizontalSpacing = MaterialTheme.padding.mediumSmall,
         )
     }

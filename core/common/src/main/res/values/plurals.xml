@@ -1,107 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <plurals name="anime_num_episodes">
-        <item quantity="one">anime_num_episodes</item>
-        <item quantity="other">anime_num_episodes</item>
+        <item quantity="one">%1$s episode</item>
+        <item quantity="other">%1$s episodes</item>
     </plurals>
     <plurals name="day">
-        <item quantity="one">day</item>
-        <item quantity="other">day</item>
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
     </plurals>
     <plurals name="download_amount_anime">
-        <item quantity="one">download_amount_anime</item>
-        <item quantity="other">download_amount_anime</item>
+        <item quantity="one">Next episode</item>
+        <item quantity="other">Next %d episodes</item>
     </plurals>
     <plurals name="download_queue_summary">
-        <item quantity="one">download_queue_summary</item>
-        <item quantity="other">download_queue_summary</item>
+        <item quantity="one">%1$s remaining</item>
+        <item quantity="other">%1$s remaining</item>
     </plurals>
     <plurals name="hoster_video_count">
-        <item quantity="one">hoster_video_count</item>
-        <item quantity="other">hoster_video_count</item>
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
     </plurals>
     <plurals name="lock_after_mins">
-        <item quantity="one">lock_after_mins</item>
-        <item quantity="other">lock_after_mins</item>
+        <item quantity="one">After %1$s minute</item>
+        <item quantity="other">After %1$s minutes</item>
     </plurals>
     <plurals name="manga_num_chapters">
-        <item quantity="one">manga_num_chapters</item>
-        <item quantity="other">manga_num_chapters</item>
+        <item quantity="one">%1$s chapter</item>
+        <item quantity="other">%1$s chapters</item>
     </plurals>
     <plurals name="missing_items">
-        <item quantity="one">missing_items</item>
-        <item quantity="other">missing_items</item>
+        <item quantity="one">Missing %1$s item</item>
+        <item quantity="other">Missing %1$s items</item>
     </plurals>
     <plurals name="next_unseen_episodes">
-        <item quantity="one">next_unseen_episodes</item>
-        <item quantity="other">next_unseen_episodes</item>
+        <item quantity="one">Next unseen episodes</item>
+        <item quantity="other">Next %d unseen episodes</item>
     </plurals>
     <plurals name="notification_chapters_generic">
-        <item quantity="one">notification_chapters_generic</item>
-        <item quantity="other">notification_chapters_generic</item>
+        <item quantity="one">%1$d new chapter</item>
+        <item quantity="other">%1$d new chapters</item>
     </plurals>
     <plurals name="notification_episodes_generic">
-        <item quantity="one">notification_episodes_generic</item>
-        <item quantity="other">notification_episodes_generic</item>
+        <item quantity="one">%d new episode</item>
+        <item quantity="other">%1$d new episodes</item>
     </plurals>
     <plurals name="notification_episodes_multiple_and_more">
-        <item quantity="one">notification_episodes_multiple_and_more</item>
-        <item quantity="other">notification_episodes_multiple_and_more</item>
+        <item quantity="one">Episodes %1$s and %2$d more</item>
+        <item quantity="other">Episodes %1$s and %2$d more</item>
     </plurals>
     <plurals name="notification_new_episodes_summary">
-        <item quantity="one">notification_new_episodes_summary</item>
-        <item quantity="other">notification_new_episodes_summary</item>
+        <item quantity="one">For %d title</item>
+        <item quantity="other">For %d titles</item>
     </plurals>
     <plurals name="num_categories">
-        <item quantity="one">num_categories</item>
-        <item quantity="other">num_categories</item>
+        <item quantity="one">%d category</item>
+        <item quantity="other">%d categories</item>
     </plurals>
     <plurals name="num_repos">
-        <item quantity="one">num_repos</item>
-        <item quantity="other">num_repos</item>
+        <item quantity="one">%d repo</item>
+        <item quantity="other">%d repos</item>
     </plurals>
     <plurals name="num_trackers">
-        <item quantity="one">num_trackers</item>
-        <item quantity="other">num_trackers</item>
+        <item quantity="one">%d tracker</item>
+        <item quantity="other">%d trackers</item>
     </plurals>
     <plurals name="pref_library_entries_in_column">
-        <item quantity="one">pref_library_entries_in_column</item>
-        <item quantity="other">pref_library_entries_in_column</item>
+        <item quantity="one">1 entry</item>
+        <item quantity="other">%d entries</item>
     </plurals>
     <plurals name="relative_time">
-        <item quantity="one">relative_time</item>
-        <item quantity="other">relative_time</item>
+        <item quantity="one">Yesterday</item>
+        <item quantity="other">%1$d days ago</item>
     </plurals>
     <plurals name="relative_time_hours">
-        <item quantity="one">relative_time_hours</item>
-        <item quantity="other">relative_time_hours</item>
+        <item quantity="one">1 hour ago</item>
+        <item quantity="other">%1$d hours ago</item>
     </plurals>
     <plurals name="relative_time_minutes">
-        <item quantity="one">relative_time_minutes</item>
-        <item quantity="other">relative_time_minutes</item>
+        <item quantity="one">1 minute ago</item>
+        <item quantity="other">%1$d minutes ago</item>
     </plurals>
     <plurals name="restore_completed_message">
-        <item quantity="one">restore_completed_message</item>
-        <item quantity="other">restore_completed_message</item>
+        <item quantity="one">Done in %1$s with %2$s error</item>
+        <item quantity="other">Done in %1$s with %2$s errors</item>
     </plurals>
     <plurals name="seconds">
-        <item quantity="one">seconds</item>
-        <item quantity="other">seconds</item>
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
     </plurals>
     <plurals name="upcoming_relative_time">
-        <item quantity="one">upcoming_relative_time</item>
-        <item quantity="other">upcoming_relative_time</item>
+        <item quantity="one">Tomorrow</item>
+        <item quantity="other">In %1$d days</item>
     </plurals>
     <plurals name="upcoming_relative_time_hours">
-        <item quantity="one">upcoming_relative_time_hours</item>
-        <item quantity="other">upcoming_relative_time_hours</item>
+        <item quantity="one">In 1 hour</item>
+        <item quantity="other">In %1$d hours</item>
     </plurals>
     <plurals name="upcoming_relative_time_minutes">
-        <item quantity="one">upcoming_relative_time_minutes</item>
-        <item quantity="other">upcoming_relative_time_minutes</item>
+        <item quantity="one">In 1 minute</item>
+        <item quantity="other">In %1$d minutes</item>
     </plurals>
     <plurals name="update_check_notification_ext_updates">
-        <item quantity="one">update_check_notification_ext_updates</item>
-        <item quantity="other">update_check_notification_ext_updates</item>
+        <item quantity="one">Extension update available</item>
+        <item quantity="other">%d extension updates available</item>
     </plurals>
 </resources>

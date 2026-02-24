@@ -2276,26 +2276,30 @@ class PlayerViewModel @JvmOverloads constructor(
                     outputPath = outputUri.toFFmpegString(activity),
                 )
                 val clipDurationMs = (clipEndMs - clipStartMs).coerceAtLeast(1L)
-                val session = FFmpegSession.create(
-                    FFmpegKitConfig.parseArguments(ffmpegCommand),
-                    {},
-                    LogCallback { log ->
-                        if (log.level <= Level.AV_LOG_WARNING) {
-                            log.message?.let { message ->
-                                logcat(LogPriority.ERROR) { "Clip export: $message" }
-                            }
-                        }
-                    },
-                    StatisticsCallback { statistics ->
-                        val progress = ((statistics.time.toDouble() / clipDurationMs) * 100.0)
-                            .toInt()
-                            .coerceIn(0, 100)
-                        notifier.onProgress(progress)
-                    },
+                var session = executeClipExportSession(
+                    ffmpegCommand = ffmpegCommand,
+                    clipDurationMs = clipDurationMs,
+                    notifier = notifier,
                 )
-                FFmpegKitConfig.ffmpegExecute(session)
+
+                if (!ReturnCode.isSuccess(session.returnCode) && state.exportMode == ClipExportMode.REENCODE_NO_SUBS) {
+                    logcat(LogPriority.WARN) {
+                        "Clip export re-encode fallback: first pass failed, retrying with compatibility encoder"
+                    }
+                    val fallbackCommand = buildClipFfmpegFallbackNoSubsCommand(
+                        state = state,
+                        inputPath = Uri.parse(state.inputUri).toFFmpegString(activity),
+                        outputPath = outputUri.toFFmpegString(activity),
+                    )
+                    session = executeClipExportSession(
+                        ffmpegCommand = fallbackCommand,
+                        clipDurationMs = clipDurationMs,
+                        notifier = notifier,
+                    )
+                }
+
                 if (!ReturnCode.isSuccess(session.returnCode)) {
-                    error("Clip export failed.")
+                    error(buildClipExportFailureMessage(session))
                 }
 
                 DiskUtil.scanMedia(activity, outputUri)
@@ -2326,6 +2330,50 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    private fun executeClipExportSession(
+        ffmpegCommand: String,
+        clipDurationMs: Long,
+        notifier: ClipExportNotifier,
+    ): FFmpegSession {
+        val session = FFmpegSession.create(
+            FFmpegKitConfig.parseArguments(ffmpegCommand),
+            {},
+            LogCallback { log ->
+                if (log.level <= Level.AV_LOG_WARNING) {
+                    log.message?.let { message ->
+                        logcat(LogPriority.ERROR) { "Clip export: $message" }
+                    }
+                }
+            },
+            StatisticsCallback { statistics ->
+                val progress = ((statistics.time.toDouble() / clipDurationMs) * 100.0)
+                    .toInt()
+                    .coerceIn(0, 100)
+                notifier.onProgress(progress)
+            },
+        )
+        FFmpegKitConfig.ffmpegExecute(session)
+        return session
+    }
+
+    private fun buildClipExportFailureMessage(session: FFmpegSession): String {
+        val relevantLogs = session.allLogsAsString
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .filter {
+                it.contains("error", ignoreCase = true) ||
+                    it.contains("failed", ignoreCase = true) ||
+                    it.contains("encoder", ignoreCase = true) ||
+                    it.contains("invalid", ignoreCase = true)
+            }
+            .toList()
+            .takeLast(3)
+            .joinToString(" | ")
+        val suffix = if (relevantLogs.isNotBlank()) ": $relevantLogs" else ""
+        return "Clip export failed (code=${session.returnCode})$suffix"
+    }
+
     private fun buildClipFfmpegCommand(
         state: ClipEditorState,
         inputPath: String,
@@ -2346,7 +2394,7 @@ class PlayerViewModel @JvmOverloads constructor(
             }
             ClipExportMode.REENCODE_NO_SUBS -> {
                 "-ss $clipStartSeconds -to $clipEndSeconds -i \"$inputPath\" " +
-                    "-map 0:v:0 -map 0:a? -sn -c:v libx264 -preset veryfast -crf 22 -c:a aac " +
+                    "-map 0:v -map 0:a? -sn -c:v libx264 -preset veryfast -crf 22 -c:a aac " +
                     "-movflags +faststart \"$outputPath\" -y"
             }
             ClipExportMode.BURN_IN_SUBS -> {
@@ -2355,6 +2403,18 @@ class PlayerViewModel @JvmOverloads constructor(
                     "-c:v libx264 -preset medium -crf 22 -c:a aac -movflags +faststart \"$outputPath\" -y"
             }
         }
+    }
+
+    private fun buildClipFfmpegFallbackNoSubsCommand(
+        state: ClipEditorState,
+        inputPath: String,
+        outputPath: String,
+    ): String {
+        val clipStartSeconds = state.markInMs / 1000.0
+        val clipEndSeconds = state.markOutMs / 1000.0
+        return "-ss $clipStartSeconds -to $clipEndSeconds -i \"$inputPath\" " +
+            "-map 0:v -map 0:a? -sn -c:v mpeg4 -q:v 4 -c:a aac " +
+            "-movflags +faststart \"$outputPath\" -y"
     }
 
     private fun createClipOutputUri(): Uri? {

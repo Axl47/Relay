@@ -82,7 +82,8 @@ fun PlayerSheets(
     // More sheet
     sleepTimerTimeRemaining: Int,
     onStartSleepTimer: (Int) -> Unit,
-    onOpenClipMode: () -> Unit,
+    isBingeActive: Boolean,
+    onToggleBingeMode: () -> Unit,
     buttons: ImmutableList<CustomButton>,
 
     // Screenshot sheet
@@ -176,7 +177,8 @@ fun PlayerSheets(
                 onSelectDecoder = onUpdateDecoder,
                 remainingTime = sleepTimerTimeRemaining,
                 onStartTimer = onStartSleepTimer,
-                onOpenClipMode = onOpenClipMode,
+                isBingeActive = isBingeActive,
+                onToggleBingeMode = onToggleBingeMode,
                 onDismissRequest = onDismissRequest,
                 onEnterFiltersPanel = { onOpenPanel(Panels.VideoFilters) },
                 customButtons = buttons,

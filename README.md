@@ -1,16 +1,12 @@
----
-created_at: 2026-02-22T04:27
-updated_at: 2026-02-23T04:32
----
 <div align="center">
 
-<a href="https://anikku-app.github.io">
+<a href="https://relay-app.github.io/">
     <img src="./.github/assets/icon.png" alt="Relay logo" title="Relay logo" width="80"/>
 </a>
 
 # Relay [App](#)
 
-### Full-featured player, based on Aniyomi.
+### Full-featured player, based on Anikku.
 Discover and watch anime, cartoons, series, and more – easier than ever on your Android device.
 
 ## Fork notice
@@ -21,10 +17,8 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
 |----------|---------|
 | <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku/releases) [![Stable build](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku/build_release.yml?labelColor=27303D&label=Stable&labelColor=06599d&color=043b69)](https://github.com/komikku-app/anikku/actions/workflows/build_release.yml) | <div align="center"> [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku-preview/latest/total?label=Latest%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku-preview/releases/latest) [![GitHub downloads](https://img.shields.io/github/downloads/komikku-app/anikku-preview/total?label=Total%20Downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://github.com/komikku-app/anikku-preview/releases) [![Preview build](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku-preview/build_app.yml?labelColor=27303D&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/anikku-preview/actions/workflows/build_app.yml) |
 
-[![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
 [![CI](https://img.shields.io/github/actions/workflow/status/komikku-app/anikku/build_push.yml?labelColor=27303D&label=CI)](https://github.com/komikku-app/anikku/actions/workflows/build_push.yml)
 [![License: Apache-2.0](https://img.shields.io/github/license/komikku-app/anikku?labelColor=27303D&color=0877d2)](/LICENSE)
-[![Translation status](https://hosted.weblate.org/widget/komikku-app/anikku/svg-badge.svg)](https://hosted.weblate.org/projects/komikku-app/anikku/)
 
 ## Download
 
@@ -32,8 +26,6 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
 [![Preview](https://img.shields.io/github/v/release/komikku-app/anikku-preview.svg?maxAge=3600&label=Preview&labelColor=2c2c47&color=1c1c39)](https://github.com/komikku-app/anikku-preview/releases/latest)
 
 *Requires Android 8.0 or higher.*
-
-[![Sponsor me on GitHub](https://custom-icon-badges.demolab.com/badge/-Sponsor-ea4aaa?style=for-the-badge&logo=heart&logoColor=white)](https://github.com/sponsors/cuong-tran "Sponsor me on GitHub")
 
 ## Features
 
@@ -78,7 +70,6 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
   * Docking Watch/Resume button to left/right.
   * Auto-install app update.
   * Configurable interval to refresh entries from downloaded storage.
-  * And many more from same maintainer's app for Manga reader: [Komikku](https://github.com/komikku-app/komikku)
 * Aniyomi:
   * Watching videos
   * Local watching of downloaded content
@@ -90,7 +81,6 @@ Relay is a fork of [Anikku](https://github.com/komikku-app/anikku), maintained w
   * Torrent support (Needs right extensions) (@Diegopyl1209)
   * Support for Cast functionality (Animetail)
   * Group by tags in library (Kuukiyomi)
-  * Discord Rich Presence (Animiru, Kuukiyomi, Animetail)
 
 # Issues, Feature Requests and Contributing
 
@@ -98,10 +88,9 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 <details><summary>Issues</summary>
 
-[Website](https://anikku-app.github.io/)
+[Website](https://relay-app.github.io/)
 
-1. **Before reporting a new issue, take a look at the [FAQ](https://anikku-app.github.io/docs/faq/general), the [changelog](https://github.com/komikku-app/anikku/releases) and the already opened [issues](https://github.com/komikku-app/anikku/issues).**
-2. If you are unsure, ask here: [![Discord](https://img.shields.io/discord/1242381704459452488.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/85jB7V5AJR)
+**Before reporting a new issue, take a look at the [FAQ](https://relay-app.github.io/docs/faq/general), the [changelog](https://github.com/relay-app/relay/releases) and the already opened [issues](https://github.com/relay-app/relay/issues).**
 
 </details>
 
@@ -139,13 +128,7 @@ See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ### Credits
 
-Thank you to all the people who have contributed!
-
-<a href="https://github.com/komikku-app/anikku/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=aniyomiorg/aniyomi" alt="Relay app contributors" title="Relay app contributors" width="800"/>
-</a>
-
-![Visitor Count](https://count.getloli.com/get/@komikku-app?theme=capoo-2)
+Thank you to all the people who worked on Anikku and Aniyomi!
 
 ### Disclaimer
 

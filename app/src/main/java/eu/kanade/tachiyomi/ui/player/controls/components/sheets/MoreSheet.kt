@@ -36,9 +36,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.KeyboardAlt
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -87,7 +87,8 @@ fun MoreSheet(
     onSelectDecoder: (Decoder) -> Unit,
     remainingTime: Int,
     onStartTimer: (Int) -> Unit,
-    onOpenClipMode: () -> Unit,
+    isBingeActive: Boolean,
+    onToggleBingeMode: () -> Unit,
     onDismissRequest: () -> Unit,
     onEnterFiltersPanel: () -> Unit,
     customButtons: ImmutableList<CustomButton>,
@@ -157,13 +158,21 @@ fun MoreSheet(
                             Text(text = stringResource(MR.strings.player_sheets_filters_title))
                         }
                     }
-                    TextButton(onClick = onOpenClipMode) {
+                    TextButton(onClick = onToggleBingeMode) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
                         ) {
-                            Icon(imageVector = Icons.Default.ContentCut, contentDescription = null)
-                            Text(text = "Clip mode")
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = if (isBingeActive) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
+                            )
+                            Text(text = "Binge mode")
                         }
                     }
                 }
