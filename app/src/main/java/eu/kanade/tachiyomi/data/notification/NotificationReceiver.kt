@@ -9,6 +9,7 @@ import androidx.core.net.toUri
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiMigrationJob
 import eu.kanade.tachiyomi.data.updater.AppUpdateDownloadJob
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
@@ -182,6 +183,7 @@ class NotificationReceiver : BroadcastReceiver() {
      */
     private fun cancelRestore(context: Context) {
         BackupRestoreJob.stop(context)
+        AniyomiMigrationJob.stop(context)
     }
 
     /**

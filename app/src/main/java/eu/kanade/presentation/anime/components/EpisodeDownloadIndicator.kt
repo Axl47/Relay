@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -55,6 +56,7 @@ fun EpisodeDownloadIndicator(
     enabled: Boolean,
     downloadStateProvider: () -> Download.State,
     downloadProgressProvider: () -> Int,
+    isDownloadQueueRunning: Boolean,
     onClick: (EpisodeDownloadAction) -> Unit,
     // AM (FILE_SIZE) -->
     fileSize: Long?,
@@ -72,6 +74,7 @@ fun EpisodeDownloadIndicator(
             modifier = modifier,
             downloadState = downloadState,
             downloadProgressProvider = downloadProgressProvider,
+            isDownloadQueueRunning = isDownloadQueueRunning,
             onClick = onClick,
         )
         Download.State.DOWNLOADED -> DownloadedIndicator(
@@ -122,6 +125,7 @@ private fun DownloadingIndicator(
     enabled: Boolean,
     downloadState: Download.State,
     downloadProgressProvider: () -> Int,
+    isDownloadQueueRunning: Boolean,
     onClick: (EpisodeDownloadAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -140,9 +144,12 @@ private fun DownloadingIndicator(
         val arrowColor: Color
         val strokeColor = MaterialTheme.colorScheme.onSurfaceVariant
         val downloadProgress = downloadProgressProvider()
-        val indeterminate = downloadState == Download.State.QUEUE ||
+        val isQueuedWhileStopped = downloadState == Download.State.QUEUE && !isDownloadQueueRunning
+        val indeterminate = (downloadState == Download.State.QUEUE && isDownloadQueueRunning) ||
             (downloadState == Download.State.DOWNLOADING && downloadProgress == 0)
-        if (indeterminate) {
+        if (isQueuedWhileStopped) {
+            arrowColor = strokeColor
+        } else if (indeterminate) {
             arrowColor = strokeColor
             CircularProgressIndicator(
                 modifier = IndicatorModifier,
@@ -188,8 +195,13 @@ private fun DownloadingIndicator(
                 },
             )
         }
+        val indicatorIcon = if (isQueuedWhileStopped) {
+            Icons.Outlined.Pause
+        } else {
+            Icons.Outlined.ArrowDownward
+        }
         Icon(
-            imageVector = Icons.Outlined.ArrowDownward,
+            imageVector = indicatorIcon,
             contentDescription = null,
             modifier = ArrowModifier,
             tint = arrowColor,

@@ -126,6 +126,7 @@ fun UpdateScreen(
 
                         updatesUiItems(
                             uiModels = state.getUiModel(),
+                            isDownloadQueueRunning = state.isDownloadQueueRunning,
                             selectionMode = state.selectionMode,
                             onUpdateSelected = onUpdateSelected,
                             onClickCover = onClickCover,

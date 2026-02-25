@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import eu.kanade.tachiyomi.data.backup.BackupDecoder
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
+import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupCustomButtons
@@ -52,9 +53,18 @@ class BackupRestorer(
     private var animeSourceMapping: Map<Long, String> = emptyMap()
 
     suspend fun restore(uri: Uri, options: RestoreOptions) {
+        val backup = BackupDecoder(context).decode(uri)
+        restore(backup, options)
+    }
+
+    suspend fun restore(
+        backup: Backup,
+        options: RestoreOptions,
+        initialErrors: List<String> = emptyList(),
+    ) {
         val startTime = System.currentTimeMillis()
 
-        restoreFromFile(uri, options)
+        restoreFromBackup(backup, options, initialErrors)
 
         val time = System.currentTimeMillis() - startTime
 
@@ -69,8 +79,18 @@ class BackupRestorer(
         )
     }
 
-    private suspend fun restoreFromFile(uri: Uri, options: RestoreOptions) {
-        val backup = BackupDecoder(context).decode(uri)
+    private suspend fun restoreFromBackup(
+        backup: Backup,
+        options: RestoreOptions,
+        initialErrors: List<String>,
+    ) {
+        restoreAmount = 0
+        restoreProgress = 0
+        errors.clear()
+        if (initialErrors.isNotEmpty()) {
+            val now = Date()
+            initialErrors.forEach { errors.add(now to it) }
+        }
 
         // Store source mapping for error messages
         val backupAnimeMaps = backup.backupSources

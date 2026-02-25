@@ -206,13 +206,18 @@ class AnimeScreenModel(
                 getAnimeAndEpisodes.subscribe(animeId).distinctUntilChanged(),
                 downloadCache.changes,
                 downloadManager.queueState,
-            ) { animeAndEpisodes, _, _ -> animeAndEpisodes }
+                downloadManager.isDownloaderRunning,
+            ) { animeAndEpisodes, _, _, isDownloadQueueRunning ->
+                Pair(animeAndEpisodes, isDownloadQueueRunning)
+            }
                 .flowWithLifecycle(lifecycle)
-                .collectLatest { (anime, episodes) ->
+                .collectLatest { (animeAndEpisodes, isDownloadQueueRunning) ->
+                    val (anime, episodes) = animeAndEpisodes
                     updateSuccessState {
                         it.copy(
                             anime = anime,
                             episodes = episodes.toEpisodeListItems(anime),
+                            isDownloadQueueRunning = isDownloadQueueRunning,
                         )
                     }
                 }
@@ -1509,6 +1514,7 @@ class AnimeScreenModel(
             val dialog: Dialog? = null,
             val hasPromptedToAddBefore: Boolean = false,
             val trackItems: List<TrackItem> = emptyList(),
+            val isDownloadQueueRunning: Boolean = false,
             val nextAiringEpisode: Pair<Int, Long> = Pair(
                 anime.nextEpisodeToAir,
                 anime.nextEpisodeAiringAt,

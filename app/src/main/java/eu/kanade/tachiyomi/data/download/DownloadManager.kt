@@ -74,9 +74,14 @@ class DownloadManager(
      */
     fun startDownloads() {
         if (downloader.isRunning) return
+        if (queueState.value.isEmpty()) return
 
         if (DownloadJob.isRunning(context)) {
-            downloader.start()
+            val started = downloader.start()
+            if (!started) {
+                // Recover from stale worker/downloader state by replacing the worker.
+                DownloadJob.start(context)
+            }
         } else {
             DownloadJob.start(context)
         }

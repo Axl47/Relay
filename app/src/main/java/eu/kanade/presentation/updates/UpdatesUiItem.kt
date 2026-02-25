@@ -78,6 +78,7 @@ internal fun LazyListScope.updatesLastUpdatedItem(
 
 internal fun LazyListScope.updatesUiItems(
     uiModels: List<UpdatesUiModel>,
+    isDownloadQueueRunning: Boolean,
     selectionMode: Boolean,
     onUpdateSelected: (UpdatesItem, Boolean, Boolean, Boolean) -> Unit,
     onClickCover: (UpdatesItem) -> Unit,
@@ -139,6 +140,7 @@ internal fun LazyListScope.updatesUiItems(
                     onDownloadEpisode = { action: EpisodeDownloadAction ->
                         onDownloadEpisode(listOf(updatesItem), action)
                     }.takeIf { !selectionMode },
+                    isDownloadQueueRunning = isDownloadQueueRunning,
                     downloadStateProvider = updatesItem.downloadStateProvider,
                     downloadProgressProvider = updatesItem.downloadProgressProvider,
                     // AM (FILE_SIZE) -->
@@ -159,6 +161,7 @@ private fun UpdatesUiItem(
     onLongClick: () -> Unit,
     onClickCover: (() -> Unit)?,
     onDownloadEpisode: ((EpisodeDownloadAction) -> Unit)?,
+    isDownloadQueueRunning: Boolean,
     // Download Indicator
     downloadStateProvider: () -> Download.State,
     downloadProgressProvider: () -> Int,
@@ -277,6 +280,7 @@ private fun UpdatesUiItem(
             modifier = Modifier.padding(start = 4.dp),
             downloadStateProvider = downloadStateProvider,
             downloadProgressProvider = downloadProgressProvider,
+            isDownloadQueueRunning = isDownloadQueueRunning,
             onClick = { onDownloadEpisode?.invoke(it) },
             // AM (FILE_SIZE) -->
             fileSize = fileSizeAsync,

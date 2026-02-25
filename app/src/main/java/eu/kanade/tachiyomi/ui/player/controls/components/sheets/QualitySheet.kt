@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.player.components.PlayerSheet
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Video
+import eu.kanade.tachiyomi.util.lang.resolveResourceLabel
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.padding
@@ -284,6 +286,8 @@ fun HosterTrack(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+
     Row(
         modifier = modifier
             .height(32.dp)
@@ -291,7 +295,7 @@ fun HosterTrack(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = hoster.name,
+            text = context.resolveResourceLabel(hoster.name),
             fontStyle = if (selected) FontStyle.Italic else FontStyle.Normal,
             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Normal,
             style = MaterialTheme.typography.bodyMedium,

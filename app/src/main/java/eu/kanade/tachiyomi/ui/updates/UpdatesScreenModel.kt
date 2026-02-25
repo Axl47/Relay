@@ -82,16 +82,20 @@ class UpdatesScreenModel(
                 getUpdates.subscribe(limit).distinctUntilChanged(),
                 downloadCache.changes,
                 downloadManager.queueState,
-            ) { updates, _, _ -> updates }
+                downloadManager.isDownloaderRunning,
+            ) { updates, _, _, isDownloadQueueRunning ->
+                Pair(updates, isDownloadQueueRunning)
+            }
                 .catch {
                     logcat(LogPriority.ERROR, it)
                     _events.send(Event.InternalError)
                 }
-                .collectLatest { updates ->
+                .collectLatest { (updates, isDownloadQueueRunning) ->
                     mutableState.update {
                         it.copy(
                             isLoading = false,
                             items = updates.toUpdateItems(),
+                            isDownloadQueueRunning = isDownloadQueueRunning,
                         )
                     }
                 }
@@ -402,6 +406,7 @@ class UpdatesScreenModel(
     data class State(
         val isLoading: Boolean = true,
         val items: PersistentList<UpdatesItem> = persistentListOf(),
+        val isDownloadQueueRunning: Boolean = false,
         val dialog: Dialog? = null,
     ) {
         val selected = items.filter { it.selected }

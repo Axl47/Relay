@@ -30,6 +30,8 @@ import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.data.backup.BackupFileValidator
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.backup.restore.RestoreOptions
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiMigrationJob
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiMigrationPreferences
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import kotlinx.coroutines.flow.update
 import tachiyomi.i18n.MR
@@ -39,22 +41,43 @@ import tachiyomi.presentation.core.components.SectionCard
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+
+enum class RestoreLaunchMode {
+    Standard,
+    AniyomiMigration,
+}
+
+internal fun defaultRestoreOptionsForMode(mode: RestoreLaunchMode): RestoreOptions {
+    return when (mode) {
+        RestoreLaunchMode.Standard -> RestoreOptions()
+        RestoreLaunchMode.AniyomiMigration -> RestoreOptions(extensions = true)
+    }
+}
 
 class RestoreBackupScreen(
     private val uri: String,
+    private val mode: RestoreLaunchMode = RestoreLaunchMode.Standard,
 ) : Screen() {
 
     @Composable
     override fun Content() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val model = rememberScreenModel { RestoreBackupScreenModel(context, uri) }
+        val model = rememberScreenModel { RestoreBackupScreenModel(context, uri, mode) }
         val state by model.state.collectAsState()
 
         Scaffold(
             topBar = {
                 AppBar(
-                    title = stringResource(MR.strings.pref_restore_backup),
+                    title = stringResource(
+                        if (mode == RestoreLaunchMode.AniyomiMigration) {
+                            MR.strings.pref_import_from_aniyomi
+                        } else {
+                            MR.strings.pref_restore_backup
+                        },
+                    ),
                     navigateUp = navigator::pop,
                     scrollBehavior = it,
                 )
@@ -72,6 +95,17 @@ class RestoreBackupScreen(
                 if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
                     item {
                         WarningBanner(MR.strings.restore_miui_warning)
+                    }
+                }
+
+                if (mode == RestoreLaunchMode.AniyomiMigration) {
+                    item {
+                        SectionCard {
+                            Text(
+                                text = stringResource(MR.strings.aniyomi_migration_extension_note),
+                                modifier = Modifier.padding(MaterialTheme.padding.medium),
+                            )
+                        }
                     }
                 }
 
@@ -167,7 +201,12 @@ class RestoreBackupScreen(
 private class RestoreBackupScreenModel(
     private val context: Context,
     private val uri: String,
-) : StateScreenModel<RestoreBackupScreenModel.State>(State()) {
+    private val mode: RestoreLaunchMode,
+) : StateScreenModel<RestoreBackupScreenModel.State>(
+    State(options = defaultRestoreOptionsForMode(mode)),
+) {
+
+    private val migrationPreferences: AniyomiMigrationPreferences = Injekt.get()
 
     init {
         validate(uri.toUri())
@@ -182,11 +221,22 @@ private class RestoreBackupScreenModel(
     }
 
     fun startRestore() {
-        BackupRestoreJob.start(
-            context = context,
-            uri = uri.toUri(),
-            options = state.value.options,
-        )
+        val restoreUri = uri.toUri()
+        when (mode) {
+            RestoreLaunchMode.Standard -> BackupRestoreJob.start(
+                context = context,
+                uri = restoreUri,
+                options = state.value.options,
+            )
+            RestoreLaunchMode.AniyomiMigration -> {
+                migrationPreferences.migrationLastSourceUri().set(uri)
+                AniyomiMigrationJob.start(
+                    context = context,
+                    uri = restoreUri,
+                    options = state.value.options,
+                )
+            }
+        }
     }
 
     private fun validate(uri: Uri) {

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.combineTransform
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.delay
 import tachiyomi.domain.download.service.DownloadPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -58,7 +59,17 @@ class DownloadJob(context: Context, workerParams: WorkerParameters) : CoroutineW
             applicationContext.activeNetworkState(),
             downloadPreferences.downloadOnlyOverWifi().get(),
         )
-        var active = networkCheck && downloadManager.downloaderStart()
+        var active = networkCheck && (downloadManager.downloaderStart() || downloadManager.isRunning)
+
+        // The queue can still be settling right after app start (restore/reorder paths).
+        // Retry briefly before failing the worker to avoid a resume->pause flicker.
+        if (!active && networkCheck && downloadManager.queueState.value.isNotEmpty()) {
+            for (attempt in 0 until 8) {
+                delay(250)
+                active = downloadManager.downloaderStart() || downloadManager.isRunning
+                if (active) break
+            }
+        }
 
         if (!active) {
             return Result.failure()
@@ -67,25 +78,29 @@ class DownloadJob(context: Context, workerParams: WorkerParameters) : CoroutineW
         setForegroundSafely()
 
         coroutineScope {
-            combineTransform(
+            val networkMonitorJob = combineTransform(
                 applicationContext.networkStateFlow(),
                 downloadPreferences.downloadOnlyOverWifi().changes(),
                 transform = { a, b -> emit(checkNetworkState(a, b)) },
             )
                 .onEach { networkCheck = it }
                 .launchIn(this)
-        }
 
-        // Keep the worker running when needed
-        while (active) {
-            active = !isStopped && downloadManager.isRunning && networkCheck
+            // Keep the worker running when needed.
+            while (active) {
+                active = !isStopped && downloadManager.isRunning && networkCheck
+                delay(250)
+            }
+
+            networkMonitorJob.cancel()
         }
 
         return Result.success()
     }
 
     private fun checkNetworkState(state: NetworkState, requireWifi: Boolean): Boolean {
-        return if (state.isOnline) {
+        val hasNetwork = state.isOnline || state.isConnected
+        return if (hasNetwork) {
             val noWifi = requireWifi && !state.isWifi
             if (noWifi) {
                 downloadManager.downloaderStop(

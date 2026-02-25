@@ -566,6 +566,7 @@ private fun AnimeScreenSmallImpl(
                         // <-- AM (FILE_SIZE)
                         episodes = listItem,
                         isAnyEpisodeSelected = episodes.fastAny { it.selected },
+                        isDownloadQueueRunning = state.isDownloadQueueRunning,
                         episodeSwipeStartAction = episodeSwipeStartAction,
                         episodeSwipeEndAction = episodeSwipeEndAction,
                         onEpisodeClicked = onEpisodeClicked,
@@ -864,6 +865,7 @@ fun AnimeScreenLargeImpl(
                                 // <-- AM (FILE_SIZE)
                                 episodes = listItem,
                                 isAnyEpisodeSelected = episodes.fastAny { it.selected },
+                                isDownloadQueueRunning = state.isDownloadQueueRunning,
                                 episodeSwipeStartAction = episodeSwipeStartAction,
                                 episodeSwipeEndAction = episodeSwipeEndAction,
                                 onEpisodeClicked = onEpisodeClicked,
@@ -948,6 +950,7 @@ private fun LazyListScope.sharedEpisodeItems(
     // <-- AM (FILE_SIZE)
     episodes: List<EpisodeList>,
     isAnyEpisodeSelected: Boolean,
+    isDownloadQueueRunning: Boolean,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
     episodeSwipeEndAction: LibraryPreferences.EpisodeSwipeAction,
     onEpisodeClicked: (Episode, Boolean) -> Unit,
@@ -1020,6 +1023,7 @@ private fun LazyListScope.sharedEpisodeItems(
                     episodeType = item.episode.episodeType,
                     selected = item.selected,
                     downloadIndicatorEnabled = !isAnyEpisodeSelected && !anime.isLocal(),
+                    isDownloadQueueRunning = isDownloadQueueRunning,
                     downloadStateProvider = { item.downloadState },
                     downloadProgressProvider = { item.downloadProgress },
                     episodeSwipeStartAction = episodeSwipeStartAction,

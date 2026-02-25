@@ -58,19 +58,26 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.NavigatorDisposeBehavior
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.hippo.unifile.UniFile
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.components.AppStateBanners
 import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
 import eu.kanade.presentation.components.IncognitoModeBannerBackgroundColor
 import eu.kanade.presentation.components.IndexingBannerBackgroundColor
 import eu.kanade.presentation.more.settings.screen.browse.ExtensionReposScreen
+import eu.kanade.presentation.more.settings.screen.data.AniyomiMigrationScreen
 import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
+import eu.kanade.presentation.more.settings.screen.data.RestoreLaunchMode
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.DefaultNavigatorScreenTransition
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.animesource.model.Hoster
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.data.download.DownloadCache
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiBackupDiscovery
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiInstallDetector
+import eu.kanade.tachiyomi.data.migration.aniyomi.AniyomiMigrationPreferences
+import eu.kanade.tachiyomi.data.migration.aniyomi.BackupCandidate
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.updater.AppUpdateChecker
 import eu.kanade.tachiyomi.data.updater.AppUpdateJob
@@ -85,6 +92,7 @@ import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.player.ExternalIntents
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
+import eu.kanade.tachiyomi.ui.setting.SettingsScreen
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
@@ -99,8 +107,10 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.migration.Migrator
 import tachiyomi.core.common.Constants
@@ -108,6 +118,7 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.release.interactor.GetApplicationRelease
+import tachiyomi.domain.storage.service.StoragePreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
@@ -118,6 +129,7 @@ import uy.kohesive.injekt.injectLazy
 class MainActivity : BaseActivity() {
 
     private val preferences: BasePreferences by injectLazy()
+    private val aniyomiMigrationPreferences: AniyomiMigrationPreferences by injectLazy()
 
     private val downloadCache: DownloadCache by injectLazy()
 
@@ -148,6 +160,9 @@ class MainActivity : BaseActivity() {
 
         setComposeContent {
             val context = LocalContext.current
+            var showStorageLocationPrompt by remember { mutableStateOf(false) }
+            var showAniyomiMigrationPrompt by remember { mutableStateOf(false) }
+            var aniyomiPromptState by remember { mutableStateOf(AniyomiPromptState()) }
 
             val incognito by preferences.incognitoMode().collectAsState()
             val downloadOnly by preferences.downloadedOnly().collectAsState()
@@ -183,7 +198,14 @@ class MainActivity : BaseActivity() {
 
                     if (isLaunch) {
                         // Set start screen
-                        handleIntentAction(intent, navigator)
+                        val intentHandled = handleIntentAction(intent, navigator)
+                        if (!intentHandled && shouldPromptForStorageLocation()) {
+                            showStorageLocationPrompt = true
+                        }
+                        loadAniyomiPromptState()?.let { promptState ->
+                            aniyomiPromptState = promptState
+                            showAniyomiMigrationPrompt = true
+                        }
 
                         // Reset Incognito Mode on relaunch
                         preferences.incognitoMode().set(false)
@@ -245,6 +267,73 @@ class MainActivity : BaseActivity() {
                 HandleOnNewIntent(context = context, navigator = navigator)
 
                 CheckForUpdates()
+
+                if (showStorageLocationPrompt) {
+                    AlertDialog(
+                        onDismissRequest = { showStorageLocationPrompt = false },
+                        title = { Text(text = stringResource(MR.strings.pref_storage_location)) },
+                        text = { Text(text = stringResource(MR.strings.no_location_set)) },
+                        dismissButton = {
+                            TextButton(onClick = { showStorageLocationPrompt = false }) {
+                                Text(text = stringResource(MR.strings.action_cancel))
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showStorageLocationPrompt = false
+                                    navigator.push(SettingsScreen(SettingsScreen.Destination.DataAndStorage))
+                                },
+                            ) {
+                                Text(text = stringResource(MR.strings.onboarding_storage_action_select))
+                            }
+                        },
+                    )
+                }
+
+                if (showAniyomiMigrationPrompt && !showStorageLocationPrompt) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showAniyomiMigrationPrompt = false
+                            aniyomiMigrationPreferences.migrationPromptDismissed().set(true)
+                        },
+                        title = { Text(text = stringResource(MR.strings.aniyomi_migration_prompt_title)) },
+                        text = { Text(text = stringResource(MR.strings.aniyomi_migration_prompt_body)) },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showAniyomiMigrationPrompt = false
+                                    aniyomiMigrationPreferences.migrationPromptDismissed().set(true)
+                                },
+                            ) {
+                                Text(text = stringResource(MR.strings.aniyomi_migration_prompt_later))
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showAniyomiMigrationPrompt = false
+                                    aniyomiMigrationPreferences.migrationPromptDismissed().set(true)
+                                    val singleBackup = aniyomiPromptState.backupCandidates.singleOrNull()
+                                    if (singleBackup != null) {
+                                        aniyomiMigrationPreferences.migrationLastSourceUri()
+                                            .set(singleBackup.uri.toString())
+                                        navigator.push(
+                                            RestoreBackupScreen(
+                                                uri = singleBackup.uri.toString(),
+                                                mode = RestoreLaunchMode.AniyomiMigration,
+                                            ),
+                                        )
+                                    } else {
+                                        navigator.push(AniyomiMigrationScreen())
+                                    }
+                                },
+                            ) {
+                                Text(text = stringResource(MR.strings.aniyomi_migration_prompt_migrate_now))
+                            }
+                        },
+                    )
+                }
             }
 
             var showChangelog by remember { mutableStateOf(didMigration && !isDebugBuildType) }
@@ -475,6 +564,41 @@ class MainActivity : BaseActivity() {
         return true
     }
 
+    private fun shouldPromptForStorageLocation(): Boolean {
+        val storagePref = Injekt.get<StoragePreferences>().baseStorageDirectory()
+        if (!storagePref.isSet()) {
+            return true
+        }
+
+        val uri = storagePref.get()
+        if (uri.isBlank()) {
+            return true
+        }
+
+        return UniFile.fromUri(this, uri.toUri())?.exists() != true
+    }
+
+    private suspend fun loadAniyomiPromptState(): AniyomiPromptState? {
+        if (aniyomiMigrationPreferences.migrationPromptDismissed().get()) {
+            return null
+        }
+
+        val detectedApps = withContext(Dispatchers.IO) {
+            AniyomiInstallDetector(this@MainActivity).detectLegacyApps()
+        }
+        val backupCandidates = withContext(Dispatchers.IO) {
+            AniyomiBackupDiscovery(this@MainActivity).discover(detectedApps).candidates
+        }
+
+        if (detectedApps.isEmpty() && backupCandidates.isEmpty()) {
+            return null
+        }
+
+        return AniyomiPromptState(
+            backupCandidates = backupCandidates,
+        )
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
 
@@ -532,6 +656,10 @@ class MainActivity : BaseActivity() {
         }
     }
 }
+
+private data class AniyomiPromptState(
+    val backupCandidates: List<BackupCandidate> = emptyList(),
+)
 
 // Splash screen
 private const val SPLASH_MIN_DURATION = 500 // ms

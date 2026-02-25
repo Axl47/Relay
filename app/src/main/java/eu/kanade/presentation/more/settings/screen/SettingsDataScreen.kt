@@ -42,6 +42,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import com.hippo.unifile.UniFile
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.data.CreateBackupScreen
+import eu.kanade.presentation.more.settings.screen.data.AniyomiMigrationScreen
 import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
 import eu.kanade.presentation.more.settings.screen.data.StorageInfo
 import eu.kanade.presentation.util.relativeTimeSpanString
@@ -248,6 +249,13 @@ object SettingsDataScreen : SearchableSettings {
                         },
                     )
                 },
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_import_from_aniyomi),
+                    subtitle = stringResource(MR.strings.pref_import_from_aniyomi_summary),
+                    onClick = {
+                        navigator.push(AniyomiMigrationScreen())
+                    },
+                ),
 
                 // Automatic backups
                 Preference.PreferenceItem.ListPreference(

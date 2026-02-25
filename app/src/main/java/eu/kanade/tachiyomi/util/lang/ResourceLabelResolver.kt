@@ -8,6 +8,9 @@ private val labelKeyRegex = Regex("^[A-Za-z][A-Za-z0-9_]*$")
 private val labelKeyCache = ConcurrentHashMap<String, Int>()
 private val labelPluralKeyCache = ConcurrentHashMap<String, Int>()
 private val labelFormatArgRegex = Regex("%\\d*\\$?[a-zA-Z]")
+private val legacyLabelAliases = mapOf(
+    "no_hoster_list" to "no_hosters",
+)
 
 fun Context.resolveResourceLabel(label: String): String {
     if (!labelKeyRegex.matches(label)) {
@@ -18,6 +21,10 @@ fun Context.resolveResourceLabel(label: String): String {
     resolveResourceStringByName(label.lowercase(Locale.US))?.let { return it }
     resolveResourcePluralByName(label)?.let { return it }
     resolveResourcePluralByName(label.lowercase(Locale.US))?.let { return it }
+    legacyLabelAliases[label.lowercase(Locale.US)]?.let { alias ->
+        resolveResourceStringByName(alias)?.let { return it }
+        resolveResourcePluralByName(alias)?.let { return it }
+    }
 
     return label
 }

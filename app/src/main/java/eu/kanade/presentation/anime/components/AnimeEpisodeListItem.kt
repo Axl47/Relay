@@ -67,6 +67,7 @@ fun AnimeEpisodeListItem(
     episodeType: EpisodeType,
     selected: Boolean,
     downloadIndicatorEnabled: Boolean,
+    isDownloadQueueRunning: Boolean,
     downloadStateProvider: () -> Download.State,
     downloadProgressProvider: () -> Int,
     episodeSwipeStartAction: LibraryPreferences.EpisodeSwipeAction,
@@ -223,6 +224,7 @@ fun AnimeEpisodeListItem(
                 modifier = Modifier.padding(start = 4.dp),
                 downloadStateProvider = downloadStateProvider,
                 downloadProgressProvider = downloadProgressProvider,
+                isDownloadQueueRunning = isDownloadQueueRunning,
                 onClick = { onDownloadClick?.invoke(it) },
                 // AM (FILE_SIZE) -->
                 fileSize = fileSize,
