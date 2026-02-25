@@ -163,6 +163,10 @@ class MainActivity : BaseActivity() {
             var showStorageLocationPrompt by remember { mutableStateOf(false) }
             var showAniyomiMigrationPrompt by remember { mutableStateOf(false) }
             var aniyomiPromptState by remember { mutableStateOf(AniyomiPromptState()) }
+            var pendingAniyomiPromptState by remember { mutableStateOf<AniyomiPromptState?>(null) }
+            val storagePreferences = remember { Injekt.get<StoragePreferences>() }
+            val storageDirectory by storagePreferences.baseStorageDirectory().collectAsState()
+            val hasValidStorageLocation = remember(storageDirectory) { !shouldPromptForStorageLocation() }
 
             val incognito by preferences.incognitoMode().collectAsState()
             val downloadOnly by preferences.downloadedOnly().collectAsState()
@@ -199,12 +203,17 @@ class MainActivity : BaseActivity() {
                     if (isLaunch) {
                         // Set start screen
                         val intentHandled = handleIntentAction(intent, navigator)
-                        if (!intentHandled && shouldPromptForStorageLocation()) {
+                        val shouldShowStoragePrompt = !intentHandled && shouldPromptForStorageLocation()
+                        if (shouldShowStoragePrompt) {
                             showStorageLocationPrompt = true
                         }
                         loadAniyomiPromptState()?.let { promptState ->
-                            aniyomiPromptState = promptState
-                            showAniyomiMigrationPrompt = true
+                            if (shouldShowStoragePrompt) {
+                                pendingAniyomiPromptState = promptState
+                            } else {
+                                aniyomiPromptState = promptState
+                                showAniyomiMigrationPrompt = true
+                            }
                         }
 
                         // Reset Incognito Mode on relaunch
@@ -267,6 +276,24 @@ class MainActivity : BaseActivity() {
                 HandleOnNewIntent(context = context, navigator = navigator)
 
                 CheckForUpdates()
+
+                LaunchedEffect(
+                    hasValidStorageLocation,
+                    showStorageLocationPrompt,
+                    pendingAniyomiPromptState,
+                ) {
+                    val pendingPrompt = pendingAniyomiPromptState
+                    if (
+                        pendingPrompt != null &&
+                        hasValidStorageLocation &&
+                        !showStorageLocationPrompt &&
+                        !showAniyomiMigrationPrompt
+                    ) {
+                        aniyomiPromptState = pendingPrompt
+                        pendingAniyomiPromptState = null
+                        showAniyomiMigrationPrompt = true
+                    }
+                }
 
                 if (showStorageLocationPrompt) {
                     AlertDialog(
