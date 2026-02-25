@@ -3,23 +3,30 @@ package eu.kanade.tachiyomi.data.migration.aniyomi
 import eu.kanade.tachiyomi.data.backup.BackupDecoder
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import java.io.File
 import java.util.zip.GZIPInputStream
 
 class AniyomiMigrationFixtureTest {
 
-    @Test
-    fun `fixture backup contains library entries and extensions`() {
-        val fixture = findFixture()
+    @ParameterizedTest
+    @CsvSource(
+        "docs/xyz.jmir.tachiyomi.mi_2026-02-24_20-20.tachibk,true",
+        "docs/xyz.jmir.tachiyomi.mi.debug_2026-02-24_20-54.tachibk,false",
+    )
+    fun `fixture backup contains decodable library entries`(fixturePath: String, expectEmbeddedExtensions: Boolean) {
+        val fixture = findFixture(fixturePath)
         assertTrue(fixture.exists(), "Fixture backup file not found: ${fixture.absolutePath}")
 
         val backup = decodeFixture(fixture)
 
-        assertTrue(
-            backup.backupExtensions.isNotEmpty(),
-            "Fixture should include extensions for migration tests",
-        )
+        if (expectEmbeddedExtensions) {
+            assertTrue(
+                backup.backupExtensions.isNotEmpty(),
+                "Fixture should include embedded extensions for migration tests",
+            )
+        }
         assertTrue(
             backup.backupAnime.isNotEmpty(),
             "Fixture should include library entries, but decoded backupAnime is empty",
@@ -37,8 +44,7 @@ class AniyomiMigrationFixtureTest {
         return BackupDecoder.decodeByteArray(backupBytes)
     }
 
-    private fun findFixture(): File {
-        val relativePath = "docs/xyz.jmir.tachiyomi.mi_2026-02-24_20-20.tachibk"
+    private fun findFixture(relativePath: String): File {
         val candidates = listOf(
             File(relativePath),
             File("../$relativePath"),
