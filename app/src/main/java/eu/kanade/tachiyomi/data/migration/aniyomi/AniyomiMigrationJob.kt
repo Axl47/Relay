@@ -34,6 +34,7 @@ class AniyomiMigrationJob(private val context: Context, workerParams: WorkerPara
     override suspend fun doWork(): Result {
         val uri = inputData.getString(LOCATION_URI_KEY)?.toUri()
         val options = inputData.getBooleanArray(OPTIONS_KEY)?.let { RestoreOptions.fromBooleanArray(it) }
+        val coupleSharedSources = inputData.getBoolean(COUPLE_SHARED_SOURCES_KEY, false)
 
         if (uri == null || options == null) {
             return Result.failure()
@@ -47,7 +48,18 @@ class AniyomiMigrationJob(private val context: Context, workerParams: WorkerPara
 
         return try {
             val backup = BackupDecoder(context).decode(uri)
-            val extensionImportResult = AniyomiExtensionPlanner(context).importExtensions(backup.backupExtensions)
+            val extensionImportResult = if (options.extensions) {
+                AniyomiExtensionPlanner(context).importExtensions(
+                    backupExtensions = backup.backupExtensions,
+                    coupleSharedSources = coupleSharedSources,
+                )
+            } else {
+                ExtensionImportResult(
+                    total = 0,
+                    success = 0,
+                    failedPackages = emptyList(),
+                )
+            }
 
             val migrationWarnings = buildList {
                 if (extensionImportResult.failedPackages.isNotEmpty()) {
@@ -105,6 +117,7 @@ class AniyomiMigrationJob(private val context: Context, workerParams: WorkerPara
             context: Context,
             uri: Uri,
             options: RestoreOptions,
+            coupleSharedSources: Boolean = false,
         ) {
             if (isRunning(context) || BackupRestoreJob.isRunning(context)) {
                 return
@@ -112,6 +125,7 @@ class AniyomiMigrationJob(private val context: Context, workerParams: WorkerPara
             val inputData = workDataOf(
                 LOCATION_URI_KEY to uri.toString(),
                 OPTIONS_KEY to options.asBooleanArray(),
+                COUPLE_SHARED_SOURCES_KEY to coupleSharedSources,
             )
             val request = OneTimeWorkRequestBuilder<AniyomiMigrationJob>()
                 .addTag(TAG)
@@ -129,3 +143,4 @@ class AniyomiMigrationJob(private val context: Context, workerParams: WorkerPara
 private const val TAG = "AniyomiMigrationRestore"
 private const val LOCATION_URI_KEY = "location_uri" // String
 private const val OPTIONS_KEY = "options" // BooleanArray
+private const val COUPLE_SHARED_SOURCES_KEY = "couple_shared_sources" // Boolean

@@ -171,6 +171,8 @@ object MR {
         val aniyomi_migration_detected_backups_title = StringResource(R.string.aniyomi_migration_detected_backups_title)
         val aniyomi_migration_extension_copy_failed = StringResource(R.string.aniyomi_migration_extension_copy_failed)
         val aniyomi_migration_extension_note = StringResource(R.string.aniyomi_migration_extension_note)
+        val aniyomi_migration_couple_sources_toggle = StringResource(R.string.aniyomi_migration_couple_sources_toggle)
+        val aniyomi_migration_couple_sources_summary = StringResource(R.string.aniyomi_migration_couple_sources_summary)
         val aniyomi_migration_extensions_partial = StringResource(R.string.aniyomi_migration_extensions_partial)
         val aniyomi_migration_no_backup_guidance = StringResource(R.string.aniyomi_migration_no_backup_guidance)
         val aniyomi_migration_no_legacy_apps_found = StringResource(R.string.aniyomi_migration_no_legacy_apps_found)

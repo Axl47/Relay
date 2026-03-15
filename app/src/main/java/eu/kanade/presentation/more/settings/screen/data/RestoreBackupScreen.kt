@@ -101,10 +101,23 @@ class RestoreBackupScreen(
                 if (mode == RestoreLaunchMode.AniyomiMigration) {
                     item {
                         SectionCard {
-                            Text(
-                                text = stringResource(MR.strings.aniyomi_migration_extension_note),
+                            Column(
                                 modifier = Modifier.padding(MaterialTheme.padding.medium),
-                            )
+                                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
+                            ) {
+                                Text(text = stringResource(MR.strings.aniyomi_migration_extension_note))
+                                LabeledCheckbox(
+                                    label = stringResource(MR.strings.aniyomi_migration_couple_sources_toggle),
+                                    checked = state.coupleSharedSources,
+                                    onCheckedChange = model::setCoupleSharedSources,
+                                    enabled = state.options.extensions,
+                                )
+                                Text(
+                                    text = stringResource(MR.strings.aniyomi_migration_couple_sources_summary),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
@@ -220,6 +233,12 @@ private class RestoreBackupScreenModel(
         }
     }
 
+    fun setCoupleSharedSources(enabled: Boolean) {
+        mutableState.update {
+            it.copy(coupleSharedSources = enabled)
+        }
+    }
+
     fun startRestore() {
         val restoreUri = uri.toUri()
         when (mode) {
@@ -234,6 +253,7 @@ private class RestoreBackupScreenModel(
                     context = context,
                     uri = restoreUri,
                     options = state.value.options,
+                    coupleSharedSources = state.value.coupleSharedSources,
                 )
             }
         }
@@ -275,6 +295,7 @@ private class RestoreBackupScreenModel(
         val error: Any? = null,
         val canRestore: Boolean = false,
         val options: RestoreOptions = RestoreOptions(),
+        val coupleSharedSources: Boolean = false,
     )
 }
 

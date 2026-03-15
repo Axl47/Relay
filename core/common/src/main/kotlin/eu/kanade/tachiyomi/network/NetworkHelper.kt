@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import logcat.LogPriority
 import okhttp3.Cache
+import okhttp3.Dns
 import okhttp3.Headers
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -46,12 +47,14 @@ open /* SY <-- */ class NetworkHelper(
         callTimeout: Long = 120,
         // KMK <--
     ): OkHttpClient = run {
+        val dns = getDns()
         val builder = OkHttpClient.Builder()
             .cookieJar(cookieJar)
             // KMK -->
             .connectTimeout(connectTimeout, TimeUnit.SECONDS)
             .readTimeout(readTimeout, TimeUnit.SECONDS)
             .callTimeout(callTimeout, TimeUnit.SECONDS)
+            .dns(Ipv4FirstDns(dns))
             // KMK <--
             .cache(
                 Cache(
@@ -75,23 +78,26 @@ open /* SY <-- */ class NetworkHelper(
             CloudflareInterceptor(context, cookieJar, ::defaultUserAgentProvider),
         )
 
-        when (preferences.dohProvider().get()) {
-            PREF_DOH_CLOUDFLARE -> builder.dohCloudflare()
-            PREF_DOH_GOOGLE -> builder.dohGoogle()
-            PREF_DOH_ADGUARD -> builder.dohAdGuard()
-            PREF_DOH_QUAD9 -> builder.dohQuad9()
-            PREF_DOH_ALIDNS -> builder.dohAliDNS()
-            PREF_DOH_DNSPOD -> builder.dohDNSPod()
-            PREF_DOH_360 -> builder.doh360()
-            PREF_DOH_QUAD101 -> builder.dohQuad101()
-            PREF_DOH_MULLVAD -> builder.dohMullvad()
-            PREF_DOH_CONTROLD -> builder.dohControlD()
-            PREF_DOH_NJALLA -> builder.dohNajalla()
-            PREF_DOH_SHECAN -> builder.dohShecan()
-            PREF_DOH_LIBREDNS -> builder.dohLibreDNS()
-        }
-
         builder.build()
+    }
+
+    private fun getDns(): Dns {
+        return when (preferences.dohProvider().get()) {
+            PREF_DOH_CLOUDFLARE -> createCloudflareDns()
+            PREF_DOH_GOOGLE -> createGoogleDns()
+            PREF_DOH_ADGUARD -> createAdGuardDns()
+            PREF_DOH_QUAD9 -> createQuad9Dns()
+            PREF_DOH_ALIDNS -> createAliDns()
+            PREF_DOH_DNSPOD -> createDnsPodDns()
+            PREF_DOH_360 -> create360Dns()
+            PREF_DOH_QUAD101 -> createQuad101Dns()
+            PREF_DOH_MULLVAD -> createMullvadDns()
+            PREF_DOH_CONTROLD -> createControlDDns()
+            PREF_DOH_NJALLA -> createNajallaDns()
+            PREF_DOH_SHECAN -> createShecanDns()
+            PREF_DOH_LIBREDNS -> createLibreDns()
+            else -> Dns.SYSTEM
+        }
     }
 
     // KMK -->

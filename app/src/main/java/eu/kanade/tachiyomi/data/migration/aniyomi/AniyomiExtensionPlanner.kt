@@ -26,6 +26,13 @@ data class ExtensionImportResult(
     val failedPackages: List<String>,
 )
 
+internal enum class ExtensionInstallAction {
+    CoupleShared,
+    CopySharedToPrivate,
+    CopyBackupToPrivate,
+    Missing,
+}
+
 internal fun buildExtensionImportPlan(
     backupExtensions: List<BackupExtension>,
     sharedExtensions: List<SharedExtensionApk>,
@@ -58,7 +65,10 @@ class AniyomiExtensionPlanner(
     private val context: Context,
 ) {
 
-    fun importExtensions(backupExtensions: List<BackupExtension>): ExtensionImportResult {
+    fun importExtensions(
+        backupExtensions: List<BackupExtension>,
+        coupleSharedSources: Boolean = false,
+    ): ExtensionImportResult {
         val sharedExtensions = getSharedExtensions()
         val plan = buildExtensionImportPlan(backupExtensions, sharedExtensions)
         if (plan.isEmpty()) {
@@ -73,7 +83,7 @@ class AniyomiExtensionPlanner(
         var successCount = 0
 
         plan.forEach { item ->
-            val installed = installPlanItem(item)
+            val installed = installPlanItem(item, coupleSharedSources)
             if (installed) {
                 successCount++
             } else {
@@ -122,10 +132,11 @@ class AniyomiExtensionPlanner(
             .toList()
     }
 
-    private fun installPlanItem(item: ExtensionImportPlanItem): Boolean {
-        val sharedInstalled = item.sharedApkFile
-            ?.takeIf { it.exists() && it.isFile }
-            ?.let { sharedFile ->
+    private fun installPlanItem(item: ExtensionImportPlanItem, coupleSharedSources: Boolean): Boolean {
+        return when (resolveExtensionInstallAction(item, coupleSharedSources)) {
+            ExtensionInstallAction.CoupleShared -> true
+            ExtensionInstallAction.CopySharedToPrivate -> {
+                val sharedFile = item.sharedApkFile ?: return false
                 runCatching {
                     ExtensionLoader.installPrivateExtensionFile(context, sharedFile)
                 }
@@ -136,29 +147,47 @@ class AniyomiExtensionPlanner(
                     }
                     .getOrDefault(false)
             }
-            ?: false
-
-        if (sharedInstalled) {
-            return true
-        }
-
-        val backupApk = item.backupApk ?: return false
-        val tempFile = File(
-            context.cacheDir,
-            "migration_ext_${item.pkgName.replace('.', '_')}.apk",
-        )
-        return try {
-            tempFile.writeBytes(backupApk)
-            ExtensionLoader.installPrivateExtensionFile(context, tempFile)
-        } catch (e: Exception) {
-            logcat(LogPriority.WARN, e) {
-                "Failed backup extension private-copy for ${item.pkgName}"
+            ExtensionInstallAction.CopyBackupToPrivate -> {
+                val backupApk = item.backupApk ?: return false
+                val tempFile = File(
+                    context.cacheDir,
+                    "migration_ext_${item.pkgName.replace('.', '_')}.apk",
+                )
+                try {
+                    tempFile.writeBytes(backupApk)
+                    ExtensionLoader.installPrivateExtensionFile(context, tempFile)
+                } catch (e: Exception) {
+                    logcat(LogPriority.WARN, e) {
+                        "Failed backup extension private-copy for ${item.pkgName}"
+                    }
+                    false
+                } finally {
+                    if (tempFile.exists()) {
+                        tempFile.delete()
+                    }
+                }
             }
-            false
-        } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
+            ExtensionInstallAction.Missing -> false
         }
     }
+}
+
+internal fun resolveExtensionInstallAction(
+    item: ExtensionImportPlanItem,
+    coupleSharedSources: Boolean,
+): ExtensionInstallAction {
+    val hasSharedApk = item.sharedApkFile?.let { it.exists() && it.isFile } == true
+    if (hasSharedApk) {
+        return if (coupleSharedSources) {
+            ExtensionInstallAction.CoupleShared
+        } else {
+            ExtensionInstallAction.CopySharedToPrivate
+        }
+    }
+
+    if (item.backupApk != null) {
+        return ExtensionInstallAction.CopyBackupToPrivate
+    }
+
+    return ExtensionInstallAction.Missing
 }

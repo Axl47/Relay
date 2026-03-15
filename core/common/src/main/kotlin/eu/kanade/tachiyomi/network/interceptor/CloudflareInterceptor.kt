@@ -11,8 +11,6 @@ import androidx.core.content.ContextCompat
 import eu.kanade.tachiyomi.network.AndroidCookieJar
 import eu.kanade.tachiyomi.util.system.isOutdated
 import eu.kanade.tachiyomi.util.system.toast
-import okhttp3.Cookie
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
@@ -30,8 +28,7 @@ class CloudflareInterceptor(
     private val executor = ContextCompat.getMainExecutor(context)
 
     override fun shouldIntercept(response: Response): Boolean {
-        // Check if Cloudflare anti-bot is on
-        return response.code in ERROR_CODES && response.header("Server") in SERVER_CHECK
+        return response.challengeProtection() != null
     }
 
     override fun intercept(
@@ -39,12 +36,12 @@ class CloudflareInterceptor(
         request: Request,
         response: Response,
     ): Response {
+        val protection = response.challengeProtection() ?: return response
         try {
             response.close()
-            cookieManager.remove(request.url, COOKIE_NAMES, 0)
-            val oldCookie = cookieManager.get(request.url)
-                .firstOrNull { it.name == "cf_clearance" }
-            resolveWithWebView(request, oldCookie)
+            val oldCookies = protection.cookieSnapshot(cookieManager, request.url)
+            cookieManager.remove(request.url, protection.cookiesToClear, 0)
+            resolveWithWebView(request, protection, oldCookies)
 
             return chain.proceed(request)
         }
@@ -58,7 +55,11 @@ class CloudflareInterceptor(
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun resolveWithWebView(originalRequest: Request, oldCookie: Cookie?) {
+    private fun resolveWithWebView(
+        originalRequest: Request,
+        protection: AntiBotProtection,
+        oldCookies: Set<Pair<String, String>>,
+    ) {
         // We need to lock this thread until the WebView finds the challenge solution url, because
         // OkHttp doesn't support asynchronous interceptors.
         val latch = CountDownLatch(1)
@@ -69,7 +70,8 @@ class CloudflareInterceptor(
         var cloudflareBypassed = false
         var isWebViewOutdated = false
 
-        val origRequestUrl = originalRequest.url.toString()
+        val requestUrl = originalRequest.url
+        val origRequestUrl = requestUrl.toString()
         val headers = parseHeaders(originalRequest.headers)
 
         executor.execute {
@@ -77,13 +79,7 @@ class CloudflareInterceptor(
 
             webview?.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
-                    fun isCloudFlareBypassed(): Boolean {
-                        return cookieManager.get(origRequestUrl.toHttpUrl())
-                            .firstOrNull { it.name == "cf_clearance" }
-                            .let { it != null && it != oldCookie }
-                    }
-
-                    if (isCloudFlareBypassed()) {
+                    if (protection.isBypassed(cookieManager, requestUrl, oldCookies)) {
                         cloudflareBypassed = true
                         latch.countDown()
                     }
@@ -136,7 +132,66 @@ class CloudflareInterceptor(
 }
 
 private val ERROR_CODES = listOf(403, 503)
-private val SERVER_CHECK = arrayOf("cloudflare-nginx", "cloudflare")
-private val COOKIE_NAMES = listOf("cf_clearance")
+
+private enum class AntiBotProtection(
+    val serverHeaders: Set<String>,
+    val cookiesToClear: List<String>?,
+) {
+    CLOUDFLARE(
+        serverHeaders = setOf("cloudflare-nginx", "cloudflare"),
+        cookiesToClear = listOf("cf_clearance"),
+    ) {
+        override fun isBypassed(
+            cookieManager: AndroidCookieJar,
+            requestUrl: okhttp3.HttpUrl,
+            oldCookies: Set<Pair<String, String>>,
+        ): Boolean {
+            val newCookies = cookieSnapshot(cookieManager, requestUrl)
+            return newCookies.isNotEmpty() && newCookies != oldCookies
+        }
+
+        override fun matchesCookie(name: String): Boolean = name == "cf_clearance"
+    },
+    DDOS_GUARD(
+        serverHeaders = setOf("ddos-guard"),
+        cookiesToClear = null,
+    ) {
+        override fun isBypassed(
+            cookieManager: AndroidCookieJar,
+            requestUrl: okhttp3.HttpUrl,
+            oldCookies: Set<Pair<String, String>>,
+        ): Boolean {
+            return cookieSnapshot(cookieManager, requestUrl).isNotEmpty()
+        }
+
+        override fun matchesCookie(name: String): Boolean = name.startsWith("__ddg")
+    },
+    ;
+
+    abstract fun matchesCookie(name: String): Boolean
+
+    abstract fun isBypassed(
+        cookieManager: AndroidCookieJar,
+        requestUrl: okhttp3.HttpUrl,
+        oldCookies: Set<Pair<String, String>>,
+    ): Boolean
+
+    fun cookieSnapshot(
+        cookieManager: AndroidCookieJar,
+        requestUrl: okhttp3.HttpUrl,
+    ): Set<Pair<String, String>> {
+        return cookieManager.get(requestUrl)
+            .filter { matchesCookie(it.name) }
+            .map { it.name to it.value }
+            .toSet()
+    }
+}
+
+private fun Response.challengeProtection(): AntiBotProtection? {
+    if (code !in ERROR_CODES) return null
+
+    val server = header("Server")?.lowercase() ?: return null
+    return AntiBotProtection.entries.firstOrNull { server in it.serverHeaders }
+}
 
 private class CloudflareBypassException : Exception()

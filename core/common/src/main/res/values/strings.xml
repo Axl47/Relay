@@ -168,6 +168,8 @@
     <string name="aniyomi_migration_detected_backups_title">Detected backups</string>
     <string name="aniyomi_migration_extension_copy_failed">Couldn\'t copy extension APK for %1$s</string>
     <string name="aniyomi_migration_extension_note">Relay imports from backup and copies extension APKs into Relay private storage. This keeps Relay working even after Aniyomi is removed.</string>
+    <string name="aniyomi_migration_couple_sources_toggle">Couple with Aniyomi-installed sources</string>
+    <string name="aniyomi_migration_couple_sources_summary">Use shared extensions from the existing Aniyomi install instead of private-copying them into Relay. Keep this off if you want Relay to stay independent after removing Aniyomi.</string>
     <string name="aniyomi_migration_extensions_partial">Imported %1$d/%2$d extensions into Relay private storage.</string>
     <string name="aniyomi_migration_no_backup_guidance">No .tachibk backup was auto-detected. Create a backup from Aniyomi (Settings → Backup), then use manual picker below.</string>
     <string name="aniyomi_migration_no_legacy_apps_found">No Aniyomi app launchers were detected.</string>
@@ -443,8 +445,8 @@
     <string name="hour_short">%dh</string>
     <string name="in_library">In library</string>
     <string name="include">Include: %s</string>
-    <string name="information_cloudflare_bypass_failure">Failed to bypass Cloudflare</string>
-    <string name="information_cloudflare_help">Tap here for help with Cloudflare</string>
+    <string name="information_cloudflare_bypass_failure">Failed to bypass anti-bot protection</string>
+    <string name="information_cloudflare_help">Tap here for help with anti-bot protection</string>
     <string name="information_empty_category">You have no categories. Tap the plus button to create one for organizing your library.</string>
     <string name="information_empty_category_dialog">You don\'t have any categories yet.</string>
     <string name="information_empty_library">Your library is empty</string>
