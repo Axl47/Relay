@@ -906,7 +906,28 @@ async function fetchPlaybackPayload(page: PlaywrightPageLike, externalEpisodeId:
 }
 
 function parseSubtitleTracks(payload: unknown): ResolvedSubtitle[] {
-  const collect = (value: unknown, labelPrefix = "Subtitle"): ResolvedSubtitle[] => {
+  const inferSubtitleFormat = (url: string, formatValue?: string | null) => {
+    const normalizedFormat = cleanText(formatValue).toLowerCase();
+    if (normalizedFormat === "ass" || normalizedFormat === "srt" || normalizedFormat === "vtt") {
+      return normalizedFormat;
+    }
+
+    if (/\/v4\/subtitles\//i.test(url) || /\.ass(?:$|\?)/i.test(url) || /\.ssa(?:$|\?)/i.test(url)) {
+      return "ass";
+    }
+
+    if (/\.srt(?:$|\?)/i.test(url)) {
+      return "srt";
+    }
+
+    return "vtt";
+  };
+
+  const collect = (
+    value: unknown,
+    labelPrefix = "Subtitle",
+    labelMap?: Record<string, string>,
+  ): ResolvedSubtitle[] => {
     if (!value) {
       return [];
     }
@@ -929,22 +950,22 @@ function parseSubtitleTracks(payload: unknown): ResolvedSubtitle[] {
           return [];
         }
 
-        const formatValue =
-          typeof item.format === "string" ? item.format
-          : url.endsWith(".ass") ? "ass"
-          : url.endsWith(".srt") ? "srt"
-          : "vtt";
+        const language = cleanText(typeof item.language === "string" ? item.language : null) || "und";
+        const formatValue = inferSubtitleFormat(
+          url,
+          typeof item.format === "string" ? item.format : null,
+        );
 
         return [
           {
             label:
               cleanText(typeof item.label === "string" ? item.label : null) ||
+              cleanText(labelMap?.[language]) ||
               cleanText(typeof item.language === "string" ? item.language : null) ||
               `${labelPrefix} ${index + 1}`,
-            language: cleanText(typeof item.language === "string" ? item.language : null) || "und",
+            language,
             url,
-            format:
-              formatValue === "ass" || formatValue === "srt" ? formatValue : "vtt",
+            format: formatValue,
             isDefault:
               item.default === true ||
               item.isDefault === true ||
@@ -959,15 +980,13 @@ function parseSubtitleTracks(payload: unknown): ResolvedSubtitle[] {
       return Object.entries(value as Record<string, unknown>).flatMap(([label, entry]) => {
         if (typeof entry === "string") {
           const url = safeAbsoluteUrl(entry, API_BASE_URL);
+          const language = cleanText(label) || "und";
           return url ?
               [{
-                label: cleanText(label) || "Subtitle",
-                language: cleanText(label).slice(0, 2).toLowerCase() || "und",
+                label: cleanText(labelMap?.[language]) || cleanText(label) || "Subtitle",
+                language,
                 url,
-                format:
-                  url.endsWith(".ass") ? "ass"
-                  : url.endsWith(".srt") ? "srt"
-                  : "vtt",
+                format: inferSubtitleFormat(url),
                 isDefault: false,
               }]
             : [];
@@ -993,17 +1012,18 @@ function parseSubtitleTracks(payload: unknown): ResolvedSubtitle[] {
           {
             label:
               cleanText(typeof item.label === "string" ? item.label : null) ||
+              cleanText(labelMap?.[cleanText(label)]) ||
               cleanText(label) ||
               "Subtitle",
             language:
               cleanText(typeof item.language === "string" ? item.language : null) ||
-              cleanText(label).slice(0, 2).toLowerCase() ||
+              cleanText(label) ||
               "und",
             url,
-            format:
-              url.endsWith(".ass") ? "ass"
-              : url.endsWith(".srt") ? "srt"
-              : "vtt",
+            format: inferSubtitleFormat(
+              url,
+              typeof item.format === "string" ? item.format : null,
+            ),
             isDefault: item.default === true || item.isDefault === true,
           },
         ];
@@ -1015,15 +1035,26 @@ function parseSubtitleTracks(payload: unknown): ResolvedSubtitle[] {
 
   const data = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
   const dataValue = data.data && typeof data.data === "object" ? (data.data as Record<string, unknown>) : null;
+  const metadataValue =
+    data.metadata && typeof data.metadata === "object" ? (data.metadata as Record<string, unknown>) : null;
   const dataUri = dataValue?.uri && typeof dataValue.uri === "object" ?
       (dataValue.uri as Record<string, unknown>)
     : null;
+  const topLevelUri = data.uri && typeof data.uri === "object" ? (data.uri as Record<string, unknown>) : null;
+  const subtitleLabels =
+    metadataValue?.subtitles && typeof metadataValue.subtitles === "object" ?
+      Object.fromEntries(
+        Object.entries(metadataValue.subtitles as Record<string, unknown>).flatMap(([language, label]) =>
+          typeof label === "string" ? [[language, label]] : [],
+        ),
+      )
+    : undefined;
   return uniqueBy(
     [
-      ...collect(dataUri?.subtitles),
-      ...collect(dataValue?.subtitles),
-      ...collect(data.uri),
-      ...collect(data.subtitles),
+      ...collect(dataUri?.subtitles, "Subtitle", subtitleLabels),
+      ...collect(topLevelUri?.subtitles, "Subtitle", subtitleLabels),
+      ...collect(dataValue?.subtitles, "Subtitle", subtitleLabels),
+      ...collect(data.subtitles, "Subtitle", subtitleLabels),
     ],
     (track) => track.url,
   );

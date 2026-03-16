@@ -154,6 +154,16 @@ function convertAssToVtt(source: string) {
 export function convertSubtitleToVtt(source: string, format: SubtitleFormat) {
   const normalized = normalizeNewlines(source);
   if (format === "vtt") {
+    if (/^\s*\[script info\]/im.test(normalized) || /^\s*\[events\]/im.test(normalized)) {
+      return convertAssToVtt(normalized);
+    }
+
+    if (/^\s*\d+\s*\n\s*\d{1,2}:\d{2}:\d{2},\d{3}\s*-->/m.test(normalized)) {
+      return convertSrtToVtt(normalized);
+    }
+  }
+
+  if (format === "vtt") {
     return normalized.startsWith("WEBVTT") ? normalized : `WEBVTT\n\n${normalized}`;
   }
 

@@ -42,6 +42,20 @@ function getMediaProxyHeaders(url: URL) {
   return headers;
 }
 
+function getSubtitleProxyHeaders(url: URL) {
+  const headers: Record<string, string> = {
+    "user-agent": DEFAULT_STREAM_USER_AGENT,
+    "accept-language": "en-US,en;q=0.9",
+  };
+
+  if (url.hostname === "api.animeonsen.xyz" || url.hostname.endsWith(".animeonsen.xyz")) {
+    headers.referer = "https://www.animeonsen.xyz/";
+    headers.origin = "https://www.animeonsen.xyz";
+  }
+
+  return headers;
+}
+
 function buildProxyStreamPath(sessionId: string, upstreamUrl: string) {
   return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeURIComponent(upstreamUrl)}`;
 }
@@ -332,11 +346,9 @@ export async function buildApi() {
       ? await relay.getPlaybackSubtitleTrack(request.sessionUser.id, params.id, index)
       : await relay.getPlaybackSubtitleTrackBySessionId(params.id, index);
 
-    const upstream = await fetch(subtitle.url, {
-      headers: {
-        "user-agent": DEFAULT_STREAM_USER_AGENT,
-        "accept-language": "en-US,en;q=0.9",
-      },
+    const subtitleUrl = new URL(subtitle.url);
+    const upstream = await fetch(subtitleUrl, {
+      headers: getSubtitleProxyHeaders(subtitleUrl),
     });
     if (!upstream.ok) {
       throw Object.assign(
