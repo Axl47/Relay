@@ -73,10 +73,11 @@ const ANIMEONSEN_CHALLENGE_MARKERS = [
   "checking your browser before accessing",
 ];
 const SEARCH_ROUTE_CANDIDATES = [
+  (query: string) => `/search/${encodeURIComponent(query)}`,
   (query: string) => `/search?query=${encodeURIComponent(query)}`,
   (query: string) => `/search?q=${encodeURIComponent(query)}`,
 ];
-const SEARCH_READY_TIMEOUT_MS = 7_000;
+const SEARCH_READY_TIMEOUT_MS = 2_500;
 
 function cleanText(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
@@ -230,9 +231,8 @@ async function waitForAnimeOnsenReady(
   throw new BrowserExtractionError("challenge_failed", message, { statusCode: 502 });
 }
 
-async function waitForAnimeOnsenSearchReady(
+async function probeAnimeOnsenSearchReady(
   page: PlaywrightPageLike,
-  message: string,
   timeoutMs = SEARCH_READY_TIMEOUT_MS,
 ) {
   const deadline = Date.now() + timeoutMs;
@@ -256,13 +256,13 @@ async function waitForAnimeOnsenSearchReady(
       (state.readyState === "interactive" || state.readyState === "complete") &&
       !looksLikeChallenge(sample)
     ) {
-      return;
+      return true;
     }
 
     await page.waitForTimeout(500);
   }
 
-  throw new BrowserExtractionError("challenge_failed", message, { statusCode: 502 });
+  return false;
 }
 
 async function navigate(page: PlaywrightPageLike, path: string) {
@@ -293,12 +293,16 @@ async function extractSearchCards(page: PlaywrightPageLike, query: string) {
     };
 
     const queryText = clean(inputQuery).toLowerCase();
-    const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href*='/details/']"));
+    const anchors = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("a[href*='/details/'], a[href*='/watch/']"),
+    );
     const cards = anchors
       .map((anchor) => {
         const href = anchor.getAttribute("href") ?? "";
-        const match = href.match(/\/details\/([^/?#]+)/);
-        if (!match?.[1]) {
+        const detailsMatch = href.match(/\/details\/([^/?#]+)/);
+        const watchMatch = href.match(/\/watch\/([^/?#]+)/);
+        const animeId = detailsMatch?.[1] ?? watchMatch?.[1];
+        if (!animeId) {
           return null;
         }
 
@@ -330,7 +334,7 @@ async function extractSearchCards(page: PlaywrightPageLike, query: string) {
 
         const textSample = clean(container.textContent);
         return {
-          externalAnimeId: match[1],
+          externalAnimeId: animeId,
           title,
           synopsis,
           coverImage,
@@ -490,6 +494,29 @@ async function extractAnimeSnapshot(page: PlaywrightPageLike) {
           ?.content.match(/\/v4\/image\/[^/]+\/([^/?#]+)/)?.[1] ||
         null,
     };
+  });
+}
+
+async function extractWatchAnimeId(page: PlaywrightPageLike) {
+  return page.evaluate(() => {
+    const directWatchLink = document.querySelector<HTMLAnchorElement>(
+      "a[href*='/watch/'][href*='episode='], a[href*='/watch/']",
+    )?.getAttribute("href");
+    const hrefs = [
+      directWatchLink,
+      ...Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href*='/watch/']")).map((anchor) =>
+        anchor.getAttribute("href"),
+      ),
+    ].filter((value): value is string => typeof value === "string" && value.length > 0);
+
+    for (const href of hrefs) {
+      const match = href.match(/\/watch\/([^/?#]+)/);
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+
+    return null;
   });
 }
 
@@ -897,8 +924,13 @@ function mapSearchCardsToPage(input: SearchInput, items: SearchCard[]): SearchPa
       item,
       score: scoreTitleAgainstQuery(item.title, input.query),
     }))
-    .filter(({ score, item }) => score > 0 || cleanText(item.title).toLowerCase().includes(cleanText(input.query).toLowerCase()))
-    .sort((left, right) => right.score - left.score)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return left.item.title.localeCompare(right.item.title);
+    })
     .slice(0, input.limit)
     .map(({ item }) => item);
 
@@ -931,10 +963,10 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       for (const buildRoute of SEARCH_ROUTE_CANDIDATES) {
         await navigate(browserPage, buildRoute(input.query));
-        await waitForAnimeOnsenSearchReady(
-          browserPage,
-          `Timed out waiting for AnimeOnsen search page for query "${input.query}".`,
-        );
+        const ready = await probeAnimeOnsenSearchReady(browserPage);
+        if (!ready) {
+          continue;
+        }
         await browserPage.waitForTimeout(1_000);
         cards.push(...(await extractSearchCards(browserPage, input.query)));
 
@@ -945,13 +977,12 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       if (cards.length === 0) {
         await navigate(browserPage, "/search");
-        await waitForAnimeOnsenSearchReady(
-          browserPage,
-          `Timed out waiting for AnimeOnsen search shell for query "${input.query}".`,
-        );
-        await submitSearchQuery(browserPage, input.query);
-        await browserPage.waitForTimeout(1_500);
-        cards.push(...(await extractSearchCards(browserPage, input.query)));
+        const ready = await probeAnimeOnsenSearchReady(browserPage);
+        if (ready) {
+          await submitSearchQuery(browserPage, input.query);
+          await browserPage.waitForTimeout(1_500);
+          cards.push(...(await extractSearchCards(browserPage, input.query)));
+        }
       }
 
       return mapSearchCardsToPage(input, cards);
@@ -970,9 +1001,10 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       let snapshot = await extractAnimeSnapshot(browserPage);
       if (!snapshot.totalEpisodes) {
+        const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
         await navigate(
           browserPage,
-          `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`,
+          `/watch/${encodeURIComponent(watchAnimeId)}?episode=1`,
         );
         await waitForAnimeOnsenReady(
           browserPage,
@@ -1022,7 +1054,7 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   async getEpisodes(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<EpisodeList> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
-      await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
+      await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
       await waitForAnimeOnsenReady(
         browserPage,
         `Timed out waiting for AnimeOnsen episodes for anime "${input.externalAnimeId}".`,
@@ -1031,10 +1063,11 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       let episodes = await extractEpisodes(browserPage);
       if (episodes.length === 0) {
-        await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
+        const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
+        await navigate(browserPage, `/watch/${encodeURIComponent(watchAnimeId)}?episode=1`);
         await waitForAnimeOnsenReady(
           browserPage,
-          `Timed out waiting for AnimeOnsen details fallback for anime "${input.externalAnimeId}".`,
+          `Timed out waiting for AnimeOnsen watch episode list for anime "${input.externalAnimeId}".`,
         );
         await browserPage.waitForTimeout(1_500);
         episodes = await extractEpisodes(browserPage);
@@ -1075,9 +1108,15 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   ): Promise<PlaybackResolution> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
+      await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
+      await waitForAnimeOnsenReady(
+        browserPage,
+        `Timed out waiting for AnimeOnsen details before playback for anime "${input.externalAnimeId}".`,
+      );
+      const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
       await navigate(
         browserPage,
-        `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=${encodeURIComponent(input.externalEpisodeId)}`,
+        `/watch/${encodeURIComponent(watchAnimeId)}?episode=${encodeURIComponent(input.externalEpisodeId)}`,
       );
       await waitForAnimeOnsenReady(
         browserPage,
