@@ -16,6 +16,14 @@ type PlaywrightPageLike = {
   waitForSelector(selector: string, options?: Record<string, unknown>): Promise<unknown>;
   evaluate<T>(pageFunction: () => T | Promise<T>): Promise<T>;
   evaluate<T, Arg>(pageFunction: (arg: Arg) => T | Promise<T>, arg: Arg): Promise<T>;
+  on(
+    event: "response",
+    listener: (response: {
+      url(): string;
+      status(): number;
+      text(): Promise<string>;
+    }) => void,
+  ): void;
 };
 
 type SearchCard = {
@@ -39,6 +47,14 @@ type AnimeOnsenSearchApiResponse = {
   limit?: number | null;
   offset?: number | null;
 };
+
+type AnimeOnsenEpisodesApiResponse = Record<
+  string,
+  {
+    contentTitle_episode_en?: string | null;
+    contentTitle_episode_jp?: string | null;
+  }
+>;
 
 type AnimeOnsenPageSnapshot = {
   title: string;
@@ -92,6 +108,10 @@ const ANIMEONSEN_CHALLENGE_MARKERS = [
 
 function cleanText(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function buildAnimeOnsenImageUrl(contentId: string, size = "210x300") {
+  return `${API_BASE_URL}/v4/image/${size}/${encodeURIComponent(contentId)}`;
 }
 
 function safeAbsoluteUrl(value?: string | null, baseUrl = BASE_URL) {
@@ -311,7 +331,7 @@ async function searchAnimeOnsenCatalog(
       externalAnimeId,
       title,
       synopsis: null,
-      coverImage: null,
+      coverImage: buildAnimeOnsenImageUrl(externalAnimeId),
       year: null,
     };
   });
@@ -342,6 +362,109 @@ async function searchAnimeOnsenCatalog(
       requiresAdultGate: false,
     })),
   };
+}
+
+function parseEpisodesApiPayload(
+  providerId: string,
+  externalAnimeId: string,
+  body: string,
+): EpisodeList {
+  let payload: AnimeOnsenEpisodesApiResponse;
+  try {
+    payload = JSON.parse(body) as AnimeOnsenEpisodesApiResponse;
+  } catch (error) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeOnsen episodes API returned invalid JSON for anime "${externalAnimeId}".`,
+      { statusCode: 502, cause: error },
+    );
+  }
+
+  const episodes = Object.entries(payload)
+    .map(([episodeId, value]) => {
+      const number = parseEpisodeNumber(episodeId);
+      if (number === null) {
+        return null;
+      }
+
+      const title =
+        cleanText(value?.contentTitle_episode_en) ||
+        cleanText(value?.contentTitle_episode_jp) ||
+        `Episode ${number}`;
+
+      return {
+        providerId,
+        externalAnimeId,
+        externalEpisodeId: episodeId,
+        number,
+        title,
+        synopsis: null,
+        thumbnail: buildAnimeOnsenImageUrl(externalAnimeId, "640x360"),
+        durationSeconds: null,
+        releasedAt: null,
+      };
+    })
+    .filter(
+      (
+        episode,
+      ): episode is {
+        providerId: string;
+        externalAnimeId: string;
+        externalEpisodeId: string;
+        number: number;
+        title: string;
+        synopsis: null;
+        thumbnail: string;
+        durationSeconds: null;
+        releasedAt: null;
+      } => episode !== null,
+    )
+    .sort((left, right) => left.number - right.number);
+
+  if (episodes.length === 0) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeOnsen episodes API returned no episodes for anime "${externalAnimeId}".`,
+      { statusCode: 502 },
+    );
+  }
+
+  return {
+    providerId,
+    externalAnimeId,
+    episodes,
+  };
+}
+
+async function captureEpisodesApiResponse(
+  page: PlaywrightPageLike,
+  externalAnimeId: string,
+) {
+  const apiUrl = `${API_BASE_URL}/v4/content/${encodeURIComponent(externalAnimeId)}/episodes`;
+
+  return new Promise<string | null>((resolve) => {
+    let settled = false;
+    const finish = (value: string | null) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      resolve(value);
+    };
+
+    page.on("response", (response) => {
+      if (settled || response.url() !== apiUrl || response.status() !== 200) {
+        return;
+      }
+
+      void response.text()
+        .then((body) => finish(body))
+        .catch(() => finish(null));
+    });
+
+    setTimeout(() => finish(null), 6_000);
+  });
 }
 
 async function submitSearchQuery(page: PlaywrightPageLike, query: string) {
@@ -951,6 +1074,7 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   async getAnime(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<AnimeDetails> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
+      const episodesResponsePromise = captureEpisodesApiResponse(browserPage, input.externalAnimeId);
       await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
       await waitForAnimeOnsenReady(
         browserPage,
@@ -958,28 +1082,15 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
       );
       await browserPage.waitForTimeout(1_500);
 
-      let snapshot = await extractAnimeSnapshot(browserPage);
-      if (!snapshot.totalEpisodes) {
-        const detailsAnimeId = await extractDetailsAnimeId(browserPage);
-        if (detailsAnimeId) {
-          await navigate(browserPage, `/details/${encodeURIComponent(detailsAnimeId)}`);
-          await waitForAnimeOnsenReady(
-            browserPage,
-            `Timed out waiting for AnimeOnsen details metadata for anime "${input.externalAnimeId}".`,
-          );
-          await browserPage.waitForTimeout(1_500);
-        }
-        const watchSnapshot = await extractAnimeSnapshot(browserPage);
-        snapshot = {
-          title: snapshot.title || watchSnapshot.title,
-          synopsis: snapshot.synopsis ?? watchSnapshot.synopsis,
-          coverImage: snapshot.coverImage ?? watchSnapshot.coverImage,
-          year: snapshot.year ?? watchSnapshot.year,
-          tags: snapshot.tags.length > 0 ? snapshot.tags : watchSnapshot.tags,
-          totalEpisodes: snapshot.totalEpisodes ?? watchSnapshot.totalEpisodes,
-          contentId: snapshot.contentId ?? watchSnapshot.contentId,
-        };
-      }
+      const snapshot = await extractAnimeSnapshot(browserPage);
+      const episodesBody = await Promise.race([
+        episodesResponsePromise,
+        browserPage.waitForTimeout(2_000).then(() => null),
+      ]);
+      const episodesFromApi =
+        typeof episodesBody === "string"
+          ? parseEpisodesApiPayload(input.providerId, input.externalAnimeId, episodesBody)
+          : null;
 
       const title = cleanText(snapshot.title);
       if (!title) {
@@ -996,13 +1107,13 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
         externalAnimeId: input.externalAnimeId,
         title,
         synopsis: snapshot.synopsis,
-        coverImage: snapshot.coverImage,
-        bannerImage: snapshot.coverImage,
+        coverImage: snapshot.coverImage ?? buildAnimeOnsenImageUrl(input.externalAnimeId),
+        bannerImage: snapshot.coverImage ?? buildAnimeOnsenImageUrl(input.externalAnimeId, "640x360"),
         status: "unknown",
         year: snapshot.year,
         tags: snapshot.tags,
         language: "en",
-        totalEpisodes: snapshot.totalEpisodes,
+        totalEpisodes: snapshot.totalEpisodes ?? episodesFromApi?.episodes.length ?? null,
         contentClass: "anime",
         requiresAdultGate: false,
       };
@@ -1012,12 +1123,21 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   async getEpisodes(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<EpisodeList> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
+      const episodesResponsePromise = captureEpisodesApiResponse(browserPage, input.externalAnimeId);
       await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
       await waitForAnimeOnsenReady(
         browserPage,
         `Timed out waiting for AnimeOnsen episodes for anime "${input.externalAnimeId}".`,
       );
       await browserPage.waitForTimeout(1_500);
+
+      const episodesBody = await Promise.race([
+        episodesResponsePromise,
+        browserPage.waitForTimeout(2_000).then(() => null),
+      ]);
+      if (typeof episodesBody === "string") {
+        return parseEpisodesApiPayload(input.providerId, input.externalAnimeId, episodesBody);
+      }
 
       let episodes = await extractEpisodes(browserPage);
       if (episodes.length === 0) {
@@ -1054,7 +1174,7 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
           number: episode.number,
           title: episode.title || `Episode ${episode.number}`,
           synopsis: null,
-          thumbnail: episode.thumbnail,
+          thumbnail: episode.thumbnail ?? buildAnimeOnsenImageUrl(input.externalAnimeId, "640x360"),
           durationSeconds: null,
           releasedAt: null,
         })),
