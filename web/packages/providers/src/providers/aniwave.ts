@@ -120,13 +120,21 @@ function createAniwaveVrf(value: string) {
   return Buffer.from(rc4("simple-hash", value)).toString("base64");
 }
 
-function looksLikeDeadAniwaveEmbedPage(body: string) {
-  const normalized = body.toLowerCase();
-  return (
-    normalized.includes("<title>file not found - echovideo</title>") ||
-    normalized.includes("we can't find the file you are looking for") ||
-    normalized.includes("removed due a copyright violation")
-  );
+function rankAniwaveServerCandidate(label: string) {
+  const normalized = normalizeSearchValue(label);
+  if (normalized.includes("mycloud")) {
+    return 0;
+  }
+
+  if (normalized.includes("cloudora")) {
+    return 1;
+  }
+
+  if (normalized.includes("vidplay")) {
+    return 2;
+  }
+
+  return 3;
 }
 
 export class AniwaveProvider extends SsrManifestProviderBase {
@@ -241,23 +249,7 @@ export class AniwaveProvider extends SsrManifestProviderBase {
             candidate.linkId.length > 0,
         ),
       (candidate) => candidate.linkId,
-    );
-  }
-
-  private async probeEmbedUrl(
-    embedUrl: string,
-    referer: string,
-    ctx: ProviderRequestContext,
-  ) {
-    const body = await this.fetchText(embedUrl, ctx, {
-      headers: {
-        referer,
-      },
-    });
-
-    if (looksLikeDeadAniwaveEmbedPage(body)) {
-      throw new Error("Aniwave embed page returned a dead-file interstitial.");
-    }
+    ).sort((left, right) => rankAniwaveServerCandidate(left.label) - rankAniwaveServerCandidate(right.label));
   }
 
   async getAnime(
@@ -364,7 +356,6 @@ export class AniwaveProvider extends SsrManifestProviderBase {
       throw new Error("Aniwave did not expose a server link id.");
     }
     const attemptedServers: string[] = [];
-    let lastPlayableEmbedUrl: string | null = null;
 
     for (const candidate of serverCandidates) {
       try {
@@ -387,9 +378,6 @@ export class AniwaveProvider extends SsrManifestProviderBase {
           attemptedServers.push(`${candidate.label}: missing embed url`);
           continue;
         }
-
-        lastPlayableEmbedUrl = embedUrl;
-        await this.probeEmbedUrl(embedUrl, referer, ctx);
 
         return createPlaybackResolution({
           providerId: this.metadata.id,
@@ -418,31 +406,8 @@ export class AniwaveProvider extends SsrManifestProviderBase {
       }
     }
 
-    if (!lastPlayableEmbedUrl) {
-      throw new Error(
-        `Aniwave did not expose a playable embed playback URL. Attempts: ${attemptedServers.join(" | ")}`,
-      );
-    }
-
-    return createPlaybackResolution({
-      providerId: this.metadata.id,
-      externalAnimeId: input.externalAnimeId,
-      externalEpisodeId: input.externalEpisodeId,
-      streams: [
-        createStream({
-          id: "embed",
-          url: lastPlayableEmbedUrl,
-          quality: "embed",
-          mimeType: "text/html",
-          headers: {},
-          cookies: {},
-          proxyMode: "redirect",
-          isDefault: true,
-        }),
-      ],
-      subtitles: [],
-      cookies: {},
-      expiresAt: this.createResolutionExpiry(ctx),
-    });
+    throw new Error(
+      `Aniwave did not expose a playable embed playback URL. Attempts: ${attemptedServers.join(" | ")}`,
+    );
   }
 }
