@@ -7,6 +7,10 @@
 - [~] None
 
 ## Done
+- [x] Trace the remaining HentaiHaven playback stall in the proxied HLS path
+- [x] Update the HentaiHaven stream proxy to strip invalid in-manifest subtitle renditions
+- [x] Verify the rewritten HentaiHaven master playlist no longer advertises raw `.vtt` subtitle URIs
+- [x] Reproduce HentaiHaven playback in a headless browser and confirm the fatal Hls subtitle parse error is gone
 - [x] Inspect `AGENTS.md`, `.docs`, and the browser extractor contract
 - [x] Confirm `hentaihaven` is already routed through the browser service but still falls back to `UnimplementedProviderExtractor`
 - [x] Probe live HentaiHaven pages and map the current search, detail, episode, and playback structures

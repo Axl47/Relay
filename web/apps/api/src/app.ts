@@ -86,8 +86,31 @@ function rewritePlaylistUri(value: string, baseUrl: string, sessionId: string) {
   return buildProxyStreamPath(sessionId, absoluteUrl);
 }
 
-function rewriteHlsPlaylist(body: string, baseUrl: string, sessionId: string) {
+function stripHlsSubtitleRenditions(body: string) {
   return body
+    .split("\n")
+    .filter((line) => !/^#EXT-X-MEDIA:.*TYPE=SUBTITLES/i.test(line.trim()))
+    .map((line) => {
+      if (!line.startsWith("#EXT-X-STREAM-INF:")) {
+        return line;
+      }
+
+      return line
+        .replace(/,SUBTITLES="[^"]*"/g, "")
+        .replace(/SUBTITLES="[^"]*",/g, "");
+    })
+    .join("\n");
+}
+
+function rewriteHlsPlaylist(
+  body: string,
+  baseUrl: string,
+  sessionId: string,
+  options?: { stripSubtitleRenditions?: boolean },
+) {
+  const normalizedBody = options?.stripSubtitleRenditions ? stripHlsSubtitleRenditions(body) : body;
+
+  return normalizedBody
     .split("\n")
     .map((line) => {
       const trimmed = line.trim();
@@ -475,7 +498,12 @@ export async function buildApi() {
     if (shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType)) {
       const playlist = await upstream.text();
       reply.type(responseContentType);
-      return reply.send(rewriteHlsPlaylist(playlist, target.upstreamUrl, target.sessionId));
+      return reply.send(
+        rewriteHlsPlaylist(playlist, target.upstreamUrl, target.sessionId, {
+          stripSubtitleRenditions:
+            target.providerId === "hentaihaven" && playlist.includes("#EXT-X-STREAM-INF:"),
+        }),
+      );
     }
 
     if (!upstream.body) {

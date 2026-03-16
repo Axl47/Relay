@@ -83,6 +83,7 @@ type PlaybackSessionRow = typeof playbackSessions.$inferSelect;
 
 type StreamTarget = {
   sessionId: string;
+  providerId: string;
   upstreamUrl: string;
   mimeType: string | null;
   proxyMode: PlaybackProxyMode;
@@ -1331,6 +1332,7 @@ export class RelayService {
 
     return {
       sessionId: updated.id,
+      providerId: updated.providerId,
       upstreamUrl: targetUrl,
       mimeType: updated.mimeType ?? null,
       proxyMode: updated.proxyMode as PlaybackProxyMode,
@@ -1362,6 +1364,7 @@ export class RelayService {
 
     return {
       sessionId: updated.id,
+      providerId: updated.providerId,
       upstreamUrl: targetUrl,
       mimeType: updated.mimeType ?? null,
       proxyMode: updated.proxyMode as PlaybackProxyMode,
