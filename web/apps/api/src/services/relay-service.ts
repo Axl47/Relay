@@ -90,6 +90,8 @@ type StreamTarget = {
   cookies: Record<string, string>;
 };
 
+const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
+
 type SubtitleTrack = PlaybackSession["subtitles"][number];
 
 class ProviderTimeoutError extends Error {
@@ -330,6 +332,22 @@ export class RelayService {
     }
 
     if (row.providerId === "hanime" && row.mimeType === "text/html") {
+      return false;
+    }
+
+    if (
+      row.providerId === "hanime" &&
+      row.mimeType === "application/vnd.apple.mpegurl" &&
+      row.proxyMode === "redirect"
+    ) {
+      return false;
+    }
+
+    if (
+      row.providerId === "javguru" &&
+      typeof row.upstreamUrl === "string" &&
+      (row.upstreamUrl.includes("creative.mnaspm.com") || row.upstreamUrl.includes("/searcho/"))
+    ) {
       return false;
     }
 
@@ -1197,7 +1215,9 @@ export class RelayService {
 
     const targetUrl =
       requestPath && requestPath.length > 0
-        ? new URL(requestPath, updated.upstreamUrl).toString()
+        ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
+          ? decodeURIComponent(requestPath.slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length))
+          : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 
     return {
@@ -1226,7 +1246,9 @@ export class RelayService {
 
     const targetUrl =
       requestPath && requestPath.length > 0
-        ? new URL(requestPath, updated.upstreamUrl).toString()
+        ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
+          ? decodeURIComponent(requestPath.slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length))
+          : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 
     return {

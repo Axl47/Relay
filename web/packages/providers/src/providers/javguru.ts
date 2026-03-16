@@ -10,6 +10,7 @@ import type {
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { WordPressMirrorProviderBase } from "../base/wordpress-mirror-provider-base";
 import {
+  DEFAULT_USER_AGENT,
   absoluteUrl,
   cleanText,
   createAnimeDetails,
@@ -24,6 +25,8 @@ import {
 } from "../base/provider-utils";
 
 export class JavGuruProvider extends WordPressMirrorProviderBase {
+  private readonly streamPreference = ["STREAM JK", "STREAM ST", "STREAM VO", "STREAM TV", "STREAM SB", "STREAM DD"];
+
   private decodePathSegment(value: string) {
     try {
       return decodeURIComponent(value);
@@ -35,6 +38,24 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
   private isUsableImageUrl(value?: string | null) {
     const normalized = cleanText(value);
     return Boolean(normalized) && !normalized.startsWith("data:image/");
+  }
+
+  private isLikelySiteLogo(value?: string | null) {
+    const normalized = cleanText(value).toLowerCase();
+    return (
+      normalized.includes("logofinal") ||
+      normalized.includes("/logo") ||
+      normalized.includes("uu42q1szm-o.png")
+    );
+  }
+
+  private normalizePosterUrl(value?: string | null) {
+    const normalized = cleanText(value);
+    if (!normalized) {
+      return null;
+    }
+
+    return normalized.replace(/-\d+x\d+(?=\.[a-z0-9]+(?:$|\?))/i, "");
   }
 
   private extractImageUrl(node: any, $: any) {
@@ -52,27 +73,44 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
     return (
       absoluteUrl(
         this.metadata.baseUrl,
-        cleanText(image.attr("data-lazy-src")) ||
-          cleanText(image.attr("data-src")) ||
-          cleanText(image.attr("data-original")) ||
-          noscriptImgSrc ||
-          srcsetUrl ||
-          cleanText(image.attr("src")),
+        this.normalizePosterUrl(
+          cleanText(image.attr("data-lazy-src")) ||
+            cleanText(image.attr("data-src")) ||
+            cleanText(image.attr("data-original")) ||
+            noscriptImgSrc ||
+            srcsetUrl ||
+            cleanText(image.attr("src")),
+        ),
       ) ?? null
     );
   }
 
   private extractPostCoverImage($: any) {
-    return (
-      absoluteUrl(
-        this.metadata.baseUrl,
-        this.firstAttr($, ["meta[property='og:image']", ".entry-content img", "img"], "content") ||
-          this.firstAttr($, [".entry-content img", "img"], "data-lazy-src") ||
-          this.firstAttr($, [".entry-content img", "img"], "data-src") ||
-          this.firstAttr($, [".entry-content img", "img"], "data-original") ||
-          this.firstAttr($, [".entry-content img", "img"], "src"),
-      ) ?? null
+    const imageCandidates = $("img")
+      .toArray()
+      .flatMap((node: any) => [
+        $(node).attr("data-lazy-src"),
+        $(node).attr("data-src"),
+        $(node).attr("data-original"),
+        $(node).attr("src"),
+      ])
+      .map((value: string | undefined) =>
+        absoluteUrl(this.metadata.baseUrl, this.normalizePosterUrl(value)),
+      )
+      .filter((value: string | null): value is string => Boolean(value))
+      .filter((value: string) => !this.isLikelySiteLogo(value));
+
+    if (imageCandidates[0]) {
+      return imageCandidates[0];
+    }
+
+    const metaImage = absoluteUrl(
+      this.metadata.baseUrl,
+      this.normalizePosterUrl(
+        this.firstAttr($, ["meta[property='og:image']", ".entry-content img", "img"], "content"),
+      ),
     );
+    return this.isLikelySiteLogo(metaImage) ? null : metaImage;
   }
 
   constructor() {
@@ -235,7 +273,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
 
   private extractPlaybackUrl(html: string) {
     const iframeDirect = html.match(/<iframe[^>]+src=["']([^"']+)["']/i)?.[1];
-    if (iframeDirect) {
+    if (iframeDirect && !iframeDirect.includes("creative.mnaspm.com")) {
       return iframeDirect;
     }
 
@@ -253,6 +291,80 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
     return null;
   }
 
+  private extractStreamButtons(html: string) {
+    const labelsByKey = new Map<string, string>();
+    for (const match of html.matchAll(
+      /<a[^>]+class=["'][^"']*wp-btn-iframe__shortcode[^"']*["'][^>]+data-localize=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi,
+    )) {
+      labelsByKey.set(match[1], cleanText(match[2]));
+    }
+
+    return Array.from(
+      html.matchAll(
+        /var\s+([A-Za-z0-9_]+)\s*=\s*(\{[\s\S]*?"iframe_url"\s*:\s*"[^"]+"[\s\S]*?\})\s*;/g,
+      ),
+    )
+      .map((match) => {
+        try {
+          const data = JSON.parse(match[2]) as { iframe_url?: string };
+          const searchoUrl = decodeMaybeBase64(data.iframe_url ?? "");
+          if (!searchoUrl.startsWith("https://jav.guru/searcho/")) {
+            return null;
+          }
+
+          return {
+            key: match[1],
+            label: labelsByKey.get(match[1]) ?? "",
+            searchoUrl,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter(
+        (entry): entry is { key: string; label: string; searchoUrl: string } => entry !== null,
+      )
+      .sort((left, right) => {
+        const leftRank = this.streamPreference.indexOf(left.label);
+        const rightRank = this.streamPreference.indexOf(right.label);
+        return (leftRank === -1 ? Number.MAX_SAFE_INTEGER : leftRank) -
+          (rightRank === -1 ? Number.MAX_SAFE_INTEGER : rightRank);
+      });
+  }
+
+  private async resolveSearchoStream(searchoUrl: string, ctx: ProviderRequestContext) {
+    const html = await this.fetchText(searchoUrl, ctx);
+    const cid = html.match(/cid:\s*'([^']+)'/)?.[1];
+    const base = html.match(/base:\s*'([^']+)'/)?.[1];
+    const rtype = html.match(/rtype:\s*'([^']+)'/)?.[1];
+    const keysSection = html.match(/keys:\s*\[([^\]]+)\]/)?.[1] ?? "";
+    const keys = Array.from(keysSection.matchAll(/'([^']+)'/g)).map((match) => match[1]);
+    if (!cid || !base || !rtype || keys.length === 0) {
+      return null;
+    }
+
+    const attributes = html.match(new RegExp(`<div id=["']${cid}["'][^>]+>`))?.[0] ?? "";
+    const fullToken = keys
+      .map((key) => attributes.match(new RegExp(`${key}=["']([^"']+)["']`))?.[1] ?? "")
+      .join("");
+    if (!fullToken) {
+      return null;
+    }
+
+    const resolved = `${base}?${rtype}r=${fullToken.split("").reverse().join("")}`;
+    const response = await ctx.fetch(resolved, {
+      signal: ctx.signal,
+      redirect: "manual",
+      headers: {
+        "user-agent": DEFAULT_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+        referer: searchoUrl,
+      },
+    });
+    const location = response.headers.get("location");
+    return location && !location.includes("creative.mnaspm.com") ? location : null;
+  }
+
   async resolvePlayback(
     input: ProviderEpisodeRef,
     ctx: ProviderRequestContext,
@@ -261,7 +373,15 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
       `${this.metadata.baseUrl}/${this.decodePathSegment(input.externalEpisodeId).replace(/^\/+/, "")}/`,
       ctx,
     );
-    const playbackUrl = this.extractPlaybackUrl(html);
+    let playbackUrl: string | null = null;
+    for (const entry of this.extractStreamButtons(html)) {
+      playbackUrl = await this.resolveSearchoStream(entry.searchoUrl, ctx);
+      if (playbackUrl) {
+        break;
+      }
+    }
+
+    playbackUrl = playbackUrl ?? this.extractPlaybackUrl(html);
     if (!playbackUrl) {
       throw new Error("JavGuru did not expose any iframe playback URL.");
     }

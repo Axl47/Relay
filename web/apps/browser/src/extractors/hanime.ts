@@ -273,7 +273,7 @@ export class HanimeExtractor implements BrowserProviderExtractor {
             mimeType: "application/vnd.apple.mpegurl",
             headers: {},
             cookies: {},
-            proxyMode: "redirect",
+            proxyMode: "proxy",
             isDefault: true,
           },
         ],

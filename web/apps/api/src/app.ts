@@ -26,6 +26,7 @@ import { RelayService } from "./services/relay-service";
 
 const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
+const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
 
 function getMediaProxyHeaders(url: URL) {
   const headers: Record<string, string> = {
@@ -39,6 +40,39 @@ function getMediaProxyHeaders(url: URL) {
   }
 
   return headers;
+}
+
+function buildProxyStreamPath(sessionId: string, upstreamUrl: string) {
+  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeURIComponent(upstreamUrl)}`;
+}
+
+function rewritePlaylistUri(value: string, baseUrl: string, sessionId: string) {
+  const absoluteUrl = new URL(value, baseUrl).toString();
+  return buildProxyStreamPath(sessionId, absoluteUrl);
+}
+
+function rewriteHlsPlaylist(body: string, baseUrl: string, sessionId: string) {
+  return body
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return line;
+      }
+
+      if (!trimmed.startsWith("#")) {
+        return rewritePlaylistUri(trimmed, baseUrl, sessionId);
+      }
+
+      if (!trimmed.includes('URI="')) {
+        return line;
+      }
+
+      return line.replace(/URI="([^"]+)"/g, (_match, uri: string) =>
+        `URI="${rewritePlaylistUri(uri, baseUrl, sessionId)}"`,
+      );
+    })
+    .join("\n");
 }
 
 const catalogAnimeQuerySchema = z.object({
@@ -363,6 +397,13 @@ export async function buildApi() {
       if (value) {
         reply.header(headerName, value);
       }
+    }
+
+    const upstreamContentType = upstream.headers.get("content-type") ?? "";
+    if (/mpegurl/i.test(upstreamContentType)) {
+      const playlist = await upstream.text();
+      reply.type(upstreamContentType);
+      return reply.send(rewriteHlsPlaylist(playlist, target.upstreamUrl, target.sessionId));
     }
 
     if (!upstream.body) {

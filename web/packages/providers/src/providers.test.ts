@@ -168,6 +168,64 @@ describe("Wave 1 provider contract fixtures", () => {
     expect(playback.streams[0]?.url).toContain("streamtape.example");
   });
 
+  it("javguru prefers button-resolved embeds over ad iframes", async () => {
+    const provider = new JavGuruProvider();
+    const searchoUrl = "https://jav.guru/searcho/?od=dummytoken";
+    const resolvedSearchoUrl = "https://jav.guru/searcho/?or=nekotymmud";
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url) => url === "https://jav.guru/953311/test-title/",
+          response: {
+            body: `
+              <html><body>
+                <a class="wp-btn-iframe__shortcode" data-localize="xgoblkybxs">STREAM JK</a>
+                <script>
+                  var xgoblkybxs = {"iframe_url":"${Buffer.from(searchoUrl).toString("base64")}"};
+                </script>
+                <iframe src="https://creative.mnaspm.com/widgets/v4/Universal?bad=1"></iframe>
+              </body></html>
+            `,
+          },
+        },
+        {
+          match: (url) => url === searchoUrl,
+          response: {
+            body: `
+              <html><body>
+                <div id="c1" class="stream-box" data-a="dummy" data-b="token"></div>
+                <script>
+                  window.cfg = { cid: 'c1', base: 'https://jav.guru/searcho/', rtype: 'o', keys: ['data-a', 'data-b'] };
+                </script>
+              </body></html>
+            `,
+          },
+        },
+        {
+          match: (url) => url === resolvedSearchoUrl,
+          response: {
+            body: "",
+            status: 302,
+            headers: {
+              location: "https://maxstream.org/embed-good.html",
+            },
+          },
+        },
+      ]),
+    });
+
+    const playback = await provider.resolvePlayback(
+      {
+        providerId: "javguru",
+        externalAnimeId: "953311/test-title",
+        externalEpisodeId: "953311/test-title",
+      },
+      ctx,
+    );
+
+    expect(playback.streams[0]?.url).toBe("https://maxstream.org/embed-good.html");
+  });
+
   it("hstream exposes streams and subtitles from the player API", async () => {
     const provider = new HstreamProvider();
     const ctx = createProviderRequestContext({
