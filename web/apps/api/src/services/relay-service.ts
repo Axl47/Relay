@@ -93,6 +93,7 @@ type StreamTarget = {
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
 
 type SubtitleTrack = PlaybackSession["subtitles"][number];
+type CatalogAnimeRow = typeof catalogAnime.$inferSelect;
 
 class ProviderTimeoutError extends Error {
   constructor(providerId: string, timeoutMs: number) {
@@ -231,6 +232,25 @@ export class RelayService {
 
   private getProviderSearchTimeout(provider: RelayProvider) {
     return SEARCH_TIMEOUT_MS[provider.metadata.executionMode];
+  }
+
+  private toAnimeDetailsFromCatalogRow(row: CatalogAnimeRow, provider: RelayProvider): AnimeDetails {
+    return {
+      providerId: row.providerId,
+      providerDisplayName: provider.metadata.displayName,
+      externalAnimeId: row.externalAnimeId,
+      title: row.title,
+      synopsis: row.synopsis,
+      coverImage: row.coverImage,
+      bannerImage: row.bannerImage,
+      status: (row.status as AnimeDetails["status"]) ?? "unknown",
+      year: row.year,
+      tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      language: row.language,
+      totalEpisodes: row.totalEpisodes,
+      contentClass: provider.metadata.contentClass,
+      requiresAdultGate: row.requiresAdultGate,
+    };
   }
 
   private getProviderResolutionTimeout(provider: RelayProvider) {
@@ -857,22 +877,82 @@ export class RelayService {
       }),
     );
 
+    const discoveredItems = providerResults.flatMap((result) => result.items);
+    if (discoveredItems.length > 0) {
+      await Promise.all(
+        discoveredItems.map((item) =>
+          db
+            .insert(catalogAnime)
+            .values({
+              providerId: item.providerId,
+              externalAnimeId: item.externalAnimeId,
+              title: item.title,
+              synopsis: item.synopsis,
+              coverImage: item.coverImage,
+              bannerImage: item.coverImage,
+              status: "unknown",
+              year: item.year,
+              language: item.language,
+              contentClass: item.contentClass,
+              requiresAdultGate: item.requiresAdultGate,
+              tags: [],
+              totalEpisodes: null,
+              updatedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [catalogAnime.providerId, catalogAnime.externalAnimeId],
+              set: {
+                title: item.title,
+                synopsis: item.synopsis,
+                coverImage: item.coverImage,
+                bannerImage: item.coverImage,
+                year: item.year,
+                language: item.language,
+                contentClass: item.contentClass,
+                requiresAdultGate: item.requiresAdultGate,
+                updatedAt: new Date(),
+              },
+            }),
+        ),
+      );
+    }
+
     return {
       query: input.query,
       page: input.page,
       limit: input.limit,
       partial: providerResults.some((result) => result.status !== "success"),
       providers: providerResults,
-      items: providerResults.flatMap((result) => result.items),
+      items: discoveredItems,
     };
   }
 
   async getAnime(userId: string, providerId: string, externalAnimeId: string): Promise<AnimeDetails> {
     const { provider } = await this.getProviderWithPreferences(userId, providerId);
+    const [cachedAnime] = await db
+      .select()
+      .from(catalogAnime)
+      .where(
+        and(
+          eq(catalogAnime.providerId, providerId),
+          eq(catalogAnime.externalAnimeId, externalAnimeId),
+        ),
+      )
+      .limit(1);
+
+    if (providerId === "animeonsen" && cachedAnime) {
+      return this.toAnimeDetailsFromCatalogRow(cachedAnime, provider);
+    }
+
     const anime = await provider.getAnime(
       { providerId, externalAnimeId },
       this.createProviderContext(),
-    );
+    ).catch((error) => {
+      if (cachedAnime) {
+        return this.toAnimeDetailsFromCatalogRow(cachedAnime, provider);
+      }
+      throw error;
+    });
 
     await db
       .insert(catalogAnime)

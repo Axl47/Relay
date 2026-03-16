@@ -98,6 +98,8 @@ const API_BASE_URL = "https://api.animeonsen.xyz";
 const SEARCH_API_URL = "https://search.animeonsen.xyz/indexes/content/search";
 const SEARCH_API_BEARER_TOKEN =
   "0e36d0275d16b40d7cf153634df78bc229320d073f565db2aaf6d027e0c30b13";
+const EPISODES_API_BEARER_TOKEN =
+  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImRlZmF1bHQifQ.eyJpc3MiOiJodHRwczovL2F1dGguYW5pbWVvbnNlbi54eXovIiwiYXVkIjoiaHR0cHM6Ly9hcGkuYW5pbWVvbnNlbi54eXoiLCJpYXQiOjE3NzM2ODc1MjcsImV4cCI6MTc3NDI5MjMyNywic3ViIjoiMDZkMjJiOTYtNjNlNy00NmE5LTgwZmMtZGM0NDFkNDFjMDM4LmNsaWVudCIsImF6cCI6IjA2ZDIyYjk2LTYzZTctNDZhOS04MGZjLWRjNDQxZDQxYzAzOCIsImd0eSI6ImNsaWVudF9jcmVkZW50aWFscyJ9.mwRM7tjQb2XK0gqtpl0DZZ77JNVXrsp-N2HA-EurT6JbK74gcIrDrLQMXJ7ipn4uMkJTMq8YZitiAqzyU-MaS-tcZk-xa6fn-qYmhWL-WjimyfV6gLV4797ebCFxDQqdDiBE0TOdDnvDjl0F44j6ZP7fHIUtvYwJE1ADTx-uldMv8sOFGsI5G65s9iTf5T7OOV-0MyKH6c3nzqJMBgVGU0p9HpM9OIPlLUJHTtPNxUol0C3zEyY4c1jg7r_rC4wssM9te7PhbCD9ybE8JULDkPd4HjvJ97NsHA9U6_vqhDGRSKezymxkmOtTZXsS1c7GExCAARBVZF3nlMYZqrGKhA";
 const ANIMEONSEN_CHALLENGE_MARKERS = [
   "just a moment",
   "performing security verification",
@@ -434,6 +436,36 @@ function parseEpisodesApiPayload(
     externalAnimeId,
     episodes,
   };
+}
+
+async function fetchAnimeOnsenEpisodes(
+  providerId: string,
+  externalAnimeId: string,
+  signal: AbortSignal,
+): Promise<EpisodeList> {
+  const response = await fetch(
+    `${API_BASE_URL}/v4/content/${encodeURIComponent(externalAnimeId)}/episodes`,
+    {
+      method: "GET",
+      signal,
+      headers: {
+        accept: "application/json, text/plain, */*",
+        authorization: `Bearer ${EPISODES_API_BEARER_TOKEN}`,
+        origin: BASE_URL,
+        referer: `${BASE_URL}/`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeOnsen episodes API failed with status ${response.status} for anime "${externalAnimeId}".`,
+      { statusCode: 502 },
+    );
+  }
+
+  return parseEpisodesApiPayload(providerId, externalAnimeId, await response.text());
 }
 
 async function captureEpisodesApiResponse(
@@ -1121,65 +1153,7 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   }
 
   async getEpisodes(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<EpisodeList> {
-    return runtime.withPage(async (page) => {
-      const browserPage = page as unknown as PlaywrightPageLike;
-      const episodesResponsePromise = captureEpisodesApiResponse(browserPage, input.externalAnimeId);
-      await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
-      await waitForAnimeOnsenReady(
-        browserPage,
-        `Timed out waiting for AnimeOnsen episodes for anime "${input.externalAnimeId}".`,
-      );
-      await browserPage.waitForTimeout(1_500);
-
-      const episodesBody = await Promise.race([
-        episodesResponsePromise,
-        browserPage.waitForTimeout(2_000).then(() => null),
-      ]);
-      if (typeof episodesBody === "string") {
-        return parseEpisodesApiPayload(input.providerId, input.externalAnimeId, episodesBody);
-      }
-
-      let episodes = await extractEpisodes(browserPage);
-      if (episodes.length === 0) {
-        const detailsAnimeId = await extractDetailsAnimeId(browserPage);
-        if (detailsAnimeId) {
-          await navigate(browserPage, `/details/${encodeURIComponent(detailsAnimeId)}`);
-          await waitForAnimeOnsenReady(
-            browserPage,
-            `Timed out waiting for AnimeOnsen details episode list for anime "${input.externalAnimeId}".`,
-          );
-          await browserPage.waitForTimeout(1_500);
-          episodes = await extractEpisodes(browserPage);
-        }
-      }
-
-      const dedupedEpisodes = uniqueBy(episodes, (episode) => episode.externalEpisodeId).sort(
-        (left, right) => left.number - right.number,
-      );
-      if (dedupedEpisodes.length === 0) {
-        throw new BrowserExtractionError(
-          "upstream_error",
-          `AnimeOnsen did not expose an episode list for anime "${input.externalAnimeId}".`,
-          { statusCode: 502 },
-        );
-      }
-
-      return {
-        providerId: input.providerId,
-        externalAnimeId: input.externalAnimeId,
-        episodes: dedupedEpisodes.map((episode) => ({
-          providerId: input.providerId,
-          externalAnimeId: input.externalAnimeId,
-          externalEpisodeId: episode.externalEpisodeId,
-          number: episode.number,
-          title: episode.title || `Episode ${episode.number}`,
-          synopsis: null,
-          thumbnail: episode.thumbnail ?? buildAnimeOnsenImageUrl(input.externalAnimeId, "640x360"),
-          durationSeconds: null,
-          releasedAt: null,
-        })),
-      };
-    });
+    return fetchAnimeOnsenEpisodes(input.providerId, input.externalAnimeId, runtime.signal);
   }
 
   async resolvePlayback(

@@ -1,17 +1,10 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { LibraryItemWithCategories, PlaybackSession } from "@relay/contracts";
 import { VideoPlayer } from "../../../../../components/video-player";
 import { apiFetch } from "../../../../../lib/api";
-
-type Props = {
-  params: Promise<{
-    libraryItemId: string;
-    episodeId: string;
-  }>;
-};
 
 type LibraryResponse = {
   items: LibraryItemWithCategories[];
@@ -40,27 +33,21 @@ function isUuid(value: string | null | undefined): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export default function WatchPage({ params }: Props) {
+export default function WatchPage() {
+  const routeParams = useParams<{ libraryItemId: string; episodeId: string }>();
   const searchParams = useSearchParams();
-  const [resolvedParams, setResolvedParams] = useState<Awaited<Props["params"]> | null>(null);
   const [session, setSession] = useState<PlaybackSession | null>(null);
   const [payload, setPayload] = useState<PlaybackPayload | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const resolvedParams = useMemo(
+    () => ({
+      libraryItemId: decodeRouteParam(routeParams.libraryItemId),
+      episodeId: decodeRouteParam(routeParams.episodeId),
+    }),
+    [routeParams.episodeId, routeParams.libraryItemId],
+  );
 
   useEffect(() => {
-    params.then((value) =>
-      setResolvedParams({
-        libraryItemId: decodeRouteParam(value.libraryItemId),
-        episodeId: decodeRouteParam(value.episodeId),
-      }),
-    );
-  }, [params]);
-
-  useEffect(() => {
-    if (!resolvedParams) {
-      return;
-    }
-
     setPayload(null);
     const providerId = searchParams.get("providerId");
     const externalAnimeId = searchParams.get("externalAnimeId");

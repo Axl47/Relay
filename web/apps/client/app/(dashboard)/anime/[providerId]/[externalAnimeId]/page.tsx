@@ -1,16 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import type { AnimeDetails, EpisodeList, UpsertLibraryItemInput } from "@relay/contracts";
 import { apiFetch } from "../../../../../lib/api";
 import { resolveMediaUrl } from "../../../../../lib/media";
-
-type Props = {
-  params: Promise<{
-    providerId: string;
-    externalAnimeId: string;
-  }>;
-};
 
 function decodeRouteParam(value: string) {
   try {
@@ -20,23 +14,23 @@ function decodeRouteParam(value: string) {
   }
 }
 
-export default function AnimeDetailPage({ params }: Props) {
-  const [resolvedParams, setResolvedParams] = useState<Awaited<Props["params"]> | null>(null);
+export default function AnimeDetailPage() {
+  const routeParams = useParams<{ providerId: string; externalAnimeId: string }>();
   const [anime, setAnime] = useState<AnimeDetails | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeList | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const resolvedParams = useMemo(
+    () => ({
+      providerId: decodeRouteParam(routeParams.providerId),
+      externalAnimeId: decodeRouteParam(routeParams.externalAnimeId),
+    }),
+    [routeParams.externalAnimeId, routeParams.providerId],
+  );
 
   useEffect(() => {
-    params.then((value) =>
-      setResolvedParams({
-        providerId: decodeRouteParam(value.providerId),
-        externalAnimeId: decodeRouteParam(value.externalAnimeId),
-      }),
-    );
-  }, [params]);
-
-  useEffect(() => {
-    if (!resolvedParams) return;
+    setAnime(null);
+    setEpisodes(null);
+    setMessage(null);
 
     const providerId = encodeURIComponent(resolvedParams.providerId);
     const externalAnimeId = encodeURIComponent(resolvedParams.externalAnimeId);
