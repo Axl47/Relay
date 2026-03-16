@@ -356,6 +356,14 @@ describe("Wave 1 provider contract fixtures", () => {
     const ctx = createProviderRequestContext({
       fetch: createMockFetch([
         {
+          match: (url) => url === "https://aniwaves.ru/filter?keyword=saioshi",
+          response: { body: fixture("aniwave/search-noisy.html") },
+        },
+        {
+          match: (url) => url === "https://aniwaves.ru/filter?keyword=does-not-exist",
+          response: { body: fixture("aniwave/search-noisy.html") },
+        },
+        {
           match: (url) => url.startsWith("https://aniwaves.ru/filter?keyword="),
           response: { body: fixture("aniwave/search.html") },
         },
@@ -388,6 +396,16 @@ describe("Wave 1 provider contract fixtures", () => {
         },
       ]),
     });
+
+    expect((await provider.search({ query: "saioshi", page: 1, limit: 5 }, ctx)).items).toMatchObject([
+      {
+        externalAnimeId: "saioshi-no-gikei-wo-mederu-tame-nagaiki-shimasu-82442",
+        title: "Saioshi no Gikei wo Mederu Tame Nagaiki Shimasu",
+      },
+    ]);
+    expect((await provider.search({ query: "does-not-exist", page: 1, limit: 5 }, ctx)).items).toEqual(
+      [],
+    );
 
     await assertProviderContract(provider, ctx);
     const playback = await provider.resolvePlayback(

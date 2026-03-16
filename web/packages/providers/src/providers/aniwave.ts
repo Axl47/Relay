@@ -28,6 +28,64 @@ type AniwaveAjaxResponse = {
   result: string | { url?: string; sources?: unknown[]; tracks?: unknown[] };
 };
 
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function compactSearchValue(value: string) {
+  return normalizeSearchValue(value).replace(/\s+/g, "");
+}
+
+function rankAniwaveSearchMatch(
+  input: {
+    title: string;
+    altTitle?: string | null;
+    externalAnimeId: string;
+  },
+  query: string,
+) {
+  const normalizedQuery = normalizeSearchValue(query);
+  const compactQuery = compactSearchValue(query);
+  const tokens = normalizedQuery.split(" ").filter(Boolean);
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const title = normalizeSearchValue(input.title);
+  const altTitle = normalizeSearchValue(input.altTitle ?? "");
+  const combined = normalizeSearchValue(
+    [input.title, input.altTitle, input.externalAnimeId].filter(Boolean).join(" "),
+  );
+  const compactCombined = compactSearchValue(
+    [input.title, input.altTitle, input.externalAnimeId].filter(Boolean).join(" "),
+  );
+
+  const exactTitle = title === normalizedQuery || altTitle === normalizedQuery;
+  const phraseMatch =
+    title.includes(normalizedQuery) ||
+    altTitle.includes(normalizedQuery) ||
+    combined.includes(normalizedQuery);
+  const compactMatch = compactQuery.length > 0 && compactCombined.includes(compactQuery);
+  const matchedTokens = tokens.filter((token) => combined.includes(token));
+  const allTokensMatch = matchedTokens.length === tokens.length;
+
+  if (!exactTitle && !phraseMatch && !compactMatch && !allTokensMatch) {
+    return null;
+  }
+
+  return (
+    (exactTitle ? 4_000 : 0) +
+    (phraseMatch ? 2_000 : 0) +
+    (compactMatch ? 1_000 : 0) +
+    matchedTokens.length * 120
+  );
+}
+
 function rc4(key: string, value: string) {
   const state = Array.from({ length: 256 }, (_, index) => index);
   const keyCodes = Array.from(key).map((character) => character.charCodeAt(0));
@@ -78,35 +136,63 @@ export class AniwaveProvider extends SsrManifestProviderBase {
       ctx,
     );
 
-    const items: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
-      $("#list-items .item a[href*='/watch/']")
+    const items = uniqueBy(
+      $("#list-items .item")
         .toArray()
         .map((node: any) => {
-          const href = cleanText($(node).attr("href"));
-          const card = $(node).closest(".item");
-          return createSearchResult({
+          const card = $(node);
+          const titleNode = card.find(".name.d-title").first();
+          const primaryLink = card.find("a[href*='/watch/']").first();
+          const href = cleanText(primaryLink.attr("href"));
+          const title = cleanText(titleNode.text()) || cleanText(primaryLink.attr("title")) || "Unknown";
+          const altTitle = cleanText(titleNode.attr("data-jp")) || cleanText(primaryLink.attr("data-jp"));
+          const externalAnimeId = extractIdAfterPrefix(this.metadata.baseUrl, href, "watch/");
+          const score = rankAniwaveSearchMatch(
+            {
+              title,
+              altTitle,
+              externalAnimeId,
+            },
+            input.query,
+          );
+          if (!href || score === null) {
+            return null;
+          }
+
+          return {
+            score,
+            item: createSearchResult({
             providerId: this.metadata.id,
             providerDisplayName: this.metadata.displayName,
-            externalAnimeId: extractIdAfterPrefix(this.metadata.baseUrl, href, "watch/"),
-            title:
-              cleanText(card.find(".name.d-title").first().text()) ||
-              cleanText($(node).attr("title")) ||
-              "Unknown",
-            synopsis: null,
-            coverImage:
-              absoluteUrl(
-                this.metadata.baseUrl,
-                card.find("img").first().attr("src") ?? card.find("img").first().attr("data-src"),
-              ) ?? null,
-            year: parseYear(card.text()),
-            kind: "unknown",
-            language: "ja",
-            contentClass: this.metadata.contentClass,
-            requiresAdultGate: this.metadata.requiresAdultGate,
-          });
+              externalAnimeId,
+              title,
+              synopsis: null,
+              coverImage:
+                absoluteUrl(
+                  this.metadata.baseUrl,
+                  card.find("img").first().attr("src") ?? card.find("img").first().attr("data-src"),
+                ) ?? null,
+              year: parseYear(card.text()),
+              kind: "unknown",
+              language: "ja",
+              contentClass: this.metadata.contentClass,
+              requiresAdultGate: this.metadata.requiresAdultGate,
+            }),
+          };
         }),
-      (item) => item.externalAnimeId,
-    ).slice(0, input.limit);
+      (entry) => entry?.item.externalAnimeId ?? "",
+    )
+      .filter(
+        (
+          entry,
+        ): entry is {
+          score: number;
+          item: ReturnType<typeof createSearchResult>;
+        } => entry !== null,
+      )
+      .sort((left, right) => right.score - left.score)
+      .map((entry) => entry.item)
+      .slice(0, input.limit);
 
     return {
       providerId: this.metadata.id,
