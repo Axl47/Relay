@@ -227,6 +227,9 @@ describe("Wave 1 provider contract fixtures", () => {
       ctx,
     );
     expect(playback.streams.find((stream) => stream.isDefault)?.mimeType).toBe("video/mp4");
+    expect(playback.streams.some((stream) => stream.url.includes("komako-b-str.musume-h.xyz"))).toBe(
+      false,
+    );
     expect(playback.streams.some((stream) => stream.mimeType === "application/dash+xml")).toBe(true);
     expect(playback.subtitles[0]?.format).toBe("ass");
   });

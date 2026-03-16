@@ -242,9 +242,9 @@ export class HstreamProvider extends SsrManifestProviderBase {
       },
     );
 
-    const [primaryDomain] = player.asia_stream_domains.length
-      ? player.asia_stream_domains
-      : player.stream_domains;
+    const [primaryDomain] = player.stream_domains.length
+      ? player.stream_domains
+      : player.asia_stream_domains;
     if (!primaryDomain) {
       throw new Error("Hstream did not return any stream domains.");
     }

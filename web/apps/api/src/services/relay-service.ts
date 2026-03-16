@@ -304,6 +304,14 @@ export class RelayService {
       return false;
     }
 
+    if (
+      row.providerId === "hstream" &&
+      typeof row.upstreamUrl === "string" &&
+      row.upstreamUrl.includes("komako-b-str.musume-h.xyz")
+    ) {
+      return false;
+    }
+
     return true;
   }
 
