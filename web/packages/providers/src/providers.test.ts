@@ -663,8 +663,19 @@ describe("Wave 1 provider contract fixtures", () => {
         {
           match: (url) => url === "https://play2.shipimagesbolt.online/embed-1/dead-stream?v=1&asi=0&autoPlay=0&ao=0",
           response: {
-            body: "File not found - Echovideo",
-            status: 404,
+            body: `
+              <!DOCTYPE html>
+              <html lang="en">
+                <head>
+                  <title>File not found - Echovideo</title>
+                </head>
+                <body>
+                  We can't find the file you are looking for. It maybe got deleted by the owner
+                  or was removed due a copyright violation.
+                </body>
+              </html>
+            `,
+            contentType: "text/html; charset=utf-8",
           },
         },
         {

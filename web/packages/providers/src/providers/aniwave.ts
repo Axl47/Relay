@@ -120,6 +120,15 @@ function createAniwaveVrf(value: string) {
   return Buffer.from(rc4("simple-hash", value)).toString("base64");
 }
 
+function looksLikeDeadAniwaveEmbedPage(body: string) {
+  const normalized = body.toLowerCase();
+  return (
+    normalized.includes("<title>file not found - echovideo</title>") ||
+    normalized.includes("we can't find the file you are looking for") ||
+    normalized.includes("removed due a copyright violation")
+  );
+}
+
 export class AniwaveProvider extends SsrManifestProviderBase {
   constructor() {
     super({
@@ -240,11 +249,15 @@ export class AniwaveProvider extends SsrManifestProviderBase {
     referer: string,
     ctx: ProviderRequestContext,
   ) {
-    await this.fetchText(embedUrl, ctx, {
+    const body = await this.fetchText(embedUrl, ctx, {
       headers: {
         referer,
       },
     });
+
+    if (looksLikeDeadAniwaveEmbedPage(body)) {
+      throw new Error("Aniwave embed page returned a dead-file interstitial.");
+    }
   }
 
   async getAnime(
