@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { assertProviderContract, createProviderRequestContext } from "@relay/provider-sdk";
+import { looksLikeChallengePage } from "./base/provider-utils";
 import {
   AniwaveProvider,
   GogoanimeProvider,
@@ -46,6 +47,41 @@ function createMockFetch(routes: MockRoute[]): typeof fetch {
     });
   }) as typeof fetch;
 }
+
+describe("looksLikeChallengePage", () => {
+  it("ignores normal pages that only include Cloudflare jsd instrumentation", () => {
+    expect(
+      looksLikeChallengePage(`
+        <html>
+          <head><title>You searched for test</title></head>
+          <body>
+            <article>Real search results</article>
+            <script>
+              window.__CF$cv$params = { r: "abc" };
+              const script = document.createElement("script");
+              script.src = "/cdn-cgi/challenge-platform/scripts/jsd/main.js";
+            </script>
+          </body>
+        </html>
+      `),
+    ).toBe(false);
+  });
+
+  it("matches Cloudflare interstitial challenge pages", () => {
+    expect(
+      looksLikeChallengePage(`
+        <html>
+          <head><title>Just a moment...</title></head>
+          <body>
+            <h1>Checking your browser before accessing the site.</h1>
+            <div id="cf-challenge-running"></div>
+            <script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>
+          </body>
+        </html>
+      `),
+    ).toBe(true);
+  });
+});
 
 describe("Wave 1 provider contract fixtures", () => {
   it("gogoanime resolves search, details, episodes, and direct playback", async () => {

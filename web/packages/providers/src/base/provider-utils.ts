@@ -145,22 +145,30 @@ export function createExpiresAt(minutesFromNow: number, now = new Date()) {
 
 export function looksLikeChallengePage(html: string) {
   const sample = html.toLowerCase();
-  const hasCloudflareChallengeMarkers =
-    sample.includes("cf-challenge") ||
-    sample.includes("challenge-platform") ||
-    sample.includes("cf-browser-verification") ||
-    sample.includes("turnstile");
-
-  return (
+  const hasHumanVerificationCopy =
     sample.includes("just a moment") ||
     sample.includes("attention required") ||
-    hasCloudflareChallengeMarkers ||
+    sample.includes("checking your browser") ||
+    sample.includes("verify you are human") ||
+    sample.includes("please enable javascript and cookies");
+  const hasChallengeWidgets =
+    sample.includes("cf-challenge") ||
+    sample.includes("cf-browser-verification") ||
+    sample.includes("cf-turnstile") ||
+    sample.includes("turnstile");
+  const hasCloudflareBlockSignals =
+    sample.includes("window.__cf$cv$params") ||
+    sample.includes("/cdn-cgi/challenge-platform/") ||
+    sample.includes("challenge-platform");
+
+  return (
+    hasHumanVerificationCopy ||
+    hasChallengeWidgets ||
+    (hasCloudflareBlockSignals && hasHumanVerificationCopy) ||
     (sample.includes("cloudflare") &&
-      (sample.includes("just a moment") ||
-        sample.includes("checking your browser") ||
-        hasCloudflareChallengeMarkers)) ||
+      (hasHumanVerificationCopy || hasChallengeWidgets)) ||
     sample.includes("ddos-guard") ||
-    sample.includes("checking your browser")
+    sample.includes("why do i have to complete a captcha")
   );
 }
 

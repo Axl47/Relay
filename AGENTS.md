@@ -30,6 +30,8 @@ which rtk
 
 Whenever new updates are made, this file (`AGENTS.md`) should be updated with any surprising files not apparent from the codebase that could benefit other developers. Focus on the why and when it could be useful.
 
+- `web/packages/providers/src/base/provider-utils.ts` owns the shared HTML challenge detector used by HTTP providers. Check it first when Cloudflare-backed sites suddenly flip from working to `challenge-protected`, because some hosts now inject `/cdn-cgi/challenge-platform/scripts/jsd/main.js` on otherwise normal pages and that script alone should not be treated as a blocking interstitial.
+
 ## Sub Agents
 
 Use sub-agents where appropriate to break down complex changes into manageable pieces, and to allow for more focused implementation and testing. For example, if implementing a new feature that requires both backend and frontend changes, you might create separate sub-agents for each layer of the stack, but before then use an exploring agent (or multiple) to get context on the codebase and research the best approaches for the feature, outline the specific steps needed for implementation into a final exec plan, and spin up task subagents that handle the implementation. This allows for more efficient development and testing, as each sub-agent can focus on a specific aspect of the implementation, and can be tested independently before being integrated into the larger codebase.
