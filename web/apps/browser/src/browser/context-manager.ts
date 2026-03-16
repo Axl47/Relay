@@ -9,6 +9,17 @@ type ManagedContext = {
   context: BrowserContext;
 };
 
+const DEFAULT_BROWSER_CONTEXT_OPTIONS = {
+  userAgent:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+  viewport: {
+    width: 1366,
+    height: 768,
+  },
+  locale: "en-US",
+  timezoneId: "America/New_York",
+} as const;
+
 function makeContextKey(providerId: string, domain: string) {
   return `${providerId}:${domain}`;
 }
@@ -38,7 +49,7 @@ export class ProviderContextManager {
   private async createContext(providerId: string, domain: string): Promise<ManagedContext> {
     const browserIndex = stableIndex(providerId, domain, this.pool.size);
     const browser = await this.pool.getByIndex(browserIndex);
-    const context = await browser.newContext();
+    const context = await browser.newContext(DEFAULT_BROWSER_CONTEXT_OPTIONS);
     const cookieKey = makeCookieKey(providerId, domain);
     const storedCookies = await this.cookieJar.get(cookieKey);
 

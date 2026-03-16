@@ -89,6 +89,19 @@ function rewriteHlsPlaylist(body: string, baseUrl: string, sessionId: string) {
     .join("\n");
 }
 
+function shouldRewriteHlsBody(upstreamUrl: string, contentType: string) {
+  if (!/mpegurl/i.test(contentType)) {
+    return false;
+  }
+
+  try {
+    const pathname = new URL(upstreamUrl).pathname.toLowerCase();
+    return pathname.endsWith(".m3u8") || pathname.endsWith(".m3u");
+  } catch {
+    return /\.m3u8?(?:\?|$)/i.test(upstreamUrl);
+  }
+}
+
 const catalogAnimeQuerySchema = z.object({
   externalAnimeId: z.string().min(1),
 });
@@ -412,7 +425,7 @@ export async function buildApi() {
     }
 
     const upstreamContentType = upstream.headers.get("content-type") ?? "";
-    if (/mpegurl/i.test(upstreamContentType)) {
+    if (shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType)) {
       const playlist = await upstream.text();
       reply.type(upstreamContentType);
       return reply.send(rewriteHlsPlaylist(playlist, target.upstreamUrl, target.sessionId));
