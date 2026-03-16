@@ -103,6 +103,16 @@ export class BrowserExtractionService {
     };
   }
 
+  private async maybeResetContextAfterOperation(
+    providerId: string,
+    domain: string,
+    operationName: "search" | "anime" | "episodes" | "playback",
+  ) {
+    if (providerId === "hentaihaven" && operationName === "playback") {
+      await this.contexts.resetContext(providerId, domain);
+    }
+  }
+
   private getTimeoutMs(
     providerId: string,
     operation: "search" | "anime" | "episodes" | "playback",
@@ -112,6 +122,10 @@ export class BrowserExtractionService {
     }
 
     if (providerId === "hanime" && operation === "playback") {
+      return Math.max(this.timeoutMs, 45_000);
+    }
+
+    if (providerId === "hentaihaven") {
       return Math.max(this.timeoutMs, 45_000);
     }
 
@@ -135,10 +149,13 @@ export class BrowserExtractionService {
     while (attempts < 2) {
       attempts += 1;
       try {
-        return await withTimeout(timeoutMs, async (signal) =>
+        const result = await withTimeout(timeoutMs, async (signal) =>
           operation(extractor, this.createRuntime(providerId, domain, signal)),
         );
+        await this.maybeResetContextAfterOperation(providerId, domain, operationName);
+        return result;
       } catch (error) {
+        await this.maybeResetContextAfterOperation(providerId, domain, operationName);
         if (attempts < 2 && isChallengeFailure(error)) {
           await this.contexts.resetContext(providerId, domain);
           continue;

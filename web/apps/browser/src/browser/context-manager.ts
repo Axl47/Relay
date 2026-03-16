@@ -20,6 +20,10 @@ const DEFAULT_BROWSER_CONTEXT_OPTIONS = {
   timezoneId: "America/New_York",
 } as const;
 
+function shouldUseEphemeralContext(providerId: string) {
+  return providerId === "hentaihaven";
+}
+
 function makeContextKey(providerId: string, domain: string) {
   return `${providerId}:${domain}`;
 }
@@ -50,11 +54,13 @@ export class ProviderContextManager {
     const browserIndex = stableIndex(providerId, domain, this.pool.size);
     const browser = await this.pool.getByIndex(browserIndex);
     const context = await browser.newContext(DEFAULT_BROWSER_CONTEXT_OPTIONS);
-    const cookieKey = makeCookieKey(providerId, domain);
-    const storedCookies = await this.cookieJar.get(cookieKey);
+    if (!shouldUseEphemeralContext(providerId)) {
+      const cookieKey = makeCookieKey(providerId, domain);
+      const storedCookies = await this.cookieJar.get(cookieKey);
 
-    if (storedCookies && storedCookies.length > 0) {
-      await context.addCookies(storedCookies);
+      if (storedCookies && storedCookies.length > 0) {
+        await context.addCookies(storedCookies);
+      }
     }
 
     return {
@@ -78,6 +84,10 @@ export class ProviderContextManager {
   }
 
   private async persistCookies(providerId: string, domain: string, context: BrowserContext) {
+    if (shouldUseEphemeralContext(providerId)) {
+      return;
+    }
+
     const cookies = await context.cookies();
     await this.cookieJar.set(makeCookieKey(providerId, domain), cookies as BrowserCookie[]);
   }
@@ -87,6 +97,18 @@ export class ProviderContextManager {
     domain: string,
     task: (page: BrowserPage, context: BrowserContext) => Promise<T>,
   ): Promise<T> {
+    if (shouldUseEphemeralContext(providerId)) {
+      const managedContext = await this.createContext(providerId, domain);
+      const page = await managedContext.context.newPage();
+
+      try {
+        return await task(page, managedContext.context);
+      } finally {
+        await page.close();
+        await managedContext.context.close();
+      }
+    }
+
     const managedContext = await this.getContext(providerId, domain);
     const page = await managedContext.context.newPage();
 

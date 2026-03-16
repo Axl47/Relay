@@ -999,7 +999,7 @@ export class HentaiHavenExtractor implements BrowserProviderExtractor {
       await browserPage.waitForSelector(".player_logic_item iframe[src*='player.php?data=']", {
         timeout: 12_000,
       });
-      await browserPage.waitForTimeout(6_000);
+      await browserPage.waitForTimeout(1_500);
       await Promise.allSettled(apiPayloadTasks);
 
       const snapshot = await extractPlaybackSnapshot(browserPage);

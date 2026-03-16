@@ -27,3 +27,7 @@
 - [x] Decode the HentaiHaven iframe token into a deterministic `api.php` POST so playback resolution no longer depends on catching the network response in time
 - [x] Switch HentaiHaven HLS back to proxy mode so Firefox never fetches Anpu's mislabelled fMP4 fragments directly
 - [x] Invalidate stale HentaiHaven redirect sessions too, so the API stops reusing old direct-HLS playback after switching back to proxy mode
+- [x] Extend HentaiHaven browser playback timeout and shorten the post-iframe wait so the live browser service can finish extraction before its global deadline
+- [x] Reset the HentaiHaven browser context after playback so failed playback pages do not poison subsequent search/detail requests
+- [x] Extend the HentaiHaven timeout for search/anime/episodes too, since the forced context reset can trigger another Cloudflare clearance before the next operation
+- [x] Move HentaiHaven onto an ephemeral browser context with no cookie-jar reuse so playback-state cookies can no longer poison later searches
