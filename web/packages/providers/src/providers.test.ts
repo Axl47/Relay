@@ -334,12 +334,15 @@ describe("Wave 1 provider contract fixtures", () => {
     expect(playback.streams[0]?.url).toBe("https://maxstream.org/embed-good.html");
   });
 
-  it("javguru prefers direct hls streams from resolved button hosts", async () => {
+  it("javguru prefers direct dood mp4 streams from resolved button hosts", async () => {
     const provider = new JavGuruProvider();
-    const tvSearchoUrl = "https://jav.guru/searcho/?ud=dummytoken";
+    const doodSearchoUrl = "https://jav.guru/searcho/?hd=dummytoken";
     const resolvedSearchoUrl = "https://jav.guru/searcho/?or=nekotymmud";
-    const embedUrl = "https://emturbovid.com/t/69b595ba080af";
-    const hlsUrl = "https://cdn.turboviplay.com/data1/69b595ba080af/69b595ba080af.m3u8";
+    const embedUrl = "https://vide0.net/e/kdy3epwn1mo8";
+    const passUrl =
+      "https://vide0.net/pass_md5/251885523-24-48-1773681594-077ea53a895a20815025b94cf3663e80/gkuir1jvynis6xh3pfprzwtm";
+    const baseUrl =
+      "https://l303l.cloudatacdn.com/u5kj7lqzbpa3sdgge7gkopiskhc2tdlgkgs4rxknmlwvmbz6idednqwisweq/kakpxsbfv1~";
     const ctx = createProviderRequestContext({
       fetch: createMockFetch([
         {
@@ -347,9 +350,9 @@ describe("Wave 1 provider contract fixtures", () => {
           response: {
             body: `
               <html><body>
-                <a class="wp-btn-iframe__shortcode" data-localize="uyqphodeoo">STREAM TV</a>
+                <a class="wp-btn-iframe__shortcode" data-localize="camzkbxwrx">STREAM DD</a>
                 <script>
-                  var uyqphodeoo = {"iframe_url":"${Buffer.from(tvSearchoUrl).toString("base64")}"};
+                  var camzkbxwrx = {"iframe_url":"${Buffer.from(doodSearchoUrl).toString("base64")}"};
                 </script>
                 <iframe src="https://creative.mnaspm.com/widgets/v4/Universal?bad=1"></iframe>
               </body></html>
@@ -357,7 +360,7 @@ describe("Wave 1 provider contract fixtures", () => {
           },
         },
         {
-          match: (url) => url === tvSearchoUrl,
+          match: (url) => url === doodSearchoUrl,
           response: {
             body: `
               <html><body>
@@ -384,9 +387,19 @@ describe("Wave 1 provider contract fixtures", () => {
           response: {
             body: `
               <html><body>
-                <div id="video_player" data-hash="${hlsUrl}"></div>
+                <script>
+                  $.get('/pass_md5/251885523-24-48-1773681594-077ea53a895a20815025b94cf3663e80/gkuir1jvynis6xh3pfprzwtm', function(data) {
+                    dsplayer.src({ type: "video/mp4", src: data + makePlay() });
+                  });
+                </script>
               </body></html>
             `,
+          },
+        },
+        {
+          match: (url) => url === passUrl,
+          response: {
+            body: baseUrl,
           },
         },
       ]),
@@ -401,8 +414,8 @@ describe("Wave 1 provider contract fixtures", () => {
       ctx,
     );
 
-    expect(playback.streams[0]?.url).toBe(hlsUrl);
-    expect(playback.streams[0]?.mimeType).toBe("application/vnd.apple.mpegurl");
+    expect(playback.streams[0]?.url).toContain(baseUrl);
+    expect(playback.streams[0]?.mimeType).toBe("video/mp4");
     expect(playback.streams[0]?.proxyMode).toBe("proxy");
     expect(playback.streams[0]?.headers.referer).toBe(embedUrl);
   });

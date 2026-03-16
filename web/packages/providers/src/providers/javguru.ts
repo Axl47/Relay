@@ -27,12 +27,12 @@ import {
 
 export class JavGuruProvider extends WordPressMirrorProviderBase {
   private readonly streamPreference = [
+    "STREAM DD",
     "STREAM TV",
     "STREAM JK",
     "STREAM ST",
     "STREAM VO",
     "STREAM SB",
-    "STREAM DD",
   ];
 
   private decodePathSegment(value: string) {
@@ -375,7 +375,6 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
 
   private extractDirectStreamUrl(html: string, pageUrl: string) {
     const candidates = [
-      html.match(/data-hash=["']([^"']+)["']/i)?.[1] ?? null,
       ...Array.from(
         html.matchAll(/(?:file|src)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)(?:\?[^"']*)?)["']/gi),
       ).map((match) => match[1]),
@@ -389,7 +388,70 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
     return candidates.find((value) => detectMimeType(value) !== "text/html") ?? null;
   }
 
+  private createDoodSuffix(token: string) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    return (
+      Array.from({ length: 10 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(
+        "",
+      ) +
+      `?token=${token}&expiry=${Date.now()}`
+    );
+  }
+
+  private async resolveDoodStream(playbackUrl: string, ctx: ProviderRequestContext) {
+    const pageResponse = await ctx.fetch(playbackUrl, {
+      signal: ctx.signal,
+      headers: {
+        "user-agent": DEFAULT_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+        referer: this.metadata.baseUrl,
+      },
+    });
+    const html = await pageResponse.text();
+    const passMatch = html.match(/\$\.get\('\/pass_md5\/([^']+)\/([^']+)'/);
+    if (!passMatch) {
+      return null;
+    }
+
+    const [, hash, token] = passMatch;
+    const baseUrl = cleanText(
+      await this.fetchText(`${new URL(`/pass_md5/${hash}/${token}`, playbackUrl).toString()}`, ctx, {
+        headers: {
+          "user-agent": DEFAULT_USER_AGENT,
+          "accept-language": "en-US,en;q=0.9",
+          referer: playbackUrl,
+        },
+      }),
+    );
+    if (!baseUrl) {
+      return null;
+    }
+
+    return createStream({
+      id: "direct",
+      url: `${baseUrl}${this.createDoodSuffix(token)}`,
+      quality: "auto",
+      mimeType: "video/mp4",
+      headers: {
+        "user-agent": DEFAULT_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+        referer: playbackUrl,
+        origin: new URL(playbackUrl).origin,
+      },
+      cookies: {},
+      proxyMode: "proxy",
+      isDefault: true,
+    });
+  }
+
   private async resolveDirectStream(playbackUrl: string, ctx: ProviderRequestContext) {
+    if (/^(?:https?:\/\/)?(?:www\.)?(?:vide0|doodstream)\./i.test(playbackUrl)) {
+      const doodStream = await this.resolveDoodStream(playbackUrl, ctx);
+      if (doodStream) {
+        return doodStream;
+      }
+    }
+
     const html = await this.fetchText(playbackUrl, ctx, {
       headers: {
         "user-agent": DEFAULT_USER_AGENT,

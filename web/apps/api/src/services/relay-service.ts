@@ -346,6 +346,7 @@ export class RelayService {
     if (
       row.providerId === "javguru" &&
       (row.mimeType === "text/html" ||
+        row.mimeType === "application/vnd.apple.mpegurl" ||
         (typeof row.upstreamUrl === "string" &&
           (row.upstreamUrl.includes("creative.mnaspm.com") ||
             row.upstreamUrl.includes("/searcho/"))))
