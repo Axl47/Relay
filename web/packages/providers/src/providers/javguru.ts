@@ -24,8 +24,23 @@ import {
 } from "../base/provider-utils";
 
 export class JavGuruProvider extends WordPressMirrorProviderBase {
+  private decodePathSegment(value: string) {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  private isUsableImageUrl(value?: string | null) {
+    const normalized = cleanText(value);
+    return Boolean(normalized) && !normalized.startsWith("data:image/");
+  }
+
   private extractImageUrl(node: any, $: any) {
     const image = $(node).find("img").first();
+    const noscriptHtml = cleanText($(node).find("noscript").first().html());
+    const noscriptImgSrc = noscriptHtml.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1] ?? "";
     const srcset =
       cleanText(image.attr("data-srcset")) ||
       cleanText(image.attr("srcset"));
@@ -40,8 +55,22 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
         cleanText(image.attr("data-lazy-src")) ||
           cleanText(image.attr("data-src")) ||
           cleanText(image.attr("data-original")) ||
+          noscriptImgSrc ||
           srcsetUrl ||
           cleanText(image.attr("src")),
+      ) ?? null
+    );
+  }
+
+  private extractPostCoverImage($: any) {
+    return (
+      absoluteUrl(
+        this.metadata.baseUrl,
+        this.firstAttr($, ["meta[property='og:image']", ".entry-content img", "img"], "content") ||
+          this.firstAttr($, [".entry-content img", "img"], "data-lazy-src") ||
+          this.firstAttr($, [".entry-content img", "img"], "data-src") ||
+          this.firstAttr($, [".entry-content img", "img"], "data-original") ||
+          this.firstAttr($, [".entry-content img", "img"], "src"),
       ) ?? null
     );
   }
@@ -62,7 +91,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {
     const $ = await this.fetchSearchDocument(input, ctx);
-    const items: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
+    const rawItems: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
       $("article, .inside-article")
         .toArray()
         .map((node: any) => {
@@ -112,6 +141,29 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
       (item) => item.externalAnimeId,
     ).slice(0, input.limit);
 
+    const items = await Promise.all(
+      rawItems.map(async (item) => {
+        if (this.isUsableImageUrl(item.coverImage)) {
+          return item;
+        }
+
+        try {
+          const post = await this.fetchPostDocument(item.externalAnimeId, ctx);
+          const coverImage = this.extractPostCoverImage(post);
+          if (!this.isUsableImageUrl(coverImage)) {
+            return item;
+          }
+
+          return createSearchResult({
+            ...item,
+            coverImage,
+          });
+        } catch {
+          return item;
+        }
+      }),
+    );
+
     return {
       providerId: this.metadata.id,
       query: input.query,
@@ -122,7 +174,10 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
   }
 
   private async fetchPostDocument(externalAnimeId: string, ctx: ProviderRequestContext) {
-    return this.fetchDocument(`${this.metadata.baseUrl}/${externalAnimeId.replace(/^\/+/, "")}/`, ctx);
+    return this.fetchDocument(
+      `${this.metadata.baseUrl}/${this.decodePathSegment(externalAnimeId).replace(/^\/+/, "")}/`,
+      ctx,
+    );
   }
 
   async getAnime(
@@ -137,14 +192,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
       externalAnimeId: input.externalAnimeId,
       title: this.firstText($, ["h1.entry-title", "h1", "title"]),
       synopsis: cleanText($(".entry-content p").first().text()) || null,
-      coverImage:
-        absoluteUrl(
-          this.metadata.baseUrl,
-          this.firstAttr($, ["meta[property='og:image']", ".entry-content img", "img"], "content") ||
-            this.firstAttr($, [".entry-content img", "img"], "data-lazy-src") ||
-            this.firstAttr($, [".entry-content img", "img"], "data-src") ||
-            this.firstAttr($, [".entry-content img", "img"], "src"),
-        ) ?? null,
+      coverImage: this.extractPostCoverImage($),
       bannerImage: null,
       status: "completed",
       year: null,
@@ -210,7 +258,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
     ctx: ProviderRequestContext,
   ): Promise<PlaybackResolution> {
     const html = await this.fetchText(
-      `${this.metadata.baseUrl}/${input.externalEpisodeId.replace(/^\/+/, "")}/`,
+      `${this.metadata.baseUrl}/${this.decodePathSegment(input.externalEpisodeId).replace(/^\/+/, "")}/`,
       ctx,
     );
     const playbackUrl = this.extractPlaybackUrl(html);

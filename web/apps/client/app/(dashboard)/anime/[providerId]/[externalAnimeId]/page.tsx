@@ -11,6 +11,14 @@ type Props = {
   }>;
 };
 
+function decodeRouteParam(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export default function AnimeDetailPage({ params }: Props) {
   const [resolvedParams, setResolvedParams] = useState<Awaited<Props["params"]> | null>(null);
   const [anime, setAnime] = useState<AnimeDetails | null>(null);
@@ -18,7 +26,12 @@ export default function AnimeDetailPage({ params }: Props) {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    params.then(setResolvedParams);
+    params.then((value) =>
+      setResolvedParams({
+        providerId: decodeRouteParam(value.providerId),
+        externalAnimeId: decodeRouteParam(value.externalAnimeId),
+      }),
+    );
   }, [params]);
 
   useEffect(() => {

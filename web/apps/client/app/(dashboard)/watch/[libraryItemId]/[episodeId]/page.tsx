@@ -24,6 +24,14 @@ type PlaybackPayload = {
   externalEpisodeId: string;
 };
 
+function decodeRouteParam(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function isUuid(value: string | null | undefined): value is string {
   if (!value) {
     return false;
@@ -40,7 +48,12 @@ export default function WatchPage({ params }: Props) {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    params.then(setResolvedParams);
+    params.then((value) =>
+      setResolvedParams({
+        libraryItemId: decodeRouteParam(value.libraryItemId),
+        episodeId: decodeRouteParam(value.episodeId),
+      }),
+    );
   }, [params]);
 
   useEffect(() => {
