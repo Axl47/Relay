@@ -31,6 +31,7 @@ which rtk
 Whenever new updates are made, this file (`AGENTS.md`) should be updated with any surprising files not apparent from the codebase that could benefit other developers. Focus on the why and when it could be useful.
 
 - `web/packages/providers/src/base/provider-utils.ts` owns the shared HTML challenge detector used by HTTP providers. Check it first when Cloudflare-backed sites suddenly flip from working to `challenge-protected`, because some hosts now inject `/cdn-cgi/challenge-platform/scripts/jsd/main.js` on otherwise normal pages and that script alone should not be treated as a blocking interstitial.
+- `web/packages/providers/src/providers/javguru.ts` intentionally filters search results down to numeric `/<post-id>/<slug>/` permalinks. Use that file first when Javguru starts returning static pages like `advanced-search` or `jav-actress-list`, because the site mixes page links into search markup and broad anchor scraping will surface junk results.
 
 ## Sub Agents
 

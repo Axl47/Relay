@@ -189,7 +189,7 @@ export class HanimeProvider extends SsrManifestProviderBase {
       displayName: "Hanime",
       baseUrl: "https://hanime.tv",
       contentClass: "hentai",
-      executionMode: "http",
+      executionMode: "browser",
       requiresAdultGate: true,
       supportsSearch: true,
       supportsTrackerSync: false,
@@ -361,6 +361,10 @@ export class HanimeProvider extends SsrManifestProviderBase {
     input: ProviderEpisodeRef,
     ctx: ProviderRequestContext,
   ): Promise<PlaybackResolution> {
+    if (ctx.browser) {
+      return ctx.browser.extractPlayback(this.metadata.id, input, ctx.signal);
+    }
+
     return createPlaybackResolution({
       providerId: this.metadata.id,
       externalAnimeId: input.externalAnimeId,

@@ -13,6 +13,7 @@ import type { BrowserProviderExtractor, ExtractionRuntime } from "./types";
 type PlaywrightPageLike = {
   goto(url: string, options?: Record<string, unknown>): Promise<unknown>;
   waitForTimeout(timeoutMs: number): Promise<void>;
+  click(selector: string, options?: Record<string, unknown>): Promise<void>;
   waitForSelector(
     selector: string,
     options?: Record<string, unknown>,
@@ -27,6 +28,7 @@ type PlaywrightFrameLike = {
 };
 
 const M3U8_REQUEST_PATTERN = /^https:\/\/m3u8s\.highwinds-cdn\.com\/api\/v\d+\/m3u8s\/.+\.m3u8(?:\?|$)/i;
+const HANIME_PLAYER_SELECTOR = ".hvp-panel";
 
 function createUnsupportedMethodError() {
   return new BrowserExtractionError(
@@ -117,11 +119,13 @@ export class HanimeExtractor implements BrowserProviderExtractor {
         .catch(() => "default");
 
       try {
-        await waitForWithTimeout(streamUrlPromise, 6_000, "Timed out waiting for Hanime playback.");
+        await browserPage.waitForSelector(HANIME_PLAYER_SELECTOR, { timeout: 10_000 });
+        await browserPage.click(HANIME_PLAYER_SELECTOR, { timeout: 10_000 });
+        await waitForWithTimeout(streamUrlPromise, 10_000, "Timed out waiting for Hanime playback.");
       } catch {
         const iframeHandle = await browserPage.waitForSelector(
           "iframe.hvp-panel, iframe[src*='/omni-player/'], iframe[src*='player.hanime.tv']",
-          { timeout: 20_000 },
+          { timeout: 12_000 },
         );
         const frame = await iframeHandle?.contentFrame();
 
@@ -133,7 +137,7 @@ export class HanimeExtractor implements BrowserProviderExtractor {
 
       const streamUrl = await waitForWithTimeout(
         streamUrlPromise,
-        40_000,
+        18_000,
         `Timed out waiting for Hanime playback for episode "${input.externalEpisodeId}".`,
       );
 

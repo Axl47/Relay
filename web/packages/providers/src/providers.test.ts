@@ -148,6 +148,12 @@ describe("Wave 1 provider contract fixtures", () => {
       ]),
     });
 
+    const search = await provider.search({ query: "test", page: 1, limit: 5 }, ctx);
+    expect(search.items.map((item) => item.externalAnimeId)).toEqual([
+      "953304/myba-092-a-married-womans-petals-spread-suzuna-nami",
+    ]);
+    expect(search.items[0]?.synopsis).toBe("Suzuna Nami stars in this sample search fixture.");
+
     await assertProviderContract(provider, ctx);
     const playback = await provider.resolvePlayback(
       {
@@ -267,6 +273,39 @@ describe("Wave 1 provider contract fixtures", () => {
           },
         },
       ]),
+      browser: {
+        async extractSearch() {
+          throw new Error("Hanime search should not use the browser broker.");
+        },
+        async extractAnime() {
+          throw new Error("Hanime anime details should not use the browser broker.");
+        },
+        async extractEpisodes() {
+          throw new Error("Hanime episode lists should not use the browser broker.");
+        },
+        async extractPlayback(providerId, input) {
+          return {
+            providerId,
+            externalAnimeId: input.externalAnimeId,
+            externalEpisodeId: input.externalEpisodeId,
+            streams: [
+              {
+                id: "hanime-live-hls",
+                url: "https://m3u8s.highwinds-cdn.com/api/v9/m3u8s/fixture.m3u8",
+                quality: "720p",
+                mimeType: "application/vnd.apple.mpegurl",
+                headers: {},
+                cookies: {},
+                proxyMode: "redirect",
+                isDefault: true,
+              },
+            ],
+            subtitles: [],
+            cookies: {},
+            expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+          };
+        },
+      },
     });
 
     await assertProviderContract(provider, ctx);
@@ -294,8 +333,8 @@ describe("Wave 1 provider contract fixtures", () => {
     );
     expect(anime.title).toBe("Natsu to Hako");
     expect(anime.totalEpisodes).toBe(2);
-    expect(playback.streams[0]?.mimeType).toBe("text/html");
-    expect(playback.streams[0]?.url).toBe("https://hanime.tv/videos/hentai/natsu-to-hako-2");
+    expect(playback.streams[0]?.mimeType).toBe("application/vnd.apple.mpegurl");
+    expect(playback.streams[0]?.url).toBe("https://m3u8s.highwinds-cdn.com/api/v9/m3u8s/fixture.m3u8");
     expect((await provider.search({ query: "natsu", page: 1, limit: 5 }, ctx)).items[0]?.coverImage)
       .toContain("hanime-cdn.com/images/posters");
     expect((await provider.search({ query: "natsu", page: 1, limit: 5 }, ctx)).items[0]?.externalAnimeId)

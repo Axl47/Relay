@@ -8,6 +8,9 @@
 - [~] Close the remaining browser-protected and import/tracker scaffolds against the production provider set
 
 ## Done
+- [x] Restore Hanime playback without the blocked iframe fallback
+- [x] Switch Hanime playback back to direct browser extraction while keeping franchise-grouped discovery
+- [x] Verify Hanime provider and browser packages after the playback fix
 - [x] Create the live checklist and map the requested rollout onto the current `web/` scaffold
 - [x] Extend shared contracts, provider SDK, and persistence schema for provider metadata, adult gating, playback state, and aggregated search responses
 - [x] Add provider base classes, registry metadata, all provider adapters, and fixture-based parser tests

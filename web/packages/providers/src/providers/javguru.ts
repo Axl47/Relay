@@ -19,6 +19,7 @@ import {
   createStream,
   decodeMaybeBase64,
   extractIdAfterPrefix,
+  normalizePathId,
   uniqueBy,
 } from "../base/provider-utils";
 
@@ -40,25 +41,43 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {
     const $ = await this.fetchSearchDocument(input, ctx);
     const items: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
-      $("article a[href], .inside-article a[href], .entry-title a[href]")
+      $("article, .inside-article")
         .toArray()
         .map((node: any) => {
-          const href = cleanText($(node).attr("href"));
-          if (!href.includes(this.metadata.baseUrl)) {
+          const card = $(node);
+          const link = card
+            .find(".entry-title a[href], h1 a[href], h2 a[href], a[rel='bookmark']")
+            .first();
+          const href = cleanText(link.attr("href"));
+          if (!href) {
+            return null;
+          }
+
+          const normalizedPath = normalizePathId(this.metadata.baseUrl, href);
+          const [postId, slug] = normalizedPath.split("/");
+          if (!postId || !slug || !/^\d+$/.test(postId)) {
             return null;
           }
 
           const externalAnimeId = extractIdAfterPrefix(this.metadata.baseUrl, href, "");
-          const card = $(node).closest("article");
+          const title =
+            cleanText(link.text()) ||
+            cleanText(card.find(".entry-title").first().text()) ||
+            cleanText(link.attr("title")) ||
+            slug;
+          if (!title) {
+            return null;
+          }
+
           return createSearchResult({
             providerId: this.metadata.id,
             providerDisplayName: this.metadata.displayName,
             externalAnimeId,
-            title:
-              cleanText(card.find(".entry-title").first().text()) ||
-              cleanText($(node).attr("title")) ||
-              externalAnimeId,
-            synopsis: null,
+            title,
+            synopsis:
+              cleanText(
+                card.find(".entry-content p, .entry-summary, .excerpt, p").first().text(),
+              ) || null,
             coverImage:
               absoluteUrl(
                 this.metadata.baseUrl,
