@@ -325,6 +325,20 @@ button {
   object-fit: contain;
 }
 
+.player-media-video::cue {
+  background: transparent;
+  color: #fff;
+  font-family: "Trebuchet MS", var(--font-plex-sans), sans-serif;
+  font-size: clamp(1rem, 2.6vh, 1.75rem);
+  font-weight: 700;
+  line-height: 1.18;
+  text-shadow:
+    0 0 0.08em rgba(0, 0, 0, 0.98),
+    0 0 0.18em rgba(0, 0, 0, 0.96),
+    0.06em 0.06em 0 rgba(0, 0, 0, 0.9),
+    -0.06em -0.06em 0 rgba(0, 0, 0, 0.9);
+}
+
 .video {
   width: 100%;
   max-height: 72vh;

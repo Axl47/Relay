@@ -1,5 +1,13 @@
 type SubtitleFormat = "vtt" | "srt" | "ass";
 
+type AssCue = {
+  start: string;
+  end: string;
+  text: string;
+  originalIndex: number;
+  position: { x: number; y: number } | null;
+};
+
 function normalizeNewlines(value: string) {
   return value.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 }
@@ -63,6 +71,96 @@ function splitAssFields(value: string, count: number) {
   return fields;
 }
 
+function parseAssResolution(lines: string[]) {
+  let playResX = 1280;
+  let playResY = 720;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const match = line.match(/^PlayRes([XY]):\s*(\d+)/i);
+    if (!match) {
+      continue;
+    }
+
+    const axis = match[1]?.toUpperCase();
+    const value = Number.parseInt(match[2] ?? "", 10);
+    if (!Number.isFinite(value) || value <= 0) {
+      continue;
+    }
+
+    if (axis === "X") {
+      playResX = value;
+    } else if (axis === "Y") {
+      playResY = value;
+    }
+  }
+
+  return { playResX, playResY };
+}
+
+function extractAssPosition(value: string) {
+  const match = value.match(/\\pos\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const x = Number.parseFloat(match[1] ?? "");
+  const y = Number.parseFloat(match[2] ?? "");
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  return { x, y };
+}
+
+function clampPercentage(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function buildAssCueSettings(
+  position: AssCue["position"],
+  resolution: ReturnType<typeof parseAssResolution>,
+) {
+  if (!position) {
+    return "";
+  }
+
+  const line = clampPercentage((position.y / resolution.playResY) * 100);
+  const cuePosition = clampPercentage((position.x / resolution.playResX) * 100);
+
+  return ` line:${line.toFixed(1)}% position:${cuePosition.toFixed(1)}% align:middle size:100%`;
+}
+
+function assTimestampToMs(value: string) {
+  const match = value.match(/^(\d+):(\d{1,2}):(\d{1,2})\.(\d{1,2})$/);
+  if (!match) {
+    return Number.NaN;
+  }
+
+  const [, hours, minutes, seconds, centiseconds] = match;
+  return (
+    Number.parseInt(hours, 10) * 3_600_000 +
+    Number.parseInt(minutes, 10) * 60_000 +
+    Number.parseInt(seconds, 10) * 1_000 +
+    Number.parseInt(centiseconds, 10) * 10
+  );
+}
+
+function vttTimestampToMs(value: string) {
+  const match = value.match(/^(\d+):(\d{2}):(\d{2})\.(\d{3})$/);
+  if (!match) {
+    return Number.NaN;
+  }
+
+  const [, hours, minutes, seconds, milliseconds] = match;
+  return (
+    Number.parseInt(hours, 10) * 3_600_000 +
+    Number.parseInt(minutes, 10) * 60_000 +
+    Number.parseInt(seconds, 10) * 1_000 +
+    Number.parseInt(milliseconds, 10)
+  );
+}
+
 function convertSrtToVtt(source: string) {
   const blocks = normalizeNewlines(source).trim().split(/\n{2,}/);
   const cues: string[] = [];
@@ -95,9 +193,11 @@ function convertSrtToVtt(source: string) {
 
 function convertAssToVtt(source: string) {
   const lines = normalizeNewlines(source).split("\n");
-  const cues: string[] = [];
+  const cues: AssCue[] = [];
   let inEvents = false;
   let formatFields: string[] | null = null;
+  const resolution = parseAssResolution(lines);
+  let originalIndex = 0;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -140,15 +240,53 @@ function convertAssToVtt(source: string) {
 
     const start = assTimestampToVtt(values[startIndex] ?? "");
     const end = assTimestampToVtt(values[endIndex] ?? "");
-    const text = stripAssStyling(values[textIndex] ?? "");
+    const rawText = values[textIndex] ?? "";
+    const text = stripAssStyling(rawText);
     if (!start || !end || !text) {
       continue;
     }
 
-    cues.push(`${start} --> ${end}\n${text}`);
+    cues.push({
+      start,
+      end,
+      text,
+      originalIndex,
+      position: extractAssPosition(rawText),
+    });
+    originalIndex += 1;
   }
 
-  return `WEBVTT\n\n${cues.join("\n\n")}\n`;
+  const orderedCues = cues.sort((left, right) => {
+    const leftStartMs = vttTimestampToMs(left.start);
+    const rightStartMs = vttTimestampToMs(right.start);
+    if (leftStartMs !== rightStartMs) {
+      return leftStartMs - rightStartMs;
+    }
+
+    const leftEndMs = vttTimestampToMs(left.end);
+    const rightEndMs = vttTimestampToMs(right.end);
+    if (leftEndMs !== rightEndMs) {
+      return leftEndMs - rightEndMs;
+    }
+
+    if (left.position && right.position) {
+      if (left.position.y !== right.position.y) {
+        return right.position.y - left.position.y;
+      }
+      if (left.position.x !== right.position.x) {
+        return left.position.x - right.position.x;
+      }
+    }
+
+    return left.originalIndex - right.originalIndex;
+  });
+
+  return `WEBVTT\n\n${orderedCues
+    .map(
+      (cue) =>
+        `${cue.start} --> ${cue.end}${buildAssCueSettings(cue.position, resolution)}\n${cue.text}`,
+    )
+    .join("\n\n")}\n`;
 }
 
 export function convertSubtitleToVtt(source: string, format: SubtitleFormat) {
