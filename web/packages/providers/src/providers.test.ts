@@ -635,15 +635,52 @@ describe("Wave 1 provider contract fixtures", () => {
         {
           match: (url) => url.startsWith("https://aniwaves.ru/ajax/server/list?servers=82442&eps="),
           response: {
-            body: fixture("aniwave/server-list.json"),
+            body: JSON.stringify({
+              status: 200,
+              result:
+                '<div class="servers"><li data-link-id="encoded-link-id-dead">Vidplay</li><li data-link-id="encoded-link-id-live">MyCloud</li></div>',
+            }),
             contentType: "application/json",
           },
         },
         {
-          match: (url) => url.startsWith("https://aniwaves.ru/ajax/sources?id=encoded-link-id"),
+          match: (url) => url.startsWith("https://aniwaves.ru/ajax/sources?id=encoded-link-id-dead"),
+          response: {
+            body: JSON.stringify({
+              status: 200,
+              result: {
+                url: "https://play2.shipimagesbolt.online/embed-1/dead-stream?v=1&asi=0&autoPlay=0&ao=0",
+                server: 4,
+                skip_data: { intro: [0, 0], outro: [0, 0] },
+                sources: [],
+                tracks: [],
+                htmlGuide: "",
+              },
+            }),
+            contentType: "application/json",
+          },
+        },
+        {
+          match: (url) => url === "https://play2.shipimagesbolt.online/embed-1/dead-stream?v=1&asi=0&autoPlay=0&ao=0",
+          response: {
+            body: "File not found - Echovideo",
+            status: 404,
+          },
+        },
+        {
+          match: (url) => url.startsWith("https://aniwaves.ru/ajax/sources?id=encoded-link-id-live"),
           response: {
             body: fixture("aniwave/sources.json"),
             contentType: "application/json",
+          },
+        },
+        {
+          match: (url) =>
+            url ===
+            "https://play2.shipimagesbolt.online/embed-1/fixture-stream?v=1&asi=0&autoPlay=0&ao=0",
+          response: {
+            body: "<html><title>Playable</title></html>",
+            contentType: "text/html; charset=utf-8",
           },
         },
       ]),

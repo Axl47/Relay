@@ -354,6 +354,14 @@ export class RelayService {
       return false;
     }
 
+    if (
+      row.providerId === "aniwave" &&
+      typeof row.upstreamUrl === "string" &&
+      row.upstreamUrl.includes("shipimagesbolt.online/embed-1/")
+    ) {
+      return false;
+    }
+
     return true;
   }
 
