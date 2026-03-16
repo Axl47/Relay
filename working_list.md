@@ -14,6 +14,7 @@
 - [x] Invalidate stale Hanime HTML playback sessions so the web client stops reusing the embedded fallback
 - [x] Extend Hanime playback timeouts in both the API and browser service so direct extraction is not aborted at 25000ms
 - [x] Replace Hanime’s slow player-boot wait with a direct `/play` -> manifest fetch flow and a short manifest authorization retry
+- [x] Make playback resolution timeouts fail closed and mark stale `resolving` sessions as failed instead of polling forever
 - [x] Create the live checklist and map the requested rollout onto the current `web/` scaffold
 - [x] Extend shared contracts, provider SDK, and persistence schema for provider metadata, adult gating, playback state, and aggregated search responses
 - [x] Add provider base classes, registry metadata, all provider adapters, and fixture-based parser tests

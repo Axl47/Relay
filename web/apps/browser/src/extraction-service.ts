@@ -50,10 +50,21 @@ async function withTimeout<T>(
   task: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const taskPromise = task(controller.signal);
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new BrowserExtractionError(
+        "timeout",
+        `Extraction exceeded timeout after ${timeoutMs}ms.`,
+        { statusCode: 504 },
+      ));
+    }, timeoutMs);
+  });
 
   try {
-    return await task(controller.signal);
+    return await Promise.race([taskPromise, timeoutPromise]);
   } catch (error) {
     if (controller.signal.aborted) {
       throw new BrowserExtractionError(
@@ -64,7 +75,9 @@ async function withTimeout<T>(
     }
     throw error;
   } finally {
-    clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
 }
 

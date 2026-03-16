@@ -70,6 +70,7 @@ const PROVIDER_RESOLUTION_TIMEOUT_MS = {
   browser: 25_000,
 } as const;
 const HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS = 60_000;
+const PLAYBACK_STALL_GRACE_MS = 5_000;
 
 type SessionUser = {
   id: string;
@@ -188,17 +189,26 @@ export class RelayService {
     executor: (provider: RelayProvider, signal: AbortSignal) => Promise<T>,
   ) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const task = executor(provider, controller.signal);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new ProviderTimeoutError(provider.metadata.id, timeoutMs));
+      }, timeoutMs);
+    });
 
     try {
-      return await executor(provider, controller.signal);
+      return await Promise.race([task, timeoutPromise]);
     } catch (error) {
       if (controller.signal.aborted) {
         throw new ProviderTimeoutError(provider.metadata.id, timeoutMs);
       }
       throw error;
     } finally {
-      clearTimeout(timeout);
+      if (timeout) {
+        clearTimeout(timeout);
+      }
     }
   }
 
@@ -352,6 +362,39 @@ export class RelayService {
       .returning();
 
     return updated ?? row;
+  }
+
+  private async maybeMarkPlaybackFailedIfStalled(row: PlaybackSessionRow) {
+    if (row.status !== "resolving") {
+      return row;
+    }
+
+    const provider = await this.getProviderOrThrow(row.providerId).catch(() => null);
+    if (!provider) {
+      return row;
+    }
+
+    const timeoutMs = this.getProviderResolutionTimeout(provider) + PLAYBACK_STALL_GRACE_MS;
+    if (Date.now() - row.createdAt.valueOf() <= timeoutMs) {
+      return row;
+    }
+
+    this.playbackResolutionJobs.delete(row.id);
+    const [updated] = await db
+      .update(playbackSessions)
+      .set({
+        status: "failed",
+        error: `Provider "${row.providerId}" exceeded timeout after ${this.getProviderResolutionTimeout(provider)}ms.`,
+      })
+      .where(eq(playbackSessions.id, row.id))
+      .returning();
+
+    return updated ?? row;
+  }
+
+  private async maybeFinalizePlaybackSessionState(row: PlaybackSessionRow) {
+    const expired = await this.maybeMarkPlaybackExpired(row);
+    return this.maybeMarkPlaybackFailedIfStalled(expired);
   }
 
   private async resolvePlaybackSession(playbackSessionId: string) {
@@ -1122,14 +1165,14 @@ export class RelayService {
       return this.toPlaybackSession(latest);
     }
 
-    return this.toPlaybackSession(await this.maybeMarkPlaybackExpired(latest));
+    return this.toPlaybackSession(await this.maybeFinalizePlaybackSessionState(latest));
   }
 
   async getPlaybackSession(userId: string, playbackSessionId: string): Promise<PlaybackSession | null> {
     const row = await this.getPlaybackSessionRow(userId, playbackSessionId);
     if (!row) return null;
 
-    const updated = await this.maybeMarkPlaybackExpired(row);
+    const updated = await this.maybeFinalizePlaybackSessionState(row);
     if (updated.status === "resolving") {
       void this.ensurePlaybackResolution(updated.id);
     }
@@ -1147,7 +1190,7 @@ export class RelayService {
       throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
     }
 
-    const updated = await this.maybeMarkPlaybackExpired(row);
+    const updated = await this.maybeFinalizePlaybackSessionState(row);
     if (updated.status !== "ready" || !updated.upstreamUrl) {
       throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
     }
@@ -1176,7 +1219,7 @@ export class RelayService {
       throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
     }
 
-    const updated = await this.maybeMarkPlaybackExpired(row);
+    const updated = await this.maybeFinalizePlaybackSessionState(row);
     if (updated.status !== "ready" || !updated.upstreamUrl) {
       throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
     }
