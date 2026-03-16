@@ -18,6 +18,7 @@ import {
   updateUserPreferencesInputSchema,
   upsertLibraryItemInputSchema,
 } from "@relay/contracts";
+import { z } from "zod";
 import { appConfig } from "./config";
 import { parseBody, setSessionCookie } from "./lib/http";
 import { convertSubtitleToVtt } from "./lib/subtitles";
@@ -25,6 +26,14 @@ import { RelayService } from "./services/relay-service";
 
 const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
+
+const catalogAnimeQuerySchema = z.object({
+  externalAnimeId: z.string().min(1),
+});
+
+const mediaProxyQuerySchema = z.object({
+  url: z.string().url(),
+});
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -140,6 +149,13 @@ export async function buildApi() {
     return relay.getAnime(user.id, providerId, externalAnimeId);
   });
 
+  app.get("/catalog/:providerId/anime", async (request) => {
+    const user = await requireUser(request);
+    const providerId = (request.params as { providerId: string }).providerId;
+    const { externalAnimeId } = catalogAnimeQuerySchema.parse(request.query);
+    return relay.getAnime(user.id, providerId, externalAnimeId);
+  });
+
   app.get("/catalog/:providerId/anime/:externalAnimeId/episodes", async (request) => {
     const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {
@@ -147,6 +163,38 @@ export async function buildApi() {
       externalAnimeId: string;
     };
     return relay.getEpisodes(user.id, providerId, externalAnimeId);
+  });
+
+  app.get("/catalog/:providerId/episodes", async (request) => {
+    const user = await requireUser(request);
+    const providerId = (request.params as { providerId: string }).providerId;
+    const { externalAnimeId } = catalogAnimeQuerySchema.parse(request.query);
+    return relay.getEpisodes(user.id, providerId, externalAnimeId);
+  });
+
+  app.get("/media/proxy", async (request, reply) => {
+    await requireUser(request);
+    const { url } = mediaProxyQuerySchema.parse(request.query);
+    const upstream = await fetch(url, {
+      headers: {
+        "user-agent": DEFAULT_STREAM_USER_AGENT,
+        accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      },
+    });
+
+    if (!upstream.ok) {
+      throw Object.assign(new Error(`Media proxy request failed with status ${upstream.status}`), {
+        statusCode: upstream.status,
+      });
+    }
+
+    const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+    const cacheControl = upstream.headers.get("cache-control") ?? "public, max-age=86400";
+    const body = Buffer.from(await upstream.arrayBuffer());
+
+    reply.header("content-type", contentType);
+    reply.header("cache-control", cacheControl);
+    reply.send(body);
   });
 
   app.get("/library", async (request) => {

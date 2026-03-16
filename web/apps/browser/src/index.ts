@@ -10,6 +10,10 @@ import {
 import { createDefaultExtractorRegistry } from "./extractors/registry";
 import { BrowserExtractionService } from "./extraction-service";
 
+function isTsxChildProcess() {
+  return process.execArgv.some((value) => value.includes("tsx/dist/"));
+}
+
 async function main() {
   const memoryCookieJar = new InMemoryCookieJarStore(appConfig.COOKIE_JAR_TTL_SECONDS * 1000);
   const redisCookieJar = appConfig.REDIS_URL
@@ -22,14 +26,31 @@ async function main() {
   const extractors = createDefaultExtractorRegistry();
   const service = new BrowserExtractionService(contexts, extractors, appConfig.EXTRACTION_TIMEOUT_MS);
   const app = buildApp(service);
+  const initialParentPid = process.ppid;
+  let shuttingDown = false;
 
   const shutdown = async () => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
     await Promise.allSettled([app.close(), contexts.close(), cookieJar.close()]);
     process.exit(0);
   };
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+  process.on("SIGHUP", shutdown);
+
+  // In `tsx watch`, the child process can outlive the watcher and keep the port bound.
+  if (isTsxChildProcess() && initialParentPid !== 1) {
+    setInterval(() => {
+      if (process.ppid === 1 || process.ppid !== initialParentPid) {
+        void shutdown();
+      }
+    }, 1_000).unref();
+  }
 
   await app.listen({
     host: appConfig.HOST,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Category, LibraryItemWithCategories } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
+import { resolveMediaUrl } from "../../../lib/media";
 
 type LibraryResponse = {
   items: LibraryItemWithCategories[];
@@ -36,7 +37,7 @@ export default function LibraryPage() {
         {data?.items.map((item) => (
           <article className="card" key={item.id}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={item.title} className="card-image" src={item.coverImage ?? ""} />
+            <img alt={item.title} className="card-image" src={resolveMediaUrl(item.coverImage)} />
             <div className="card-body">
               <strong>{item.title}</strong>
               <div className="meta-row">

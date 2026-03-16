@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AnimeDetails, EpisodeList, UpsertLibraryItemInput } from "@relay/contracts";
 import { apiFetch } from "../../../../../lib/api";
+import { resolveMediaUrl } from "../../../../../lib/media";
 
 type Props = {
   params: Promise<{
@@ -41,8 +42,12 @@ export default function AnimeDetailPage({ params }: Props) {
     const externalAnimeId = encodeURIComponent(resolvedParams.externalAnimeId);
 
     Promise.all([
-      apiFetch<AnimeDetails>(`/catalog/${providerId}/anime/${externalAnimeId}`),
-      apiFetch<EpisodeList>(`/catalog/${providerId}/anime/${externalAnimeId}/episodes`),
+      apiFetch<AnimeDetails>(
+        `/catalog/${providerId}/anime?externalAnimeId=${externalAnimeId}`,
+      ),
+      apiFetch<EpisodeList>(
+        `/catalog/${providerId}/episodes?externalAnimeId=${externalAnimeId}`,
+      ),
     ])
       .then(([animeResponse, episodeResponse]) => {
         setAnime(animeResponse);
@@ -90,7 +95,7 @@ export default function AnimeDetailPage({ params }: Props) {
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={anime.title} className="card-image" src={anime.coverImage ?? ""} />
+          <img alt={anime.title} className="card-image" src={resolveMediaUrl(anime.coverImage)} />
           <div className="page-grid">
             <div className="topbar-title">
               <h1>{anime.title}</h1>
