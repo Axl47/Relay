@@ -222,8 +222,9 @@ export class RelayService {
     });
   }
 
-  private getPlaybackSessionStreamUrl(sessionId: string) {
-    return `${appConfig.PUBLIC_API_URL}/stream/${sessionId}`;
+  private getPlaybackSessionStreamUrl(sessionId: string, mimeType: string | null) {
+    const suffix = mimeType === "application/dash+xml" ? "/" : "";
+    return `${appConfig.PUBLIC_API_URL}/stream/${sessionId}${suffix}`;
   }
 
   private getPlaybackCacheTtlMs(provider: RelayProvider) {
@@ -300,7 +301,9 @@ export class RelayService {
       status,
       proxyMode: row.proxyMode as PlaybackProxyMode,
       streamUrl:
-        status === "ready" && row.upstreamUrl ? this.getPlaybackSessionStreamUrl(row.id) : null,
+        status === "ready" && row.upstreamUrl
+          ? this.getPlaybackSessionStreamUrl(row.id, row.mimeType ?? null)
+          : null,
       mimeType: row.mimeType ?? null,
       subtitles: row.subtitles as PlaybackSession["subtitles"],
       headers: row.headers as PlaybackSession["headers"],

@@ -24,7 +24,10 @@ export function VideoPlayer({ session }: Props) {
   }, [defaultSubtitleIndex, session.id]);
 
   useEffect(() => {
-    if (!session.streamUrl || session.mimeType === "text/html") {
+    const streamUrl = session.streamUrl;
+    const mimeType = session.mimeType;
+
+    if (!streamUrl || mimeType === "text/html") {
       return;
     }
 
@@ -32,13 +35,37 @@ export function VideoPlayer({ session }: Props) {
     if (!video) return;
 
     let hls: Hls | null = null;
-    if (session.mimeType === "application/vnd.apple.mpegurl" && Hls.isSupported()) {
-      hls = new Hls();
-      hls.loadSource(session.streamUrl);
-      hls.attachMedia(video);
-    } else {
-      video.src = session.streamUrl;
-    }
+    let dashPlayer:
+      | {
+          initialize: (element: HTMLVideoElement, source: string, autoPlay: boolean) => void;
+          reset: () => void;
+        }
+      | null = null;
+    let cancelled = false;
+
+    const attachSource = async () => {
+      if (mimeType === "application/vnd.apple.mpegurl" && Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        return;
+      }
+
+      if (mimeType === "application/dash+xml") {
+        const dashjs = await import("dashjs");
+        if (cancelled) {
+          return;
+        }
+
+        dashPlayer = dashjs.MediaPlayer().create();
+        dashPlayer.initialize(video, streamUrl, false);
+        return;
+      }
+
+      video.src = streamUrl;
+    };
+
+    void attachSource();
 
     video.currentTime = session.positionSeconds;
 
@@ -57,9 +84,13 @@ export function VideoPlayer({ session }: Props) {
     video.addEventListener("pause", sendProgress);
 
     return () => {
+      cancelled = true;
       window.clearInterval(interval);
       video.removeEventListener("pause", sendProgress);
+      dashPlayer?.reset();
       hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
     };
   }, [session]);
 
