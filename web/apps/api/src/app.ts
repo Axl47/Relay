@@ -27,6 +27,20 @@ import { RelayService } from "./services/relay-service";
 const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 
+function getMediaProxyHeaders(url: URL) {
+  const headers: Record<string, string> = {
+    "user-agent": DEFAULT_STREAM_USER_AGENT,
+    accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  };
+
+  if (url.hostname === "hanime-cdn.com" || url.hostname.endsWith(".hanime-cdn.com")) {
+    headers.referer = "https://hanime.tv/";
+    headers.origin = "https://hanime.tv";
+  }
+
+  return headers;
+}
+
 const catalogAnimeQuerySchema = z.object({
   externalAnimeId: z.string().min(1),
 });
@@ -46,7 +60,7 @@ export async function buildApi() {
   const relay = new RelayService();
 
   await app.register(cors, {
-    origin: appConfig.CORS_ORIGIN,
+    origin: appConfig.corsOrigins,
     credentials: true,
   });
   await app.register(cookie);
@@ -175,11 +189,9 @@ export async function buildApi() {
   app.get("/media/proxy", async (request, reply) => {
     await requireUser(request);
     const { url } = mediaProxyQuerySchema.parse(request.query);
-    const upstream = await fetch(url, {
-      headers: {
-        "user-agent": DEFAULT_STREAM_USER_AGENT,
-        accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-      },
+    const targetUrl = new URL(url);
+    const upstream = await fetch(targetUrl, {
+      headers: getMediaProxyHeaders(targetUrl),
     });
 
     if (!upstream.ok) {
