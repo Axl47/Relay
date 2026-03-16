@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { assertProviderContract, createProviderRequestContext } from "@relay/provider-sdk";
 import { looksLikeChallengePage } from "./base/provider-utils";
 import {
+  AkiHProvider,
   AniwaveProvider,
   GogoanimeProvider,
   HanimeProvider,
@@ -84,6 +85,107 @@ describe("looksLikeChallengePage", () => {
 });
 
 describe("Wave 1 provider contract fixtures", () => {
+  it("aki-h parses search, details, episodes, and browser-backed playback", async () => {
+    const provider = new AkiHProvider();
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url, init) =>
+            url === "https://aki-h.com/search/" &&
+            (init?.method?.toUpperCase() ?? "GET") === "POST",
+          response: { body: fixture("aki-h/search.html") },
+        },
+        {
+          match: (url) => url === "https://aki-h.com/ikumonogakari-the-animation/",
+          response: { body: fixture("aki-h/series.html") },
+        },
+      ]),
+      browser: {
+        async extractSearch() {
+          throw new Error("Aki-H search should not use the browser broker.");
+        },
+        async extractAnime() {
+          throw new Error("Aki-H anime details should not use the browser broker.");
+        },
+        async extractEpisodes() {
+          throw new Error("Aki-H episode lists should not use the browser broker.");
+        },
+        async extractPlayback(providerId, input) {
+          return {
+            providerId,
+            externalAnimeId: input.externalAnimeId,
+            externalEpisodeId: input.externalEpisodeId,
+            streams: [
+              {
+                id: "aki-h-hls",
+                url: "https://aki-h.stream/file/BroAdI38/",
+                quality: "auto",
+                mimeType: "application/vnd.apple.mpegurl",
+                headers: {
+                  referer: "https://aki-h.stream/v/BroAdI38",
+                  origin: "https://aki-h.stream",
+                },
+                cookies: {},
+                proxyMode: "proxy",
+                isDefault: true,
+              },
+            ],
+            subtitles: [],
+            cookies: {},
+            expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+          };
+        },
+      },
+    });
+
+    await assertProviderContract(provider, ctx);
+
+    const search = await provider.search({ query: "ikumonogakari", page: 1, limit: 5 }, ctx);
+    expect(search.items[0]?.externalAnimeId).toBe("ikumonogakari-the-animation");
+    expect(search.hasNextPage).toBe(true);
+
+    const anime = await provider.getAnime(
+      {
+        providerId: "aki-h",
+        externalAnimeId: "ikumonogakari-the-animation",
+      },
+      ctx,
+    );
+    expect(anime.title).toBe("Ikumonogakari The Animation");
+    expect(anime.status).toBe("ongoing");
+    expect(anime.year).toBe(2023);
+    expect(anime.coverImage).toBe("https://i.aki-h.com/images/3TwrSm4.webp");
+    expect(anime.tags).toEqual(["Ahegao", "Anal", "School"]);
+    expect(anime.totalEpisodes).toBe(4);
+
+    const episodes = await provider.getEpisodes(
+      {
+        providerId: "aki-h",
+        externalAnimeId: "ikumonogakari-the-animation",
+      },
+      ctx,
+    );
+    expect(episodes.episodes).toHaveLength(4);
+    expect(episodes.episodes.map((episode) => episode.externalEpisodeId)).toEqual([
+      "YN4LfVD7aq",
+      "fxoZf4Lium",
+      "AjaCXIBwZZ",
+      "NQeHHthWOy",
+    ]);
+    expect(episodes.episodes.map((episode) => episode.number)).toEqual([1, 2, 1, 2]);
+
+    const playback = await provider.resolvePlayback(
+      {
+        providerId: "aki-h",
+        externalAnimeId: "ikumonogakari-the-animation",
+        externalEpisodeId: "YN4LfVD7aq",
+      },
+      ctx,
+    );
+    expect(playback.streams[0]?.mimeType).toBe("application/vnd.apple.mpegurl");
+    expect(playback.streams[0]?.headers.referer).toBe("https://aki-h.stream/v/BroAdI38");
+  });
+
   it("gogoanime resolves search, details, episodes, and direct playback", async () => {
     const provider = new GogoanimeProvider();
     const ctx = createProviderRequestContext({

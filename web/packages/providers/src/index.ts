@@ -1,6 +1,7 @@
 import { assertProviderContract, createProviderRequestContext, ProviderRegistry } from "@relay/provider-sdk";
 import type { ProviderRequestContextInput } from "@relay/provider-sdk";
 import { AniwaveProvider } from "./providers/aniwave";
+import { AkiHProvider } from "./providers/aki-h";
 import { AnimeOnsenProvider } from "./providers/animeonsen";
 import { AnimePaheProvider } from "./providers/animepahe";
 import { AnimeTakeProvider } from "./providers/animetake";
@@ -11,6 +12,7 @@ import { HstreamProvider } from "./providers/hstream";
 import { JavGuruProvider } from "./providers/javguru";
 
 export {
+  AkiHProvider,
   AniwaveProvider,
   AnimeOnsenProvider,
   AnimePaheProvider,
@@ -28,6 +30,7 @@ export async function createProviderRegistry() {
     new GogoanimeProvider(),
     new HstreamProvider(),
     new HanimeProvider(),
+    new AkiHProvider(),
     new JavGuruProvider(),
     new AniwaveProvider(),
     new AnimePaheProvider(),

@@ -1,5 +1,10 @@
 # Working List
 
+## Aki-H Provider
+- [x] Create the Aki-H ExecPlan/checklist artifacts and map the provider rollout onto the current `web/` provider and browser-broker stack
+- [x] Implement Aki-H catalog parsing and playback resolution
+- [x] Verify Aki-H fixtures/tests and document repo-specific discoveries in `AGENTS.md`
+
 ## Pending
 - [ ] Implement browser-side extractors for the browser-protected providers and Aniwave fallback paths
 - [ ] Finish Android import provider mapping and tracker guardrails for unsupported providers

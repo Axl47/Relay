@@ -14,6 +14,7 @@ import { ProviderExtractorRegistry } from "./extractors/registry";
 import type { BrowserProviderExtractor, ExtractionRuntime } from "./extractors/types";
 
 const providerBaseUrlMap: Record<string, string> = {
+  "aki-h": "https://aki-h.com",
   animepahe: "https://animepahe.si",
   animeonsen: "https://www.animeonsen.xyz",
   javguru: "https://jav.guru",

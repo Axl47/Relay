@@ -8,10 +8,12 @@ import type {
   SearchPage,
 } from "@relay/contracts";
 import { BrowserExtractionError } from "../errors";
+import { AkiHExtractor } from "./aki-h";
 import { HanimeExtractor } from "./hanime";
 import type { BrowserProviderExtractor, ExtractionRuntime } from "./types";
 
 const SUPPORTED_PROVIDER_IDS = [
+  "aki-h",
   "animepahe",
   "animeonsen",
   "javguru",
@@ -75,6 +77,7 @@ export function createDefaultExtractorRegistry() {
     registry.register(providerId, new UnimplementedProviderExtractor(providerId));
   }
 
+  registry.register("aki-h", new AkiHExtractor());
   registry.register("hanime", new HanimeExtractor());
 
   return registry;
