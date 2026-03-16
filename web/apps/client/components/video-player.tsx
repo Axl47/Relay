@@ -88,45 +88,28 @@ export function VideoPlayer({ session }: Props) {
   }
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  const subtitleToggleLabel =
-    defaultSubtitleIndex !== null ? session.subtitles[defaultSubtitleIndex]?.label ?? "Subtitles" : null;
 
   return (
-    <>
-      {subtitleToggleLabel ? (
-        <div className="player-controls">
-          <button
-            className={`player-toggle ${activeSubtitleIndex !== null ? "active" : ""}`}
-            onClick={() => {
-              setActiveSubtitleIndex((current) => (current === null ? defaultSubtitleIndex : null));
-            }}
-            type="button"
-          >
-            {activeSubtitleIndex !== null ? "Hide" : "Show"} {subtitleToggleLabel}
-          </button>
-        </div>
-      ) : null}
-      <div className="player-frame">
-        <video
-          className="player-media player-media-video"
-          controls
-          crossOrigin="anonymous"
-          playsInline
-          ref={videoRef}
-        >
-          {session.subtitles.map((subtitle, index) => (
-            <track
-              data-relay-subtitle="true"
-              default={index === activeSubtitleIndex}
-              key={`${session.id}-${subtitle.url}`}
-              kind="subtitles"
-              label={subtitle.label}
-              src={`${apiBaseUrl}/playback/sessions/${session.id}/subtitles/${index}`}
-              srcLang={subtitle.language}
-            />
-          ))}
-        </video>
-      </div>
-    </>
+    <div className="player-frame">
+      <video
+        className="player-media player-media-video"
+        controls
+        crossOrigin="anonymous"
+        playsInline
+        ref={videoRef}
+      >
+        {session.subtitles.map((subtitle, index) => (
+          <track
+            data-relay-subtitle="true"
+            default={index === activeSubtitleIndex}
+            key={`${session.id}-${subtitle.url}`}
+            kind="subtitles"
+            label={subtitle.label}
+            src={`${apiBaseUrl}/playback/sessions/${session.id}/subtitles/${index}`}
+            srcLang={subtitle.language}
+          />
+        ))}
+      </video>
+    </div>
   );
 }

@@ -302,27 +302,6 @@ button {
   gap: 12px;
 }
 
-.player-controls {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.player-toggle {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--muted);
-  border-radius: 999px;
-  padding: 8px 14px;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
-}
-
-.player-toggle:hover,
-.player-toggle.active {
-  background: rgba(0, 212, 170, 0.12);
-  border-color: rgba(0, 212, 170, 0.35);
-  color: var(--text);
-}
-
 .player-frame {
   width: 100%;
   aspect-ratio: 16 / 9;
