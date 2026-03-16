@@ -26,6 +26,20 @@ type SearchCard = {
   year: number | null;
 };
 
+type AnimeOnsenSearchApiHit = {
+  content_title?: string | null;
+  content_title_en?: string | null;
+  content_title_jp?: string | null;
+  content_id?: string | null;
+};
+
+type AnimeOnsenSearchApiResponse = {
+  hits?: AnimeOnsenSearchApiHit[];
+  estimatedTotalHits?: number | null;
+  limit?: number | null;
+  offset?: number | null;
+};
+
 type AnimeOnsenPageSnapshot = {
   title: string;
   synopsis: string | null;
@@ -65,6 +79,9 @@ type ResolvedStream = {
 
 const BASE_URL = "https://www.animeonsen.xyz";
 const API_BASE_URL = "https://api.animeonsen.xyz";
+const SEARCH_API_URL = "https://search.animeonsen.xyz/indexes/content/search";
+const SEARCH_API_BEARER_TOKEN =
+  "0e36d0275d16b40d7cf153634df78bc229320d073f565db2aaf6d027e0c30b13";
 const ANIMEONSEN_CHALLENGE_MARKERS = [
   "just a moment",
   "performing security verification",
@@ -72,12 +89,6 @@ const ANIMEONSEN_CHALLENGE_MARKERS = [
   "verification successful. waiting for",
   "checking your browser before accessing",
 ];
-const SEARCH_ROUTE_CANDIDATES = [
-  (query: string) => `/search/${encodeURIComponent(query)}`,
-  (query: string) => `/search?query=${encodeURIComponent(query)}`,
-  (query: string) => `/search?q=${encodeURIComponent(query)}`,
-];
-const SEARCH_READY_TIMEOUT_MS = 2_500;
 
 function cleanText(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
@@ -231,40 +242,6 @@ async function waitForAnimeOnsenReady(
   throw new BrowserExtractionError("challenge_failed", message, { statusCode: 502 });
 }
 
-async function probeAnimeOnsenSearchReady(
-  page: PlaywrightPageLike,
-  timeoutMs = SEARCH_READY_TIMEOUT_MS,
-) {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const state = await page.evaluate(() => ({
-      title: document.title,
-      bodyText: document.body?.innerText ?? "",
-      readyState: document.readyState,
-      hasBody: !!document.body,
-    })).catch(() => ({
-      title: "",
-      bodyText: "",
-      readyState: "loading",
-      hasBody: false,
-    }));
-
-    const sample = `${state.title}\n${state.bodyText}`;
-    if (
-      state.hasBody &&
-      (state.readyState === "interactive" || state.readyState === "complete") &&
-      !looksLikeChallenge(sample)
-    ) {
-      return true;
-    }
-
-    await page.waitForTimeout(500);
-  }
-
-  return false;
-}
-
 async function navigate(page: PlaywrightPageLike, path: string) {
   await page.goto(new URL(path, BASE_URL).toString(), {
     waitUntil: "domcontentloaded",
@@ -272,109 +249,99 @@ async function navigate(page: PlaywrightPageLike, path: string) {
   });
 }
 
-async function extractSearchCards(page: PlaywrightPageLike, query: string) {
-  return page.evaluate((inputQuery) => {
-    const clean = (value?: string | null) => value?.replace(/\s+/g, " ").trim() ?? "";
-    const toAbsolute = (value?: string | null) => {
-      const cleaned = clean(value);
-      if (!cleaned) {
-        return null;
-      }
+async function searchAnimeOnsenCatalog(
+  input: SearchInput,
+  signal: AbortSignal,
+): Promise<SearchPage> {
+  const limit = input.limit;
+  const offset = (input.page - 1) * input.limit;
+  const response = await fetch(SEARCH_API_URL, {
+    method: "POST",
+    signal,
+    headers: {
+      accept: "*/*",
+      "accept-language": "en-US,en;q=0.9",
+      authorization: `Bearer ${SEARCH_API_BEARER_TOKEN}`,
+      "content-type": "application/json",
+      origin: BASE_URL,
+      referer: `${BASE_URL}/`,
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "x-meilisearch-client": "Meilisearch JavaScript (v0.27.0)",
+    },
+    body: JSON.stringify({
+      q: input.query,
+      limit,
+      offset,
+    }),
+  });
 
-      try {
-        return new URL(cleaned, window.location.origin).toString();
-      } catch {
-        return null;
-      }
-    };
-    const extractYear = (value?: string | null) => {
-      const match = clean(value).match(/\b(19|20)\d{2}\b/);
-      return match ? Number.parseInt(match[0], 10) : null;
-    };
-
-    const queryText = clean(inputQuery).toLowerCase();
-    const anchors = Array.from(
-      document.querySelectorAll<HTMLAnchorElement>("a[href*='/details/'], a[href*='/watch/']"),
+  if (!response.ok) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeOnsen search API failed with status ${response.status} for query "${input.query}".`,
+      { statusCode: 502 },
     );
-    const cards = anchors
-      .map((anchor) => {
-        const href = anchor.getAttribute("href") ?? "";
-        const detailsMatch = href.match(/\/details\/([^/?#]+)/);
-        const watchMatch = href.match(/\/watch\/([^/?#]+)/);
-        const animeId = detailsMatch?.[1] ?? watchMatch?.[1];
-        if (!animeId) {
-          return null;
-        }
+  }
 
-        const container =
-          anchor.closest("article, li, .card, .media, .search-result, .grid-item, .swiper-slide") ??
-          anchor.parentElement ??
-          anchor;
+  let payload: AnimeOnsenSearchApiResponse;
+  try {
+    payload = (await response.json()) as AnimeOnsenSearchApiResponse;
+  } catch (error) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeOnsen search API returned invalid JSON for query "${input.query}".`,
+      { statusCode: 502, cause: error },
+    );
+  }
 
-        const title =
-          clean(
-            container.querySelector("h1, h2, h3, h4, [data-title], .title, .card-title")
-              ?.textContent,
-          ) || clean(anchor.textContent);
+  const rawItems = (payload.hits ?? []).map((hit): SearchCard | null => {
+    const externalAnimeId = cleanText(hit.content_id);
+    const title =
+      cleanText(hit.content_title_en) ||
+      cleanText(hit.content_title) ||
+      cleanText(hit.content_title_jp);
 
-        if (!title) {
-          return null;
-        }
-
-        const synopsis =
-          clean(
-            container.querySelector(
-              "p, .description, .summary, .synopsis, .card-description, .card-text",
-            )?.textContent,
-          ) || null;
-
-        const coverImage =
-          toAbsolute(container.querySelector<HTMLImageElement>("img")?.getAttribute("src")) ??
-          toAbsolute(container.querySelector<HTMLImageElement>("img")?.getAttribute("data-src"));
-
-        const textSample = clean(container.textContent);
-        return {
-          externalAnimeId: animeId,
-          title,
-          synopsis,
-          coverImage,
-          year: extractYear(textSample),
-          score:
-            queryText.length === 0 ? 0
-            : title.toLowerCase() === queryText ? 1_000
-            : title.toLowerCase().includes(queryText) ? 200
-            : queryText
-                .split(/\s+/)
-                .filter(Boolean)
-                .reduce(
-                  (value, token) => value + (title.toLowerCase().includes(token) ? 30 : 0),
-                  0,
-                ),
-        };
-      })
-      .filter(
-        (
-          entry,
-        ): entry is {
-          externalAnimeId: string;
-          title: string;
-          synopsis: string | null;
-          coverImage: string | null;
-          year: number | null;
-          score: number;
-        } => entry !== null,
-      )
-      .sort((left, right) => right.score - left.score);
-
-    const deduped = new Map<string, (typeof cards)[number]>();
-    for (const card of cards) {
-      if (!deduped.has(card.externalAnimeId)) {
-        deduped.set(card.externalAnimeId, card);
-      }
+    if (!externalAnimeId || !title) {
+      return null;
     }
 
-    return Array.from(deduped.values()).map(({ score: _score, ...card }) => card);
-  }, query);
+    return {
+      externalAnimeId,
+      title,
+      synopsis: null,
+      coverImage: null,
+      year: null,
+    };
+  });
+
+  const items = uniqueBy(
+    rawItems.filter((entry): entry is SearchCard => entry !== null),
+    (item) => item.externalAnimeId,
+  );
+
+  const estimatedTotalHits = payload.estimatedTotalHits ?? items.length;
+
+  return {
+    providerId: "animeonsen",
+    query: input.query,
+    page: input.page,
+    hasNextPage: estimatedTotalHits > offset + items.length,
+    items: items.map((item) => ({
+      providerId: "animeonsen",
+      providerDisplayName: "AnimeOnsen",
+      externalAnimeId: item.externalAnimeId,
+      title: item.title,
+      synopsis: item.synopsis,
+      coverImage: item.coverImage,
+      year: item.year,
+      kind: "unknown",
+      language: "en",
+      contentClass: "anime",
+      requiresAdultGate: false,
+    })),
+  };
 }
 
 async function submitSearchQuery(page: PlaywrightPageLike, query: string) {
@@ -511,6 +478,27 @@ async function extractWatchAnimeId(page: PlaywrightPageLike) {
 
     for (const href of hrefs) {
       const match = href.match(/\/watch\/([^/?#]+)/);
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+
+    return null;
+  });
+}
+
+async function extractDetailsAnimeId(page: PlaywrightPageLike) {
+  return page.evaluate(() => {
+    const hrefs = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>("a[href*='/details/']"),
+    ).map((anchor) => anchor.getAttribute("href"));
+
+    for (const href of hrefs) {
+      if (!href) {
+        continue;
+      }
+
+      const match = href.match(/\/details\/([^/?#]+)/);
       if (match?.[1]) {
         return match[1];
       }
@@ -957,60 +945,30 @@ function mapSearchCardsToPage(input: SearchInput, items: SearchCard[]): SearchPa
 
 export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   async search(input: SearchInput, runtime: ExtractionRuntime): Promise<SearchPage> {
-    return runtime.withPage(async (page) => {
-      const browserPage = page as unknown as PlaywrightPageLike;
-      const cards: SearchCard[] = [];
-
-      for (const buildRoute of SEARCH_ROUTE_CANDIDATES) {
-        await navigate(browserPage, buildRoute(input.query));
-        const ready = await probeAnimeOnsenSearchReady(browserPage);
-        if (!ready) {
-          continue;
-        }
-        await browserPage.waitForTimeout(1_000);
-        cards.push(...(await extractSearchCards(browserPage, input.query)));
-
-        if (cards.length >= input.limit) {
-          break;
-        }
-      }
-
-      if (cards.length === 0) {
-        await navigate(browserPage, "/search");
-        const ready = await probeAnimeOnsenSearchReady(browserPage);
-        if (ready) {
-          await submitSearchQuery(browserPage, input.query);
-          await browserPage.waitForTimeout(1_500);
-          cards.push(...(await extractSearchCards(browserPage, input.query)));
-        }
-      }
-
-      return mapSearchCardsToPage(input, cards);
-    });
+    return searchAnimeOnsenCatalog(input, runtime.signal);
   }
 
   async getAnime(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<AnimeDetails> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
-      await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
+      await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
       await waitForAnimeOnsenReady(
         browserPage,
-        `Timed out waiting for AnimeOnsen details for anime "${input.externalAnimeId}".`,
+        `Timed out waiting for AnimeOnsen anime metadata for anime "${input.externalAnimeId}".`,
       );
       await browserPage.waitForTimeout(1_500);
 
       let snapshot = await extractAnimeSnapshot(browserPage);
       if (!snapshot.totalEpisodes) {
-        const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
-        await navigate(
-          browserPage,
-          `/watch/${encodeURIComponent(watchAnimeId)}?episode=1`,
-        );
-        await waitForAnimeOnsenReady(
-          browserPage,
-          `Timed out waiting for AnimeOnsen watch metadata for anime "${input.externalAnimeId}".`,
-        );
-        await browserPage.waitForTimeout(1_500);
+        const detailsAnimeId = await extractDetailsAnimeId(browserPage);
+        if (detailsAnimeId) {
+          await navigate(browserPage, `/details/${encodeURIComponent(detailsAnimeId)}`);
+          await waitForAnimeOnsenReady(
+            browserPage,
+            `Timed out waiting for AnimeOnsen details metadata for anime "${input.externalAnimeId}".`,
+          );
+          await browserPage.waitForTimeout(1_500);
+        }
         const watchSnapshot = await extractAnimeSnapshot(browserPage);
         snapshot = {
           title: snapshot.title || watchSnapshot.title,
@@ -1054,7 +1012,7 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   async getEpisodes(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<EpisodeList> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
-      await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
+      await navigate(browserPage, `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=1`);
       await waitForAnimeOnsenReady(
         browserPage,
         `Timed out waiting for AnimeOnsen episodes for anime "${input.externalAnimeId}".`,
@@ -1063,14 +1021,16 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       let episodes = await extractEpisodes(browserPage);
       if (episodes.length === 0) {
-        const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
-        await navigate(browserPage, `/watch/${encodeURIComponent(watchAnimeId)}?episode=1`);
-        await waitForAnimeOnsenReady(
-          browserPage,
-          `Timed out waiting for AnimeOnsen watch episode list for anime "${input.externalAnimeId}".`,
-        );
-        await browserPage.waitForTimeout(1_500);
-        episodes = await extractEpisodes(browserPage);
+        const detailsAnimeId = await extractDetailsAnimeId(browserPage);
+        if (detailsAnimeId) {
+          await navigate(browserPage, `/details/${encodeURIComponent(detailsAnimeId)}`);
+          await waitForAnimeOnsenReady(
+            browserPage,
+            `Timed out waiting for AnimeOnsen details episode list for anime "${input.externalAnimeId}".`,
+          );
+          await browserPage.waitForTimeout(1_500);
+          episodes = await extractEpisodes(browserPage);
+        }
       }
 
       const dedupedEpisodes = uniqueBy(episodes, (episode) => episode.externalEpisodeId).sort(
@@ -1108,15 +1068,9 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
   ): Promise<PlaybackResolution> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
-      await navigate(browserPage, `/details/${encodeURIComponent(input.externalAnimeId)}`);
-      await waitForAnimeOnsenReady(
-        browserPage,
-        `Timed out waiting for AnimeOnsen details before playback for anime "${input.externalAnimeId}".`,
-      );
-      const watchAnimeId = (await extractWatchAnimeId(browserPage)) ?? input.externalAnimeId;
       await navigate(
         browserPage,
-        `/watch/${encodeURIComponent(watchAnimeId)}?episode=${encodeURIComponent(input.externalEpisodeId)}`,
+        `/watch/${encodeURIComponent(input.externalAnimeId)}?episode=${encodeURIComponent(input.externalEpisodeId)}`,
       );
       await waitForAnimeOnsenReady(
         browserPage,
