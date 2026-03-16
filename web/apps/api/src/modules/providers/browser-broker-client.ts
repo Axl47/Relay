@@ -28,14 +28,25 @@ export class HttpBrowserBrokerClient implements BrowserBrokerClient {
   constructor(private readonly baseUrl: string) {}
 
   private async post<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal) {
-    const response = await fetch(new URL(path, this.baseUrl), {
-      method: "POST",
-      signal,
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(new URL(path, this.baseUrl), {
+        method: "POST",
+        signal,
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(
+          `Browser broker request to ${this.baseUrl}${path} failed: ${error.message}`,
+        );
+      }
+
+      throw new Error(`Browser broker request to ${this.baseUrl}${path} failed.`);
+    }
 
     return parseBrokerResponse<T>(response);
   }

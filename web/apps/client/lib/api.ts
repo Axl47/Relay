@@ -27,13 +27,17 @@ function formatApiError(payload: ApiErrorPayload | null, status: number) {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const headers = new Headers(init?.headers);
+  const hasBody = init?.body !== undefined && init?.body !== null;
+
+  if (hasBody && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: "no-store",
   });
 
