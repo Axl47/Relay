@@ -16,6 +16,7 @@ After this change, Relay can use the browser broker to search AnimePahe, open An
 - [x] (2026-03-16 18:18Z) Implement the AnimePahe browser extractor, register it in `web/apps/browser/src/extractors/registry.ts`, and extend playback timeout handling in `web/apps/browser/src/extraction-service.ts`.
 - [x] (2026-03-16 18:30Z) Verify `@relay/browser` typecheck/build and run a live extractor smoke against AnimePahe search, details, episodes, and playback.
 - [x] (2026-03-16 18:31Z) Update `AGENTS.md` with the AnimePahe maintenance note and revise this ExecPlan with final results.
+- [x] (2026-03-16 18:36Z) Add provider-side AnimePahe search relevance filtering so noisy upstream API matches do not leak unrelated titles into Relay results.
 
 ## Surprises & Discoveries
 
@@ -41,11 +42,17 @@ After this change, Relay can use the browser broker to search AnimePahe, open An
   Rationale: The manifest request is directly observable, stable, and already carries the exact `referer` and `origin` headers that Relay needs for proxy playback.
   Date/Author: 2026-03-16 / Codex
 
+- Decision: Filter AnimePahe search API results locally instead of trusting the API ordering.
+  Rationale: The upstream API can return broadly related or unrelated titles for short queries, so Relay should rank and discard results that do not match the normalized query tokens.
+  Date/Author: 2026-03-16 / Codex
+
 ## Outcomes & Retrospective
 
 Relay now has a working AnimePahe browser extractor for all four browser-broker operations. The implementation deliberately stays close to the live site’s observable behavior: wait for DDoS-Guard to clear, use the first-party JSON APIs for search and episodes, parse details from the rendered anime page, and capture the real HLS request from the `kwik` embed instead of reverse-engineering the player scripts.
 
 The main remaining risk is upstream markup drift on the AnimePahe play page or a change in how `kwik` triggers the manifest request. The maintenance note in `AGENTS.md` and the live smoke command in this plan are intended to make that failure mode fast to re-diagnose.
+
+Search quality also improved after the first rollout: Relay now applies local title matching on top of AnimePahe’s API so the app does not show unrelated titles simply because the upstream endpoint returned them.
 
 ## Context and Orientation
 

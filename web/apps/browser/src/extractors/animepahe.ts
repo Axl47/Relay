@@ -155,6 +155,47 @@ function mapAnimeStatus(value?: string | null): AnimeDetails["status"] {
   return "unknown";
 }
 
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function compactSearchValue(value: string) {
+  return normalizeSearchValue(value).replace(/\s+/g, "");
+}
+
+function rankAnimePaheSearchMatch(title: string, query: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  const compactQuery = compactSearchValue(query);
+  const tokens = normalizedQuery.split(" ").filter(Boolean);
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const normalizedTitle = normalizeSearchValue(title);
+  const compactTitle = compactSearchValue(title);
+  const exactTitle = normalizedTitle === normalizedQuery;
+  const phraseMatch = normalizedTitle.includes(normalizedQuery);
+  const compactMatch = compactQuery.length > 0 && compactTitle.includes(compactQuery);
+  const matchedTokens = tokens.filter((token) => normalizedTitle.includes(token));
+  const allTokensMatch = matchedTokens.length === tokens.length;
+
+  if (!exactTitle && !phraseMatch && !compactMatch && !allTokensMatch) {
+    return null;
+  }
+
+  return (
+    (exactTitle ? 4_000 : 0) +
+    (phraseMatch ? 2_000 : 0) +
+    (compactMatch ? 1_000 : 0) +
+    matchedTokens.length * 120
+  );
+}
+
 function buildEpisodeTitle(entry: AnimePaheEpisodeEntry) {
   const baseTitle = cleanText(entry.title);
   if (baseTitle) {
@@ -444,26 +485,34 @@ export class AnimePaheExtractor implements BrowserProviderExtractor {
         browserPage,
         `https://${runtime.domain}/api?m=search&q=${encodeURIComponent(input.query)}&page=${input.page}`,
       );
+      const rankedItems = (payload.data ?? []).reduce<
+        Array<{
+          score: number;
+          item: SearchPage["items"][number];
+        }>
+      >((items, entry) => {
+        if (
+          typeof entry.session !== "string" ||
+          entry.session.length === 0 ||
+          typeof entry.title !== "string" ||
+          entry.title.length === 0
+        ) {
+          return items;
+        }
 
-      return {
-        providerId: runtime.providerId,
-        query: input.query,
-        page: input.page,
-        hasNextPage: payload.current_page < payload.last_page,
-        items: (payload.data ?? [])
-          .filter(
-            (entry): entry is AnimePaheSearchEntry & { session: string; title: string } =>
-              typeof entry.session === "string" &&
-              entry.session.length > 0 &&
-              typeof entry.title === "string" &&
-              entry.title.length > 0,
-          )
-          .slice(0, input.limit)
-          .map((entry) => ({
+        const title = cleanText(entry.title);
+        const score = rankAnimePaheSearchMatch(title, input.query);
+        if (score === null) {
+          return items;
+        }
+
+        items.push({
+          score,
+          item: {
             providerId: runtime.providerId,
             providerDisplayName: "AnimePahe",
             externalAnimeId: entry.session,
-            title: cleanText(entry.title),
+            title,
             synopsis: null,
             coverImage: entry.poster ?? null,
             year: typeof entry.year === "number" ? entry.year : null,
@@ -471,7 +520,21 @@ export class AnimePaheExtractor implements BrowserProviderExtractor {
             language: "ja",
             contentClass: "anime",
             requiresAdultGate: false,
-          })),
+          },
+        });
+
+        return items;
+      }, []);
+
+      return {
+        providerId: runtime.providerId,
+        query: input.query,
+        page: input.page,
+        hasNextPage: payload.current_page < payload.last_page,
+        items: rankedItems
+          .sort((left, right) => right.score - left.score)
+          .map((entry) => entry.item)
+          .slice(0, input.limit),
       };
     });
   }
