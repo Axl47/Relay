@@ -164,6 +164,18 @@ describe("Wave 1 provider contract fixtures", () => {
     });
 
     await assertProviderContract(provider, ctx);
+    const episodes = await provider.getEpisodes(
+      {
+        providerId: "hstream",
+        externalAnimeId: "imaizumin-chi-wa-douyara-gal-no-tamariba-ni-natteru-rashii",
+      },
+      ctx,
+    );
+    expect(episodes.episodes.map((episode) => episode.number)).toEqual([1, 6]);
+    expect(episodes.episodes.map((episode) => episode.title)).toEqual([
+      "Imaizumin Chi wa Douyara Gal no Tamariba ni Natteru Rashii - 1",
+      "Imaizumin Chi wa Douyara Gal no Tamariba ni Natteru Rashii - 6",
+    ]);
     const playback = await provider.resolvePlayback(
       {
         providerId: "hstream",
@@ -172,6 +184,7 @@ describe("Wave 1 provider contract fixtures", () => {
       },
       ctx,
     );
+    expect(playback.streams.find((stream) => stream.isDefault)?.mimeType).toBe("video/mp4");
     expect(playback.streams.some((stream) => stream.mimeType === "application/dash+xml")).toBe(true);
     expect(playback.subtitles[0]?.format).toBe("ass");
   });
@@ -181,31 +194,82 @@ describe("Wave 1 provider contract fixtures", () => {
     const ctx = createProviderRequestContext({
       fetch: createMockFetch([
         {
-          match: (url) => url.startsWith("https://hanime.tv/search/"),
-          response: { body: fixture("hanime/search.html") },
-        },
-        {
-          match: (url) => url === "https://hanime.tv/videos/hentai/natsu-to-hako-2",
-          response: { body: fixture("hanime/watch.html") },
-        },
-        {
-          match: (url) => url === "https://hanime.tv/videos/hentai/natsu-to-hako-1",
-          response: { body: fixture("hanime/watch.html") },
+          match: (url) => url === "https://cached.freeanimehentai.net/api/v10/search_hvs",
+          response: {
+            body: JSON.stringify([
+              {
+                id: 3393,
+                name: "Natsu to Hako 1",
+                search_titles: "Natsu to Hako 1 Natsu to Hako Test 夏と箱",
+                slug: "natsu-to-hako-1",
+                description: "<p>First episode.</p>",
+                cover_url: "https://hanime-cdn.com/images/covers/natsu-to-hako-1.webp",
+                poster_url: "https://hanime-cdn.com/images/posters/natsu-to-hako-1.webp",
+                released_at: "2025-05-11T15:00:00.000Z",
+                released_at_unix: 1746975600,
+                created_at_unix: 1769895730,
+                tags: ["vanilla"],
+                brand: "Mary Jane",
+              },
+              {
+                id: 3411,
+                name: "Natsu to Hako 2",
+                search_titles: "Natsu to Hako 2 Natsu to Hako Test 夏と箱",
+                slug: "natsu-to-hako-2",
+                description:
+                  "<p>Sex in a phone booth just wasn't as nice as they were expecting.</p>",
+                cover_url: "https://hanime-cdn.com/images/covers/natsu-to-hako-2.webp",
+                poster_url: "https://hanime-cdn.com/images/posters/natsu-to-hako-2.webp",
+                released_at: "2026-02-05T15:00:00.000Z",
+                released_at_unix: 1770303600,
+                created_at_unix: 1773541602,
+                tags: ["vanilla", "school girl"],
+                brand: "Mary Jane",
+              },
+            ]),
+            contentType: "application/json",
+          },
         },
       ]),
     });
 
     await assertProviderContract(provider, ctx);
+    const anime = await provider.getAnime(
+      {
+        providerId: "hanime",
+        externalAnimeId: "natsu-to-hako",
+      },
+      ctx,
+    );
     const playback = await provider.resolvePlayback(
       {
         providerId: "hanime",
-        externalAnimeId: "natsu-to-hako-2",
+        externalAnimeId: "natsu-to-hako",
         externalEpisodeId: "natsu-to-hako-2",
       },
       ctx,
     );
-    expect(playback.streams[0]?.mimeType).toBe("application/vnd.apple.mpegurl");
-    expect(playback.streams[0]?.url).toContain("streamable.cloud");
+    const episodes = await provider.getEpisodes(
+      {
+        providerId: "hanime",
+        externalAnimeId: "natsu-to-hako",
+      },
+      ctx,
+    );
+    expect(anime.title).toBe("Natsu to Hako");
+    expect(anime.totalEpisodes).toBe(2);
+    expect(playback.streams[0]?.mimeType).toBe("text/html");
+    expect(playback.streams[0]?.url).toBe("https://hanime.tv/videos/hentai/natsu-to-hako-2");
+    expect((await provider.search({ query: "natsu", page: 1, limit: 5 }, ctx)).items[0]?.coverImage)
+      .toContain("hanime-cdn.com/images/posters");
+    expect((await provider.search({ query: "natsu", page: 1, limit: 5 }, ctx)).items[0]?.externalAnimeId)
+      .toBe("natsu-to-hako");
+    expect(episodes.episodes).toHaveLength(2);
+    expect(episodes.episodes.map((episode) => episode.externalEpisodeId)).toEqual([
+      "natsu-to-hako-1",
+      "natsu-to-hako-2",
+    ]);
+    expect(episodes.episodes.map((episode) => episode.number)).toEqual([1, 2]);
   });
 
   it("aniwave resolves SSR metadata, episode ajax, and embed playback", async () => {

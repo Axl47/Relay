@@ -8,6 +8,7 @@ import type {
   SearchPage,
 } from "@relay/contracts";
 import { BrowserExtractionError } from "../errors";
+import { HanimeExtractor } from "./hanime";
 import type { BrowserProviderExtractor, ExtractionRuntime } from "./types";
 
 const SUPPORTED_PROVIDER_IDS = [
@@ -73,6 +74,8 @@ export function createDefaultExtractorRegistry() {
   for (const providerId of SUPPORTED_PROVIDER_IDS) {
     registry.register(providerId, new UnimplementedProviderExtractor(providerId));
   }
+
+  registry.register("hanime", new HanimeExtractor());
 
   return registry;
 }

@@ -119,16 +119,23 @@ export class HstreamProvider extends SsrManifestProviderBase {
           }
 
           const externalEpisodeId = extractIdAfterPrefix(this.metadata.baseUrl, href, "hentai/");
+          const suffix = externalEpisodeId.startsWith(prefix)
+            ? externalEpisodeId.slice(prefix.length)
+            : "";
+          const title =
+            cleanText($(node).find("img").attr("alt")) ||
+            cleanText($(node).find("p").last().text()) ||
+            cleanText($(node).attr("title"));
           const number =
-            parseNumber(cleanText($(node).text())) ??
-            parseNumber(externalEpisodeId.slice(prefix.length)) ??
+            parseNumber(suffix) ??
+            parseNumber(title) ??
             0;
           return createEpisode({
             providerId: this.metadata.id,
             externalAnimeId,
             externalEpisodeId,
             number,
-            title: cleanText($(node).attr("title")) || `Episode ${number || "?"}`,
+            title: title || `Episode ${number || "?"}`,
             synopsis: null,
             thumbnail: null,
             durationSeconds: null,
@@ -251,7 +258,7 @@ export class HstreamProvider extends SsrManifestProviderBase {
         headers: {},
         cookies: {},
         proxyMode: "redirect",
-        isDefault: true,
+        isDefault: false,
       }),
       createStream({
         id: "mp4-720",
@@ -261,7 +268,7 @@ export class HstreamProvider extends SsrManifestProviderBase {
         headers: {},
         cookies: {},
         proxyMode: "redirect",
-        isDefault: false,
+        isDefault: true,
       }),
     ];
 
@@ -275,10 +282,9 @@ export class HstreamProvider extends SsrManifestProviderBase {
           headers: {},
           cookies: {},
           proxyMode: "redirect",
-          isDefault: true,
+          isDefault: false,
         }),
       );
-      streams[1].isDefault = false;
     }
 
     const subtitleUrl =

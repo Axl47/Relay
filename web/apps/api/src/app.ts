@@ -231,9 +231,14 @@ export async function buildApi() {
   });
 
   async function handleStreamRequest(request: FastifyRequest, reply: FastifyReply) {
-    const user = await requireUser(request);
     const params = request.params as { sessionId: string; "*": string | undefined };
-    const target = await relay.getPlaybackStreamTarget(user.id, params.sessionId, params["*"] ?? null);
+    const target = request.sessionUser
+      ? await relay.getPlaybackStreamTarget(
+          request.sessionUser.id,
+          params.sessionId,
+          params["*"] ?? null,
+        )
+      : await relay.getPlaybackStreamTargetBySessionId(params.sessionId, params["*"] ?? null);
     const cookieHeader = Object.entries(target.cookies)
       .map(([key, value]) => `${key}=${value}`)
       .join("; ");

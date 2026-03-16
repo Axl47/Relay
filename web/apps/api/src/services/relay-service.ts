@@ -281,6 +281,32 @@ export class RelayService {
     return session ?? null;
   }
 
+  private async getPlaybackSessionRowById(playbackSessionId: string) {
+    const [session] = await db
+      .select()
+      .from(playbackSessions)
+      .where(eq(playbackSessions.id, playbackSessionId))
+      .limit(1);
+
+    return session ?? null;
+  }
+
+  private shouldReusePlaybackSession(row: PlaybackSessionRow) {
+    if (row.expiresAt <= new Date()) {
+      return false;
+    }
+
+    if (row.status === "failed") {
+      return false;
+    }
+
+    if (row.providerId === "hstream" && row.mimeType === "application/dash+xml") {
+      return false;
+    }
+
+    return true;
+  }
+
   private async getAllowedProviderIdsForUser(userId: string) {
     const preferences = await this.getPreferences(userId);
     const rows = await db.select().from(providers);
@@ -1035,7 +1061,7 @@ export class RelayService {
       .orderBy(desc(playbackSessions.createdAt))
       .limit(1);
 
-    if (existingSession && existingSession.expiresAt > new Date()) {
+    if (existingSession && this.shouldReusePlaybackSession(existingSession)) {
       if (existingSession.status === "resolving") {
         void this.ensurePlaybackResolution(existingSession.id);
       }
@@ -1098,6 +1124,35 @@ export class RelayService {
     requestPath?: string | null,
   ): Promise<StreamTarget> {
     const row = await this.getPlaybackSessionRow(userId, playbackSessionId);
+    if (!row) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+
+    const updated = await this.maybeMarkPlaybackExpired(row);
+    if (updated.status !== "ready" || !updated.upstreamUrl) {
+      throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
+    }
+
+    const targetUrl =
+      requestPath && requestPath.length > 0
+        ? new URL(requestPath, updated.upstreamUrl).toString()
+        : updated.upstreamUrl;
+
+    return {
+      sessionId: updated.id,
+      upstreamUrl: targetUrl,
+      mimeType: updated.mimeType ?? null,
+      proxyMode: updated.proxyMode as PlaybackProxyMode,
+      headers: updated.headers as Record<string, string>,
+      cookies: updated.cookies as Record<string, string>,
+    };
+  }
+
+  async getPlaybackStreamTargetBySessionId(
+    playbackSessionId: string,
+    requestPath?: string | null,
+  ): Promise<StreamTarget> {
+    const row = await this.getPlaybackSessionRowById(playbackSessionId);
     if (!row) {
       throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
     }

@@ -145,10 +145,20 @@ export function createExpiresAt(minutesFromNow: number, now = new Date()) {
 
 export function looksLikeChallengePage(html: string) {
   const sample = html.toLowerCase();
+  const hasCloudflareChallengeMarkers =
+    sample.includes("cf-challenge") ||
+    sample.includes("challenge-platform") ||
+    sample.includes("cf-browser-verification") ||
+    sample.includes("turnstile");
+
   return (
     sample.includes("just a moment") ||
-    sample.includes("cf-challenge") ||
-    sample.includes("cloudflare") ||
+    sample.includes("attention required") ||
+    hasCloudflareChallengeMarkers ||
+    (sample.includes("cloudflare") &&
+      (sample.includes("just a moment") ||
+        sample.includes("checking your browser") ||
+        hasCloudflareChallengeMarkers)) ||
     sample.includes("ddos-guard") ||
     sample.includes("checking your browser")
   );
