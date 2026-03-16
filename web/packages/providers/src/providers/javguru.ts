@@ -24,6 +24,28 @@ import {
 } from "../base/provider-utils";
 
 export class JavGuruProvider extends WordPressMirrorProviderBase {
+  private extractImageUrl(node: any, $: any) {
+    const image = $(node).find("img").first();
+    const srcset =
+      cleanText(image.attr("data-srcset")) ||
+      cleanText(image.attr("srcset"));
+    const srcsetUrl = srcset
+      .split(",")
+      .map((entry: string) => cleanText(entry.split(" ").at(0)))
+      .find(Boolean);
+
+    return (
+      absoluteUrl(
+        this.metadata.baseUrl,
+        cleanText(image.attr("data-lazy-src")) ||
+          cleanText(image.attr("data-src")) ||
+          cleanText(image.attr("data-original")) ||
+          srcsetUrl ||
+          cleanText(image.attr("src")),
+      ) ?? null
+    );
+  }
+
   constructor() {
     super({
       id: "javguru",
@@ -78,11 +100,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
               cleanText(
                 card.find(".entry-content p, .entry-summary, .excerpt, p").first().text(),
               ) || null,
-            coverImage:
-              absoluteUrl(
-                this.metadata.baseUrl,
-                card.find("img").first().attr("data-src") ?? card.find("img").first().attr("src"),
-              ) ?? null,
+            coverImage: this.extractImageUrl(card, $),
             year: null,
             kind: "unknown",
             language: "ja",
@@ -123,6 +141,8 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
         absoluteUrl(
           this.metadata.baseUrl,
           this.firstAttr($, ["meta[property='og:image']", ".entry-content img", "img"], "content") ||
+            this.firstAttr($, [".entry-content img", "img"], "data-lazy-src") ||
+            this.firstAttr($, [".entry-content img", "img"], "data-src") ||
             this.firstAttr($, [".entry-content img", "img"], "src"),
         ) ?? null,
       bannerImage: null,

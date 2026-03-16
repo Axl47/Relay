@@ -32,6 +32,7 @@ Whenever new updates are made, this file (`AGENTS.md`) should be updated with an
 
 - `web/packages/providers/src/base/provider-utils.ts` owns the shared HTML challenge detector used by HTTP providers. Check it first when Cloudflare-backed sites suddenly flip from working to `challenge-protected`, because some hosts now inject `/cdn-cgi/challenge-platform/scripts/jsd/main.js` on otherwise normal pages and that script alone should not be treated as a blocking interstitial.
 - `web/packages/providers/src/providers/javguru.ts` intentionally filters search results down to numeric `/<post-id>/<slug>/` permalinks. Use that file first when Javguru starts returning static pages like `advanced-search` or `jav-actress-list`, because the site mixes page links into search markup and broad anchor scraping will surface junk results.
+- `web/apps/client/app/(dashboard)/discover/page.tsx` and `web/apps/client/app/(dashboard)/anime/[providerId]/[externalAnimeId]/page.tsx` must URL-encode provider/external IDs before putting them into app or API paths. Check those routes when providers use slash-containing IDs like Javguru, otherwise Next/Fastify path params split and users land on 404s.
 
 ## Sub Agents
 

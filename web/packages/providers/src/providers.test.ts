@@ -153,6 +153,7 @@ describe("Wave 1 provider contract fixtures", () => {
       "953304/myba-092-a-married-womans-petals-spread-suzuna-nami",
     ]);
     expect(search.items[0]?.synopsis).toBe("Suzuna Nami stars in this sample search fixture.");
+    expect(search.items[0]?.coverImage).toBe("https://cdn.example/javguru-cover.jpg");
 
     await assertProviderContract(provider, ctx);
     const playback = await provider.resolvePlayback(

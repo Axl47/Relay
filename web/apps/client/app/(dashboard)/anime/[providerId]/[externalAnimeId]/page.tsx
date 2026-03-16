@@ -24,13 +24,12 @@ export default function AnimeDetailPage({ params }: Props) {
   useEffect(() => {
     if (!resolvedParams) return;
 
+    const providerId = encodeURIComponent(resolvedParams.providerId);
+    const externalAnimeId = encodeURIComponent(resolvedParams.externalAnimeId);
+
     Promise.all([
-      apiFetch<AnimeDetails>(
-        `/catalog/${resolvedParams.providerId}/anime/${resolvedParams.externalAnimeId}`,
-      ),
-      apiFetch<EpisodeList>(
-        `/catalog/${resolvedParams.providerId}/anime/${resolvedParams.externalAnimeId}/episodes`,
-      ),
+      apiFetch<AnimeDetails>(`/catalog/${providerId}/anime/${externalAnimeId}`),
+      apiFetch<EpisodeList>(`/catalog/${providerId}/anime/${externalAnimeId}/episodes`),
     ])
       .then(([animeResponse, episodeResponse]) => {
         setAnime(animeResponse);
@@ -112,7 +111,7 @@ export default function AnimeDetailPage({ params }: Props) {
           {episodes?.episodes.map((episode) => (
             <a
               className="list-item"
-              href={`/watch/direct/${episode.externalEpisodeId}?providerId=${episode.providerId}&externalAnimeId=${episode.externalAnimeId}`}
+              href={`/watch/direct/${encodeURIComponent(episode.externalEpisodeId)}?providerId=${encodeURIComponent(episode.providerId)}&externalAnimeId=${encodeURIComponent(episode.externalAnimeId)}`}
               key={episode.externalEpisodeId}
             >
               <div className="list-item-main">

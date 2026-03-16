@@ -83,7 +83,7 @@ export default function DiscoverPage() {
       <section className="grid-cards">
         {results?.items.map((item) => (
           <Link
-            href={`/anime/${item.providerId}/${item.externalAnimeId}`}
+            href={`/anime/${encodeURIComponent(item.providerId)}/${encodeURIComponent(item.externalAnimeId)}`}
             className="card"
             key={`${item.providerId}-${item.externalAnimeId}`}
           >
