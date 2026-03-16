@@ -115,6 +115,10 @@ export class BrowserExtractionService {
       return Math.max(this.timeoutMs, 45_000);
     }
 
+    if (providerId === "animetake") {
+      return Math.max(this.timeoutMs, 45_000);
+    }
+
     return this.timeoutMs;
   }
 

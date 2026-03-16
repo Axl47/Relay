@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import { BrowserExtractionError } from "../errors";
 import { AkiHExtractor } from "./aki-h";
+import { AnimeTakeExtractor } from "./animetake";
 import { AnimeOnsenExtractor } from "./animeonsen";
 import { AnimePaheExtractor } from "./animepahe";
 import { HanimeExtractor } from "./hanime";
@@ -80,6 +81,7 @@ export function createDefaultExtractorRegistry() {
   }
 
   registry.register("aki-h", new AkiHExtractor());
+  registry.register("animetake", new AnimeTakeExtractor());
   registry.register("animeonsen", new AnimeOnsenExtractor());
   registry.register("animepahe", new AnimePaheExtractor());
   registry.register("hanime", new HanimeExtractor());
