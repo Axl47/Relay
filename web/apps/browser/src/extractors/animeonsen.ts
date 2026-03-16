@@ -230,6 +230,41 @@ async function waitForAnimeOnsenReady(
   throw new BrowserExtractionError("challenge_failed", message, { statusCode: 502 });
 }
 
+async function waitForAnimeOnsenSearchReady(
+  page: PlaywrightPageLike,
+  message: string,
+  timeoutMs = SEARCH_READY_TIMEOUT_MS,
+) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const state = await page.evaluate(() => ({
+      title: document.title,
+      bodyText: document.body?.innerText ?? "",
+      readyState: document.readyState,
+      hasBody: !!document.body,
+    })).catch(() => ({
+      title: "",
+      bodyText: "",
+      readyState: "loading",
+      hasBody: false,
+    }));
+
+    const sample = `${state.title}\n${state.bodyText}`;
+    if (
+      state.hasBody &&
+      (state.readyState === "interactive" || state.readyState === "complete") &&
+      !looksLikeChallenge(sample)
+    ) {
+      return;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  throw new BrowserExtractionError("challenge_failed", message, { statusCode: 502 });
+}
+
 async function navigate(page: PlaywrightPageLike, path: string) {
   await page.goto(new URL(path, BASE_URL).toString(), {
     waitUntil: "domcontentloaded",
@@ -896,10 +931,9 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       for (const buildRoute of SEARCH_ROUTE_CANDIDATES) {
         await navigate(browserPage, buildRoute(input.query));
-        await waitForAnimeOnsenReady(
+        await waitForAnimeOnsenSearchReady(
           browserPage,
           `Timed out waiting for AnimeOnsen search page for query "${input.query}".`,
-          SEARCH_READY_TIMEOUT_MS,
         );
         await browserPage.waitForTimeout(1_000);
         cards.push(...(await extractSearchCards(browserPage, input.query)));
@@ -911,10 +945,9 @@ export class AnimeOnsenExtractor implements BrowserProviderExtractor {
 
       if (cards.length === 0) {
         await navigate(browserPage, "/search");
-        await waitForAnimeOnsenReady(
+        await waitForAnimeOnsenSearchReady(
           browserPage,
           `Timed out waiting for AnimeOnsen search shell for query "${input.query}".`,
-          SEARCH_READY_TIMEOUT_MS,
         );
         await submitSearchQuery(browserPage, input.query);
         await browserPage.waitForTimeout(1_500);
