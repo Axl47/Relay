@@ -112,7 +112,7 @@ export default function AnimeDetailPage({ params }: Props) {
           {episodes?.episodes.map((episode) => (
             <a
               className="list-item"
-              href={`/watch/library-demo/${episode.externalEpisodeId}?providerId=${episode.providerId}&externalAnimeId=${episode.externalAnimeId}`}
+              href={`/watch/direct/${episode.externalEpisodeId}?providerId=${episode.providerId}&externalAnimeId=${episode.externalAnimeId}`}
               key={episode.externalEpisodeId}
             >
               <div className="list-item-main">

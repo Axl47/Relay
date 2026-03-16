@@ -12,6 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev:api": "npm run dev -w @relay/api",
+    "dev:browser": "npm run dev -w @relay/browser",
     "dev:client": "npm run dev -w @relay/client",
     "dev:worker": "npm run dev -w @relay/worker",
     "lint": "npm run lint --workspaces --if-present",

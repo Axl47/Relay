@@ -38,8 +38,8 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
         <div className="panel">
           <h2>Notes</h2>
           <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
-            The initial provider set is a demo feed. Replace it with your curated providers once the
-            final list is chosen.
+            Provider health, priorities, and adult-source visibility are managed from Settings and
+            Providers.
           </p>
         </div>
       </aside>

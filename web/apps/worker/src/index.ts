@@ -1,6 +1,5 @@
 import { config as loadEnv } from "dotenv";
 import { QueueEvents, Worker } from "bullmq";
-import { validateBuiltinProviders } from "@relay/providers";
 
 loadEnv();
 
@@ -15,8 +14,6 @@ const connection = {
 };
 
 async function main() {
-  await validateBuiltinProviders();
-
   const importWorker = new Worker(
     "relay-imports",
     async (job) => {

@@ -25,12 +25,28 @@ services:
       DATABASE_URL: postgres://relay:relay@postgres:5432/relay_web
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: http://localhost:3000
+      PUBLIC_API_URL: http://localhost:4000
+      BROWSER_SERVICE_URL: http://browser:4100
     volumes:
       - ..:/app
     ports:
       - "4000:4000"
     depends_on:
       - postgres
+      - redis
+      - browser
+
+  browser:
+    image: mcr.microsoft.com/playwright:v1.53.2-noble
+    working_dir: /app
+    command: sh -lc "npm install && npm run dev -w @relay/browser"
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ..:/app
+    ports:
+      - "4100:4100"
+    depends_on:
       - redis
 
   worker:

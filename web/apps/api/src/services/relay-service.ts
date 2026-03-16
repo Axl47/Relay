@@ -1,38 +1,42 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  sql,
-} from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type {
   AnimeDetails,
   AssignCategoriesInput,
   AuthBootstrapInput,
   AuthLoginInput,
   AuthResponse,
+  CatalogSearchProviderResult,
+  CatalogSearchResponse,
   Category,
   CreateCategoryInput,
   CreatePlaybackSessionInput,
   EpisodeList,
   HistoryEntry,
   LibraryItemWithCategories,
+  PlaybackProxyMode,
   PlaybackSession,
+  PlaybackSessionStatus,
+  ProviderContentClass,
+  ProviderHealth,
   ProviderSummary,
   SearchInput,
-  SearchPage,
   UpdateCategoryInput,
   UpdateLibraryItemInput,
   UpdatePlaybackProgressInput,
   UpdateProviderConfigInput,
+  UpdateUserPreferencesInput,
   UpsertLibraryItemInput,
   UserPreferences,
 } from "@relay/contracts";
 import { userPreferencesSchema } from "@relay/contracts";
-import { createProviderRegistry } from "@relay/providers";
+import {
+  createHealthyProviderHealth,
+  createProviderRequestContext,
+} from "@relay/provider-sdk";
 import type { ProviderRegistry, RelayProvider } from "@relay/provider-sdk";
+import { createProviderRegistry } from "@relay/providers";
 import { db } from "../db/client";
+import { HttpBrowserBrokerClient } from "../modules/providers/browser-broker-client";
 import {
   categories,
   categoryItems,
@@ -52,9 +56,19 @@ import {
   users,
   watchProgress,
 } from "../db/schema";
+import { appConfig } from "../config";
 import { hashPassword, verifyPassword } from "../lib/auth";
 
 const DEFAULT_PREFERENCES: UserPreferences = userPreferencesSchema.parse({});
+const SEARCH_TIMEOUT_MS = {
+  http: 8_000,
+  browser: 20_000,
+} as const;
+const PLAYBACK_ATTEMPT_TIMEOUT_MS = 2_000;
+const PROVIDER_RESOLUTION_TIMEOUT_MS = {
+  http: 12_000,
+  browser: 25_000,
+} as const;
 
 type SessionUser = {
   id: string;
@@ -63,8 +77,28 @@ type SessionUser = {
   isAdmin: boolean;
 };
 
+type PlaybackSessionRow = typeof playbackSessions.$inferSelect;
+
+type StreamTarget = {
+  sessionId: string;
+  upstreamUrl: string;
+  mimeType: string | null;
+  proxyMode: PlaybackProxyMode;
+  headers: Record<string, string>;
+  cookies: Record<string, string>;
+};
+
+class ProviderTimeoutError extends Error {
+  constructor(providerId: string, timeoutMs: number) {
+    super(`Provider "${providerId}" exceeded timeout after ${timeoutMs}ms.`);
+    this.name = "ProviderTimeoutError";
+  }
+}
+
 export class RelayService {
-  private registryPromise: Promise<ProviderRegistry>;
+  private readonly registryPromise: Promise<ProviderRegistry>;
+  private readonly playbackResolutionJobs = new Map<string, Promise<void>>();
+  private readonly browserBroker = new HttpBrowserBrokerClient(appConfig.BROWSER_SERVICE_URL);
 
   constructor() {
     this.registryPromise = createProviderRegistry();
@@ -72,6 +106,51 @@ export class RelayService {
 
   private async registry() {
     return this.registryPromise;
+  }
+
+  private normalizePreferences(input: Partial<UserPreferences>): UserPreferences {
+    const parsed = userPreferencesSchema.parse({
+      ...DEFAULT_PREFERENCES,
+      ...input,
+    });
+
+    const allowed = new Set(parsed.allowedContentClasses);
+    allowed.add("anime");
+
+    if (!parsed.adultContentVisible) {
+      return {
+        ...parsed,
+        adultContentVisible: false,
+        allowedContentClasses: ["anime"],
+      };
+    }
+
+    return {
+      ...parsed,
+      allowedContentClasses: Array.from(allowed).filter(
+        (value): value is ProviderContentClass =>
+          value === "anime" || value === "hentai" || value === "jav",
+      ),
+    };
+  }
+
+  private isAdultContentClass(contentClass: ProviderContentClass) {
+    return contentClass === "hentai" || contentClass === "jav";
+  }
+
+  private isContentClassAllowed(
+    preferences: UserPreferences,
+    contentClass: ProviderContentClass,
+  ) {
+    if (!preferences.allowedContentClasses.includes(contentClass)) {
+      return false;
+    }
+
+    if (this.isAdultContentClass(contentClass) && !preferences.adultContentVisible) {
+      return false;
+    }
+
+    return true;
   }
 
   private async getProviderOrThrow(providerId: string): Promise<RelayProvider> {
@@ -82,23 +161,274 @@ export class RelayService {
     return provider;
   }
 
+  private async getProviderWithPreferences(
+    userId: string,
+    providerId: string,
+  ): Promise<{ provider: RelayProvider; preferences: UserPreferences }> {
+    const [provider, preferences] = await Promise.all([
+      this.getProviderOrThrow(providerId),
+      this.getPreferences(userId),
+    ]);
+
+    if (!this.isContentClassAllowed(preferences, provider.metadata.contentClass)) {
+      throw Object.assign(new Error("Adult provider access is disabled for this account."), {
+        statusCode: 403,
+      });
+    }
+
+    return { provider, preferences };
+  }
+
+  private async withProviderTimeout<T>(
+    provider: RelayProvider,
+    timeoutMs: number,
+    executor: (provider: RelayProvider, signal: AbortSignal) => Promise<T>,
+  ) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await executor(provider, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ProviderTimeoutError(provider.metadata.id, timeoutMs);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private createProviderContext(signal?: AbortSignal) {
+    return createProviderRequestContext({
+      signal,
+      browser: this.browserBroker,
+    });
+  }
+
+  private getPlaybackSessionStreamUrl(sessionId: string) {
+    return `${appConfig.PUBLIC_API_URL}/stream/${sessionId}`;
+  }
+
+  private getPlaybackCacheTtlMs(provider: RelayProvider) {
+    return provider.metadata.executionMode === "browser" ? 15 * 60 * 1000 : 30 * 60 * 1000;
+  }
+
+  private getProviderSearchTimeout(provider: RelayProvider) {
+    return SEARCH_TIMEOUT_MS[provider.metadata.executionMode];
+  }
+
+  private getProviderResolutionTimeout(provider: RelayProvider) {
+    return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];
+  }
+
+  private async buildProviderHealthMap() {
+    const rows = await db
+      .select()
+      .from(providerHealthEvents)
+      .orderBy(asc(providerHealthEvents.providerId), desc(providerHealthEvents.createdAt));
+
+    const healthByProvider = new Map<string, ProviderHealth>();
+    for (const row of rows) {
+      if (healthByProvider.has(row.providerId)) {
+        continue;
+      }
+
+      healthByProvider.set(row.providerId, {
+        providerId: row.providerId,
+        status: row.status as ProviderHealth["status"],
+        reason: row.reason as ProviderHealth["reason"],
+        checkedAt: row.createdAt.toISOString(),
+      });
+    }
+
+    return healthByProvider;
+  }
+
+  private toPlaybackSession(row: PlaybackSessionRow): PlaybackSession {
+    const expired = row.expiresAt <= new Date();
+    const status =
+      expired && row.status !== "failed"
+        ? ("expired" as PlaybackSessionStatus)
+        : (row.status as PlaybackSessionStatus);
+
+    return {
+      id: row.id,
+      userId: row.userId,
+      providerId: row.providerId,
+      externalAnimeId: row.externalAnimeId,
+      externalEpisodeId: row.externalEpisodeId,
+      status,
+      proxyMode: row.proxyMode as PlaybackProxyMode,
+      streamUrl:
+        status === "ready" && row.upstreamUrl ? this.getPlaybackSessionStreamUrl(row.id) : null,
+      mimeType: row.mimeType ?? null,
+      subtitles: row.subtitles as PlaybackSession["subtitles"],
+      headers: row.headers as PlaybackSession["headers"],
+      expiresAt: row.expiresAt.toISOString(),
+      positionSeconds: row.positionSeconds,
+      error: row.error ?? null,
+    };
+  }
+
+  private async getPlaybackSessionRow(userId: string, playbackSessionId: string) {
+    const [session] = await db
+      .select()
+      .from(playbackSessions)
+      .where(and(eq(playbackSessions.id, playbackSessionId), eq(playbackSessions.userId, userId)))
+      .limit(1);
+
+    return session ?? null;
+  }
+
+  private async getAllowedProviderIdsForUser(userId: string) {
+    const preferences = await this.getPreferences(userId);
+    const rows = await db.select().from(providers);
+
+    return rows
+      .filter((providerRow) =>
+        this.isContentClassAllowed(
+          preferences,
+          providerRow.contentClass as ProviderContentClass,
+        ),
+      )
+      .map((providerRow) => providerRow.id);
+  }
+
+  private async maybeMarkPlaybackExpired(row: PlaybackSessionRow) {
+    if (row.expiresAt > new Date() || row.status === "expired") {
+      return row;
+    }
+
+    const [updated] = await db
+      .update(playbackSessions)
+      .set({ status: "expired" })
+      .where(eq(playbackSessions.id, row.id))
+      .returning();
+
+    return updated ?? row;
+  }
+
+  private async resolvePlaybackSession(playbackSessionId: string) {
+    const [session] = await db
+      .select()
+      .from(playbackSessions)
+      .where(eq(playbackSessions.id, playbackSessionId))
+      .limit(1);
+
+    if (!session || session.status === "ready" || session.status === "expired") {
+      return;
+    }
+
+    const provider = await this.getProviderOrThrow(session.providerId);
+    const timeoutMs = this.getProviderResolutionTimeout(provider);
+
+    try {
+      const resolution = await this.withProviderTimeout(
+        provider,
+        timeoutMs,
+        async (runtime, signal) =>
+          runtime.resolvePlayback(
+            {
+              providerId: session.providerId,
+              externalAnimeId: session.externalAnimeId,
+              externalEpisodeId: session.externalEpisodeId,
+            },
+            this.createProviderContext(signal),
+          ),
+      );
+      const stream = resolution.streams.find((item) => item.isDefault) ?? resolution.streams[0];
+      if (!stream) {
+        throw new Error(`Provider "${provider.metadata.id}" returned no playable streams.`);
+      }
+
+      const ttlDeadline = Date.now() + this.getPlaybackCacheTtlMs(provider);
+      const expiresAt = new Date(
+        Math.min(new Date(resolution.expiresAt).valueOf(), ttlDeadline),
+      );
+
+      await db
+        .update(playbackSessions)
+        .set({
+          status: "ready",
+          proxyMode: stream.proxyMode,
+          upstreamUrl: stream.url,
+          mimeType: stream.mimeType,
+          headers: stream.headers,
+          cookies: {
+            ...resolution.cookies,
+            ...stream.cookies,
+          },
+          subtitles: resolution.subtitles,
+          error: null,
+          expiresAt,
+        })
+        .where(eq(playbackSessions.id, playbackSessionId));
+    } catch (error) {
+      await db
+        .update(playbackSessions)
+        .set({
+          status: "failed",
+          error:
+            error instanceof Error ? error.message : "Playback resolution failed unexpectedly.",
+        })
+        .where(eq(playbackSessions.id, playbackSessionId));
+    }
+  }
+
+  private async ensurePlaybackResolution(playbackSessionId: string) {
+    const existing = this.playbackResolutionJobs.get(playbackSessionId);
+    if (existing) {
+      return existing;
+    }
+
+    const job = this.resolvePlaybackSession(playbackSessionId).finally(() => {
+      this.playbackResolutionJobs.delete(playbackSessionId);
+    });
+    this.playbackResolutionJobs.set(playbackSessionId, job);
+    return job;
+  }
+
   async ensureProvidersSeeded() {
     const registry = await this.registry();
-    const values = registry.list().map((provider) => ({
-      id: provider.id,
-      displayName: provider.displayName,
-      supportsSearch: provider.supportsSearch,
+    const values = registry.list().map((provider, index) => ({
+      id: provider.metadata.id,
+      displayName: provider.metadata.displayName,
+      baseUrl: provider.metadata.baseUrl,
+      contentClass: provider.metadata.contentClass,
+      executionMode: provider.metadata.executionMode,
+      requiresAdultGate: provider.metadata.requiresAdultGate,
+      supportsSearch: provider.metadata.supportsSearch,
+      supportsTrackerSync: provider.metadata.supportsTrackerSync,
+      defaultEnabled: provider.metadata.defaultEnabled,
+      defaultPriority: index,
     }));
 
     for (const value of values) {
       await db
         .insert(providers)
-        .values(value)
+        .values({
+          id: value.id,
+          displayName: value.displayName,
+          baseUrl: value.baseUrl,
+          contentClass: value.contentClass,
+          executionMode: value.executionMode,
+          requiresAdultGate: value.requiresAdultGate,
+          supportsSearch: value.supportsSearch,
+          supportsTrackerSync: value.supportsTrackerSync,
+          defaultEnabled: value.defaultEnabled,
+        })
         .onConflictDoUpdate({
           target: providers.id,
           set: {
             displayName: value.displayName,
+            baseUrl: value.baseUrl,
+            contentClass: value.contentClass,
+            executionMode: value.executionMode,
+            requiresAdultGate: value.requiresAdultGate,
             supportsSearch: value.supportsSearch,
+            supportsTrackerSync: value.supportsTrackerSync,
+            defaultEnabled: value.defaultEnabled,
           },
         });
     }
@@ -131,6 +461,19 @@ export class RelayService {
     });
 
     await this.ensureProvidersSeeded();
+
+    const registry = await this.registry();
+    for (const [priority, provider] of registry.list().entries()) {
+      await db
+        .insert(providerConfigs)
+        .values({
+          userId: user.id,
+          providerId: provider.metadata.id,
+          enabled: provider.metadata.defaultEnabled,
+          priority,
+        })
+        .onConflictDoNothing();
+    }
 
     const [session] = await db
       .insert(sessions)
@@ -221,33 +564,75 @@ export class RelayService {
       .where(eq(userPreferences.userId, userId))
       .limit(1);
 
-    return userPreferencesSchema.parse(row?.value ?? DEFAULT_PREFERENCES);
+    return this.normalizePreferences((row?.value as Partial<UserPreferences>) ?? DEFAULT_PREFERENCES);
+  }
+
+  async updatePreferences(userId: string, input: UpdateUserPreferencesInput) {
+    const current = await this.getPreferences(userId);
+    const next = this.normalizePreferences({
+      ...current,
+      ...input,
+    });
+
+    const [row] = await db
+      .insert(userPreferences)
+      .values({
+        userId,
+        value: next,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: userPreferences.userId,
+        set: {
+          value: next,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ value: userPreferences.value });
+
+    return this.normalizePreferences(row.value as Partial<UserPreferences>);
   }
 
   async listProviders(userId: string): Promise<ProviderSummary[]> {
     await this.ensureProvidersSeeded();
 
-    const registry = await this.registry();
-    const providerRows = await db.select().from(providers).orderBy(asc(providers.id));
-    const configRows = await db
-      .select()
-      .from(providerConfigs)
-      .where(eq(providerConfigs.userId, userId));
-    const configByProvider = new Map(configRows.map((row) => [row.providerId, row]));
+    const [preferences, registry, providerRows, configRows, healthByProvider] = await Promise.all([
+      this.getPreferences(userId),
+      this.registry(),
+      db.select().from(providers).orderBy(asc(providers.id)),
+      db.select().from(providerConfigs).where(eq(providerConfigs.userId, userId)),
+      this.buildProviderHealthMap(),
+    ]);
 
-    return providerRows.map((provider) => {
-      const config = configByProvider.get(provider.id);
-      const runtime = registry.get(provider.id);
-      return {
-        id: provider.id,
-        displayName: provider.displayName,
-        enabled: config?.enabled ?? true,
-        priority: config?.priority ?? 0,
-        supportsSearch: runtime?.supportsSearch ?? provider.supportsSearch,
-        health: (config?.health as ProviderSummary["health"]) ?? "healthy",
-        lastCheckedAt: config?.lastCheckedAt?.toISOString() ?? null,
-      };
-    });
+    const configByProvider = new Map(configRows.map((row) => [row.providerId, row]));
+    const orderByProvider = new Map(registry.list().map((provider, index) => [provider.metadata.id, index]));
+
+    return providerRows
+      .filter((providerRow) =>
+        this.isContentClassAllowed(
+          preferences,
+          providerRow.contentClass as ProviderContentClass,
+        ),
+      )
+      .map((providerRow) => {
+        const config = configByProvider.get(providerRow.id);
+        return {
+          id: providerRow.id,
+          displayName: providerRow.displayName,
+          baseUrl: providerRow.baseUrl,
+          contentClass: providerRow.contentClass as ProviderSummary["contentClass"],
+          executionMode: providerRow.executionMode as ProviderSummary["executionMode"],
+          requiresAdultGate: providerRow.requiresAdultGate,
+          supportsSearch: providerRow.supportsSearch,
+          supportsTrackerSync: providerRow.supportsTrackerSync,
+          defaultEnabled: providerRow.defaultEnabled,
+          enabled: config?.enabled ?? providerRow.defaultEnabled,
+          priority: config?.priority ?? orderByProvider.get(providerRow.id) ?? 0,
+          health:
+            healthByProvider.get(providerRow.id) ?? createHealthyProviderHealth(providerRow.id),
+        };
+      })
+      .sort((left, right) => left.priority - right.priority);
   }
 
   async updateProviderConfig(
@@ -256,13 +641,36 @@ export class RelayService {
     input: UpdateProviderConfigInput,
   ) {
     await this.ensureProvidersSeeded();
+
+    const [provider, preferences, existing] = await Promise.all([
+      this.getProviderOrThrow(providerId),
+      this.getPreferences(userId),
+      db
+        .select()
+        .from(providerConfigs)
+        .where(and(eq(providerConfigs.userId, userId), eq(providerConfigs.providerId, providerId)))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+    ]);
+
+    if (
+      provider.metadata.requiresAdultGate &&
+      input.enabled === true &&
+      !preferences.adultContentVisible
+    ) {
+      throw Object.assign(
+        new Error("Enable adult content in settings before turning on adult providers."),
+        { statusCode: 403 },
+      );
+    }
+
     const [row] = await db
       .insert(providerConfigs)
       .values({
         userId,
         providerId,
-        enabled: input.enabled ?? true,
-        priority: input.priority ?? 0,
+        enabled: input.enabled ?? existing?.enabled ?? provider.metadata.defaultEnabled,
+        priority: input.priority ?? existing?.priority ?? 0,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -278,25 +686,77 @@ export class RelayService {
     return row;
   }
 
-  async search(userId: string, input: SearchInput): Promise<SearchPage[]> {
+  async search(userId: string, input: SearchInput): Promise<CatalogSearchResponse> {
     const availableProviders = await this.listProviders(userId);
     const registry = await this.registry();
-    const enabled = availableProviders
-      .filter((provider) => provider.enabled)
+    const enabledProviders = availableProviders
+      .filter((provider) => provider.enabled && provider.supportsSearch)
       .sort((left, right) => left.priority - right.priority);
 
-    const results: SearchPage[] = [];
-    for (const provider of enabled) {
-      const instance = registry.get(provider.id);
-      if (!instance || !instance.supportsSearch) continue;
-      results.push(await instance.search(input));
-    }
-    return results;
+    const providerResults = await Promise.all(
+      enabledProviders.map(async (providerSummary): Promise<CatalogSearchProviderResult> => {
+        const provider = registry.get(providerSummary.id);
+        if (!provider) {
+          return {
+            providerId: providerSummary.id,
+            displayName: providerSummary.displayName,
+            contentClass: providerSummary.contentClass,
+            status: "error",
+            latencyMs: null,
+            error: "Provider runtime is not registered.",
+            items: [],
+          };
+        }
+
+        const startedAt = Date.now();
+        try {
+          const page = await this.withProviderTimeout(
+            provider,
+            this.getProviderSearchTimeout(provider),
+            async (runtime, signal) =>
+              runtime.search(input, this.createProviderContext(signal)),
+          );
+
+          return {
+            providerId: providerSummary.id,
+            displayName: providerSummary.displayName,
+            contentClass: providerSummary.contentClass,
+            status: "success",
+            latencyMs: Date.now() - startedAt,
+            error: null,
+            items: page.items,
+          };
+        } catch (error) {
+          return {
+            providerId: providerSummary.id,
+            displayName: providerSummary.displayName,
+            contentClass: providerSummary.contentClass,
+            status: error instanceof ProviderTimeoutError ? "timeout" : "error",
+            latencyMs: Date.now() - startedAt,
+            error: error instanceof Error ? error.message : "Provider search failed.",
+            items: [],
+          };
+        }
+      }),
+    );
+
+    return {
+      query: input.query,
+      page: input.page,
+      limit: input.limit,
+      partial: providerResults.some((result) => result.status !== "success"),
+      providers: providerResults,
+      items: providerResults.flatMap((result) => result.items),
+    };
   }
 
-  async getAnime(providerId: string, externalAnimeId: string): Promise<AnimeDetails> {
-    const provider = await this.getProviderOrThrow(providerId);
-    const anime = await provider.getAnime({ providerId, externalAnimeId });
+  async getAnime(userId: string, providerId: string, externalAnimeId: string): Promise<AnimeDetails> {
+    const { provider } = await this.getProviderWithPreferences(userId, providerId);
+    const anime = await provider.getAnime(
+      { providerId, externalAnimeId },
+      this.createProviderContext(),
+    );
+
     await db
       .insert(catalogAnime)
       .values({
@@ -309,6 +769,8 @@ export class RelayService {
         status: anime.status,
         year: anime.year,
         language: anime.language,
+        contentClass: anime.contentClass,
+        requiresAdultGate: anime.requiresAdultGate,
         tags: anime.tags,
         totalEpisodes: anime.totalEpisodes,
         updatedAt: new Date(),
@@ -323,6 +785,8 @@ export class RelayService {
           status: anime.status,
           year: anime.year,
           language: anime.language,
+          contentClass: anime.contentClass,
+          requiresAdultGate: anime.requiresAdultGate,
           tags: anime.tags,
           totalEpisodes: anime.totalEpisodes,
           updatedAt: new Date(),
@@ -332,9 +796,16 @@ export class RelayService {
     return anime;
   }
 
-  async getEpisodes(providerId: string, externalAnimeId: string): Promise<EpisodeList> {
-    const provider = await this.getProviderOrThrow(providerId);
-    const payload = await provider.getEpisodes({ providerId, externalAnimeId });
+  async getEpisodes(
+    userId: string,
+    providerId: string,
+    externalAnimeId: string,
+  ): Promise<EpisodeList> {
+    const { provider } = await this.getProviderWithPreferences(userId, providerId);
+    const payload = await provider.getEpisodes(
+      { providerId, externalAnimeId },
+      this.createProviderContext(),
+    );
 
     for (const episode of payload.episodes) {
       await db
@@ -373,10 +844,17 @@ export class RelayService {
   }
 
   async listLibrary(userId: string): Promise<LibraryItemWithCategories[]> {
+    const allowedProviderIds = await this.getAllowedProviderIdsForUser(userId);
+    if (allowedProviderIds.length === 0) {
+      return [];
+    }
+
     const items = await db
       .select()
       .from(libraryItems)
-      .where(eq(libraryItems.userId, userId))
+      .where(
+        and(eq(libraryItems.userId, userId), inArray(libraryItems.providerId, allowedProviderIds)),
+      )
       .orderBy(desc(libraryItems.updatedAt));
 
     const ids = items.map((item) => item.id);
@@ -421,6 +899,8 @@ export class RelayService {
   }
 
   async addLibraryItem(userId: string, input: UpsertLibraryItemInput) {
+    await this.getProviderWithPreferences(userId, input.providerId);
+
     const [item] = await db
       .insert(libraryItems)
       .values({
@@ -432,6 +912,7 @@ export class RelayService {
         status: input.status,
       })
       .returning();
+
     return item;
   }
 
@@ -446,6 +927,7 @@ export class RelayService {
       })
       .where(and(eq(libraryItems.userId, userId), eq(libraryItems.id, libraryItemId)))
       .returning();
+
     return item;
   }
 
@@ -509,6 +991,7 @@ export class RelayService {
       })
       .where(and(eq(categories.userId, userId), eq(categories.id, categoryId)))
       .returning();
+
     return category;
   }
 
@@ -516,12 +999,15 @@ export class RelayService {
     await db
       .delete(categoryItems)
       .where(
-        inArray(
-          categoryItems.categoryId,
-          db
-            .select({ id: categories.id })
-            .from(categories)
-            .where(eq(categories.userId, userId)),
+        and(
+          eq(categoryItems.libraryItemId, libraryItemId),
+          inArray(
+            categoryItems.categoryId,
+            db
+              .select({ id: categories.id })
+              .from(categories)
+              .where(eq(categories.userId, userId)),
+          ),
         ),
       );
 
@@ -534,9 +1020,28 @@ export class RelayService {
     userId: string,
     input: CreatePlaybackSessionInput,
   ): Promise<PlaybackSession> {
-    const provider = await this.getProviderOrThrow(input.providerId);
-    const resolution = await provider.resolvePlayback(input);
-    const stream = resolution.streams.find((item) => item.isDefault) ?? resolution.streams[0]!;
+    const { provider } = await this.getProviderWithPreferences(userId, input.providerId);
+    const [existingSession] = await db
+      .select()
+      .from(playbackSessions)
+      .where(
+        and(
+          eq(playbackSessions.userId, userId),
+          eq(playbackSessions.providerId, input.providerId),
+          eq(playbackSessions.externalAnimeId, input.externalAnimeId),
+          eq(playbackSessions.externalEpisodeId, input.externalEpisodeId),
+        ),
+      )
+      .orderBy(desc(playbackSessions.createdAt))
+      .limit(1);
+
+    if (existingSession && existingSession.expiresAt > new Date()) {
+      if (existingSession.status === "resolving") {
+        void this.ensurePlaybackResolution(existingSession.id);
+      }
+
+      return this.toPlaybackSession(existingSession);
+    }
 
     const [session] = await db
       .insert(playbackSessions)
@@ -546,49 +1051,74 @@ export class RelayService {
         providerId: input.providerId,
         externalAnimeId: input.externalAnimeId,
         externalEpisodeId: input.externalEpisodeId,
-        streamUrl: stream.url,
-        mimeType: stream.mimeType,
-        headers: stream.headers,
-        subtitles: resolution.subtitles,
-        expiresAt: new Date(resolution.expiresAt),
+        status: "resolving",
+        proxyMode: "proxy",
+        headers: {},
+        cookies: {},
+        subtitles: [],
+        expiresAt: new Date(Date.now() + this.getPlaybackCacheTtlMs(provider)),
       })
       .returning();
 
-    return {
-      id: session.id,
-      userId: session.userId,
-      providerId: session.providerId,
-      externalAnimeId: session.externalAnimeId,
-      externalEpisodeId: session.externalEpisodeId,
-      streamUrl: session.streamUrl,
-      mimeType: session.mimeType,
-      subtitles: session.subtitles as PlaybackSession["subtitles"],
-      headers: session.headers as PlaybackSession["headers"],
-      expiresAt: session.expiresAt.toISOString(),
-      positionSeconds: session.positionSeconds,
-    };
+    const resolutionJob = this.ensurePlaybackResolution(session.id);
+    const resolvedWithinBudget = await Promise.race([
+      resolutionJob.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), PLAYBACK_ATTEMPT_TIMEOUT_MS)),
+    ]);
+
+    const latest = await this.getPlaybackSessionRow(userId, session.id);
+    if (!latest) {
+      throw Object.assign(new Error("Playback session not found after creation"), {
+        statusCode: 500,
+      });
+    }
+
+    if (!resolvedWithinBudget && latest.status === "resolving") {
+      return this.toPlaybackSession(latest);
+    }
+
+    return this.toPlaybackSession(await this.maybeMarkPlaybackExpired(latest));
   }
 
   async getPlaybackSession(userId: string, playbackSessionId: string): Promise<PlaybackSession | null> {
-    const [session] = await db
-      .select()
-      .from(playbackSessions)
-      .where(and(eq(playbackSessions.id, playbackSessionId), eq(playbackSessions.userId, userId)))
-      .limit(1);
+    const row = await this.getPlaybackSessionRow(userId, playbackSessionId);
+    if (!row) return null;
 
-    if (!session) return null;
+    const updated = await this.maybeMarkPlaybackExpired(row);
+    if (updated.status === "resolving") {
+      void this.ensurePlaybackResolution(updated.id);
+    }
+
+    return this.toPlaybackSession(updated);
+  }
+
+  async getPlaybackStreamTarget(
+    userId: string,
+    playbackSessionId: string,
+    requestPath?: string | null,
+  ): Promise<StreamTarget> {
+    const row = await this.getPlaybackSessionRow(userId, playbackSessionId);
+    if (!row) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+
+    const updated = await this.maybeMarkPlaybackExpired(row);
+    if (updated.status !== "ready" || !updated.upstreamUrl) {
+      throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
+    }
+
+    const targetUrl =
+      requestPath && requestPath.length > 0
+        ? new URL(requestPath, updated.upstreamUrl).toString()
+        : updated.upstreamUrl;
+
     return {
-      id: session.id,
-      userId: session.userId,
-      providerId: session.providerId,
-      externalAnimeId: session.externalAnimeId,
-      externalEpisodeId: session.externalEpisodeId,
-      streamUrl: session.streamUrl,
-      mimeType: session.mimeType,
-      subtitles: session.subtitles as PlaybackSession["subtitles"],
-      headers: session.headers as PlaybackSession["headers"],
-      expiresAt: session.expiresAt.toISOString(),
-      positionSeconds: session.positionSeconds,
+      sessionId: updated.id,
+      upstreamUrl: targetUrl,
+      mimeType: updated.mimeType ?? null,
+      proxyMode: updated.proxyMode as PlaybackProxyMode,
+      headers: updated.headers as Record<string, string>,
+      cookies: updated.cookies as Record<string, string>,
     };
   }
 
@@ -597,7 +1127,7 @@ export class RelayService {
     playbackSessionId: string,
     input: UpdatePlaybackProgressInput,
   ) {
-    const session = await this.getPlaybackSession(userId, playbackSessionId);
+    const session = await this.getPlaybackSessionRow(userId, playbackSessionId);
     if (!session) {
       throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
     }
@@ -605,11 +1135,16 @@ export class RelayService {
     const threshold = (await this.getPreferences(userId)).watchedThresholdPercent;
     const duration = input.durationSeconds ?? null;
     const percentComplete =
-      duration && duration > 0 ? Math.min(100, Math.round((input.positionSeconds / duration) * 100)) : 0;
+      duration && duration > 0
+        ? Math.min(100, Math.round((input.positionSeconds / duration) * 100))
+        : 0;
     const completed = percentComplete >= threshold;
 
     const [existingProgress] = await db
-      .select({ id: watchProgress.id })
+      .select({
+        id: watchProgress.id,
+        completed: watchProgress.completed,
+      })
       .from(watchProgress)
       .where(
         and(
@@ -635,7 +1170,7 @@ export class RelayService {
     } else {
       await db.insert(watchProgress).values({
         userId,
-        libraryItemId: null,
+        libraryItemId: session.libraryItemId,
         providerId: session.providerId,
         externalAnimeId: session.externalAnimeId,
         externalEpisodeId: session.externalEpisodeId,
@@ -674,7 +1209,7 @@ export class RelayService {
 
     await db.insert(historyEntries).values({
       userId,
-      libraryItemId: null,
+      libraryItemId: session.libraryItemId,
       providerId: session.providerId,
       externalAnimeId: session.externalAnimeId,
       externalEpisodeId: session.externalEpisodeId,
@@ -692,14 +1227,25 @@ export class RelayService {
       .set({ positionSeconds: input.positionSeconds })
       .where(eq(playbackSessions.id, playbackSessionId));
 
-    return { completed, percentComplete };
+    return {
+      completed,
+      percentComplete,
+      becameCompleted: completed && !existingProgress?.completed,
+    };
   }
 
   async getHistory(userId: string): Promise<HistoryEntry[]> {
+    const allowedProviderIds = await this.getAllowedProviderIdsForUser(userId);
+    if (allowedProviderIds.length === 0) {
+      return [];
+    }
+
     const rows = await db
       .select()
       .from(historyEntries)
-      .where(eq(historyEntries.userId, userId))
+      .where(
+        and(eq(historyEntries.userId, userId), inArray(historyEntries.providerId, allowedProviderIds)),
+      )
       .orderBy(desc(historyEntries.watchedAt))
       .limit(100);
 
@@ -721,10 +1267,17 @@ export class RelayService {
   }
 
   async getUpdates(userId: string) {
+    const allowedProviderIds = await this.getAllowedProviderIdsForUser(userId);
+    if (allowedProviderIds.length === 0) {
+      return [];
+    }
+
     return db
       .select()
       .from(libraryItems)
-      .where(eq(libraryItems.userId, userId))
+      .where(
+        and(eq(libraryItems.userId, userId), inArray(libraryItems.providerId, allowedProviderIds)),
+      )
       .orderBy(desc(libraryItems.updatedAt))
       .limit(30);
   }
@@ -742,6 +1295,7 @@ export class RelayService {
         },
       })
       .returning();
+
     return job;
   }
 
@@ -751,6 +1305,7 @@ export class RelayService {
       .from(importJobs)
       .where(and(eq(importJobs.id, jobId), eq(importJobs.userId, userId)))
       .limit(1);
+
     return job;
   }
 
@@ -761,15 +1316,14 @@ export class RelayService {
       .where(eq(trackerAccounts.userId, userId))
       .orderBy(desc(trackerAccounts.createdAt));
 
-    const entries = await db
-      .select()
-      .from(trackerEntries)
-      .where(
-        inArray(
-          trackerEntries.trackerAccountId,
-          accounts.map((account) => account.id),
-        ),
-      );
+    const accountIds = accounts.map((account) => account.id);
+    const entries =
+      accountIds.length === 0
+        ? []
+        : await db
+            .select()
+            .from(trackerEntries)
+            .where(inArray(trackerEntries.trackerAccountId, accountIds));
 
     return {
       accounts,
@@ -787,6 +1341,7 @@ export class RelayService {
         status: "pending",
       })
       .returning();
+
     return {
       ...account,
       note: "OAuth flow is scaffolded but not implemented in this pass.",
@@ -799,7 +1354,12 @@ export class RelayService {
       .where(and(eq(trackerAccounts.userId, userId), eq(trackerAccounts.trackerId, trackerId)));
   }
 
-  async recordProviderHealth(providerId: string, status: string, message?: string) {
-    await db.insert(providerHealthEvents).values({ providerId, status, message });
+  async recordProviderHealth(
+    providerId: string,
+    status: ProviderHealth["status"],
+    reason: ProviderHealth["reason"],
+    message?: string,
+  ) {
+    await db.insert(providerHealthEvents).values({ providerId, status, reason, message });
   }
 }

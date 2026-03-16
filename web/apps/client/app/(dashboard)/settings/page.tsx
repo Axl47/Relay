@@ -14,15 +14,59 @@ type MeResponse = {
     librarySortMode: string;
     autoplayNextEpisode: boolean;
     watchedThresholdPercent: number;
+    adultContentVisible: boolean;
+    allowedContentClasses: string[];
   };
 };
 
 export default function SettingsPage() {
   const [data, setData] = useState<MeResponse | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<MeResponse>("/me").then(setData).catch(() => setData(null));
+    apiFetch<MeResponse>("/me")
+      .then((response) => {
+        setData(response);
+        setMessage(null);
+      })
+      .catch(() => setData(null));
   }, []);
+
+  async function toggleAdultContent() {
+    if (!data) {
+      return;
+    }
+
+    const enabling = !data.preferences.adultContentVisible;
+    if (
+      enabling &&
+      !window.confirm(
+        "Enable hentai and JAV providers for this account? Relay will surface adult catalog and playback routes after this change.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const preferences = await apiFetch<MeResponse["preferences"]>("/me/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({
+          adultContentVisible: enabling,
+          allowedContentClasses: enabling ? ["anime", "hentai", "jav"] : ["anime"],
+        }),
+      });
+      setData((current) => (current ? { ...current, preferences } : current));
+      setMessage(
+        enabling
+          ? "Adult providers are now visible. Provider enablement stays separate."
+          : "Adult providers are hidden again for this account.",
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Unable to update adult content preferences.",
+      );
+    }
+  }
 
   return (
     <div className="page-grid">
@@ -78,11 +122,25 @@ export default function SettingsPage() {
                 <p>{data.preferences.watchedThresholdPercent}%</p>
               </div>
             </div>
+            <div className="list-item">
+              <div className="list-item-main">
+                <strong>Adult content visibility</strong>
+                <p>
+                  {data.preferences.adultContentVisible ? "enabled" : "disabled"} · allowed classes{" "}
+                  {data.preferences.allowedContentClasses.join(", ")}
+                </p>
+              </div>
+              <button className="button-secondary" onClick={toggleAdultContent} type="button">
+                {data.preferences.adultContentVisible ? "Hide Adult Sources" : "Enable Adult Sources"}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="message">No authenticated session detected.</div>
         )}
       </section>
+
+      {message ? <div className="message">{message}</div> : null}
     </div>
   );
 }

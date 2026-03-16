@@ -11,8 +11,13 @@ type Props = {
 
 export function VideoPlayer({ session }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
+    if (!session.streamUrl || session.mimeType === "text/html") {
+      return;
+    }
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -47,6 +52,18 @@ export function VideoPlayer({ session }: Props) {
       hls?.destroy();
     };
   }, [session]);
+
+  if (session.mimeType === "text/html" && session.streamUrl) {
+    return (
+      <iframe
+        allow="autoplay; fullscreen"
+        className="video"
+        ref={iframeRef}
+        src={session.streamUrl}
+        title="Embedded provider player"
+      />
+    );
+  }
 
   return <video className="video" controls ref={videoRef} />;
 }

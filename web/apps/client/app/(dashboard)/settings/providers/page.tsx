@@ -54,11 +54,22 @@ export default function ProviderSettingsPage() {
             <div className="list-item-main">
               <strong>{provider.displayName}</strong>
               <p>
-                {provider.id} · priority {provider.priority} · {provider.health}
+                {provider.id} · priority {provider.priority} · {provider.executionMode}
+              </p>
+              <p>
+                class {provider.contentClass} · adult gate{" "}
+                {provider.requiresAdultGate ? "required" : "not required"} · search{" "}
+                {provider.supportsSearch ? "on" : "off"} · tracker sync{" "}
+                {provider.supportsTrackerSync ? "on" : "off"}
+              </p>
+              <p>
+                health {provider.health.status} ({provider.health.reason}) · checked{" "}
+                {new Date(provider.health.checkedAt).toLocaleString()}
               </p>
             </div>
             <div className="actions">
               <span className="badge">{provider.enabled ? "enabled" : "disabled"}</span>
+              <span className="badge">{provider.contentClass.toUpperCase()}</span>
               <button className="button-secondary" onClick={() => toggleProvider(provider)} type="button">
                 Toggle
               </button>

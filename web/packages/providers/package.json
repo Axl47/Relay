@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "cheerio": "^1.0.0",
     "@relay/contracts": "0.1.0",
     "@relay/provider-sdk": "0.1.0"
   },

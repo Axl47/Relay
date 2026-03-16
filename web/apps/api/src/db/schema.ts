@@ -39,7 +39,13 @@ export const sessions = pgTable("sessions", {
 export const providers = pgTable("providers", {
   id: varchar("id", { length: 64 }).primaryKey(),
   displayName: varchar("display_name", { length: 120 }).notNull(),
+  baseUrl: text("base_url").notNull(),
+  contentClass: varchar("content_class", { length: 16 }).notNull().default("anime"),
+  executionMode: varchar("execution_mode", { length: 16 }).notNull().default("http"),
+  requiresAdultGate: boolean("requires_adult_gate").notNull().default(false),
   supportsSearch: boolean("supports_search").notNull().default(true),
+  supportsTrackerSync: boolean("supports_tracker_sync").notNull().default(false),
+  defaultEnabled: boolean("default_enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -54,8 +60,6 @@ export const providerConfigs = pgTable(
       .references(() => providers.id, { onDelete: "cascade" }),
     enabled: boolean("enabled").notNull().default(true),
     priority: integer("priority").notNull().default(0),
-    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
-    health: varchar("health", { length: 16 }).notNull().default("healthy"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -77,6 +81,8 @@ export const catalogAnime = pgTable(
     status: varchar("status", { length: 32 }).notNull().default("unknown"),
     year: integer("year"),
     language: varchar("language", { length: 16 }).notNull().default("en"),
+    contentClass: varchar("content_class", { length: 16 }).notNull().default("anime"),
+    requiresAdultGate: boolean("requires_adult_gate").notNull().default(false),
     tags: jsonb("tags").notNull().default([]),
     totalEpisodes: integer("total_episodes"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -210,10 +216,14 @@ export const playbackSessions = pgTable("playback_sessions", {
   providerId: varchar("provider_id", { length: 64 }).notNull(),
   externalAnimeId: varchar("external_anime_id", { length: 255 }).notNull(),
   externalEpisodeId: varchar("external_episode_id", { length: 255 }).notNull(),
-  streamUrl: text("stream_url").notNull(),
-  mimeType: varchar("mime_type", { length: 128 }).notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("resolving"),
+  proxyMode: varchar("proxy_mode", { length: 16 }).notNull().default("proxy"),
+  upstreamUrl: text("upstream_url"),
+  mimeType: varchar("mime_type", { length: 128 }),
   headers: jsonb("headers").notNull().default({}),
+  cookies: jsonb("cookies").notNull().default({}),
   subtitles: jsonb("subtitles").notNull().default([]),
+  error: text("error"),
   positionSeconds: integer("position_seconds").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -261,6 +271,7 @@ export const providerHealthEvents = pgTable("provider_health_events", {
     .notNull()
     .references(() => providers.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 32 }).notNull().default("ok"),
   message: text("message"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

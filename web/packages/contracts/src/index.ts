@@ -4,6 +4,30 @@ export const providerIdSchema = z.string().min(1);
 export const externalIdSchema = z.string().min(1);
 export const isoDateSchema = z.string().datetime().or(z.string().min(1));
 
+export const providerContentClassSchema = z.enum(["anime", "hentai", "jav"]);
+export const providerExecutionModeSchema = z.enum(["http", "browser"]);
+export const playbackProxyModeSchema = z.enum(["proxy", "redirect"]);
+export const playbackSessionStatusSchema = z.enum([
+  "resolving",
+  "ready",
+  "failed",
+  "expired",
+]);
+export const providerHealthStatusSchema = z.enum(["healthy", "degraded", "offline"]);
+export const providerHealthReasonSchema = z.enum([
+  "ok",
+  "challenge_failed",
+  "parse_failed",
+  "rate_limited",
+  "upstream_error",
+]);
+export const catalogProviderSearchStatusSchema = z.enum([
+  "success",
+  "timeout",
+  "error",
+  "skipped",
+]);
+
 export const providerAnimeRefSchema = z.object({
   providerId: providerIdSchema,
   externalAnimeId: externalIdSchema,
@@ -17,12 +41,32 @@ export const providerEpisodeRefSchema = z.object({
 
 export const searchInputSchema = z.object({
   query: z.string().trim().min(1),
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(50).default(20),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const providerMetadataSchema = z.object({
+  id: providerIdSchema,
+  displayName: z.string().min(1),
+  baseUrl: z.string().url(),
+  contentClass: providerContentClassSchema,
+  executionMode: providerExecutionModeSchema,
+  requiresAdultGate: z.boolean().default(false),
+  supportsSearch: z.boolean().default(true),
+  supportsTrackerSync: z.boolean().default(false),
+  defaultEnabled: z.boolean().default(true),
+});
+
+export const providerHealthSchema = z.object({
+  providerId: providerIdSchema,
+  status: providerHealthStatusSchema.default("healthy"),
+  reason: providerHealthReasonSchema.default("ok"),
+  checkedAt: z.string(),
 });
 
 export const searchResultSchema = z.object({
   providerId: providerIdSchema,
+  providerDisplayName: z.string().min(1),
   externalAnimeId: externalIdSchema,
   title: z.string().min(1),
   synopsis: z.string().nullable().default(null),
@@ -30,6 +74,8 @@ export const searchResultSchema = z.object({
   year: z.number().int().nullable().default(null),
   kind: z.enum(["tv", "movie", "ova", "special", "unknown"]).default("unknown"),
   language: z.string().min(1).default("en"),
+  contentClass: providerContentClassSchema.default("anime"),
+  requiresAdultGate: z.boolean().default(false),
 });
 
 export const searchPageSchema = z.object({
@@ -38,6 +84,25 @@ export const searchPageSchema = z.object({
   page: z.number().int().min(1),
   hasNextPage: z.boolean().default(false),
   items: z.array(searchResultSchema),
+});
+
+export const catalogSearchProviderResultSchema = z.object({
+  providerId: providerIdSchema,
+  displayName: z.string().min(1),
+  contentClass: providerContentClassSchema,
+  status: catalogProviderSearchStatusSchema.default("success"),
+  latencyMs: z.number().int().nonnegative().nullable().default(null),
+  error: z.string().nullable().default(null),
+  items: z.array(searchResultSchema).default([]),
+});
+
+export const catalogSearchResponseSchema = z.object({
+  query: z.string().min(1),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1),
+  partial: z.boolean().default(false),
+  providers: z.array(catalogSearchProviderResultSchema).default([]),
+  items: z.array(searchResultSchema).default([]),
 });
 
 export const episodeSummarySchema = z.object({
@@ -60,6 +125,7 @@ export const episodeListSchema = z.object({
 
 export const animeDetailsSchema = z.object({
   providerId: providerIdSchema,
+  providerDisplayName: z.string().min(1),
   externalAnimeId: externalIdSchema,
   title: z.string().min(1),
   synopsis: z.string().nullable().default(null),
@@ -70,6 +136,8 @@ export const animeDetailsSchema = z.object({
   tags: z.array(z.string()).default([]),
   language: z.string().min(1).default("en"),
   totalEpisodes: z.number().int().nullable().default(null),
+  contentClass: providerContentClassSchema.default("anime"),
+  requiresAdultGate: z.boolean().default(false),
 });
 
 export const resolvedSubtitleTrackSchema = z.object({
@@ -88,8 +156,11 @@ export const resolvedStreamSchema = z.object({
     "application/vnd.apple.mpegurl",
     "video/mp4",
     "application/dash+xml",
+    "text/html",
   ]),
   headers: z.record(z.string()).default({}),
+  cookies: z.record(z.string()).default({}),
+  proxyMode: playbackProxyModeSchema.default("proxy"),
   isDefault: z.boolean().default(false),
 });
 
@@ -103,14 +174,10 @@ export const playbackResolutionSchema = z.object({
   expiresAt: z.string().min(1),
 });
 
-export const providerSummarySchema = z.object({
-  id: providerIdSchema,
-  displayName: z.string().min(1),
+export const providerSummarySchema = providerMetadataSchema.extend({
   enabled: z.boolean(),
   priority: z.number().int().min(0),
-  supportsSearch: z.boolean(),
-  health: z.enum(["healthy", "degraded", "offline"]).default("healthy"),
-  lastCheckedAt: z.string().nullable().default(null),
+  health: providerHealthSchema,
 });
 
 export const libraryDisplayModeSchema = z.enum(["grid", "list", "compact"]);
@@ -130,7 +197,11 @@ export const userPreferencesSchema = z.object({
   preferredSubtitleLanguage: z.string().default("en"),
   watchedThresholdPercent: z.number().int().min(1).max(100).default(90),
   updatesRefreshIntervalMinutes: z.number().int().min(15).default(180),
+  adultContentVisible: z.boolean().default(false),
+  allowedContentClasses: z.array(providerContentClassSchema).default(["anime"]),
 });
+
+export const updateUserPreferencesInputSchema = userPreferencesSchema.partial();
 
 export const categorySchema = z.object({
   id: z.string().uuid(),
@@ -162,7 +233,7 @@ export const libraryItemWithCategoriesSchema = libraryItemSchema.extend({
 export const watchProgressSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
-  libraryItemId: z.string().uuid(),
+  libraryItemId: z.string().uuid().nullable().default(null),
   providerId: providerIdSchema,
   externalAnimeId: externalIdSchema,
   externalEpisodeId: externalIdSchema,
@@ -195,12 +266,15 @@ export const playbackSessionSchema = z.object({
   providerId: providerIdSchema,
   externalAnimeId: externalIdSchema,
   externalEpisodeId: externalIdSchema,
-  streamUrl: z.string().url(),
-  mimeType: z.string().min(1),
+  status: playbackSessionStatusSchema.default("resolving"),
+  proxyMode: playbackProxyModeSchema.default("proxy"),
+  streamUrl: z.string().url().nullable().default(null),
+  mimeType: z.string().min(1).nullable().default(null),
   subtitles: z.array(resolvedSubtitleTrackSchema).default([]),
   headers: z.record(z.string()).default({}),
   expiresAt: z.string(),
   positionSeconds: z.number().nonnegative().default(0),
+  error: z.string().nullable().default(null),
 });
 
 export const authBootstrapInputSchema = z.object({
@@ -275,11 +349,22 @@ export const importJobSchema = z.object({
   updatedAt: z.string(),
 });
 
+export type ProviderContentClass = z.infer<typeof providerContentClassSchema>;
+export type ProviderExecutionMode = z.infer<typeof providerExecutionModeSchema>;
+export type PlaybackProxyMode = z.infer<typeof playbackProxyModeSchema>;
+export type PlaybackSessionStatus = z.infer<typeof playbackSessionStatusSchema>;
+export type ProviderHealthStatus = z.infer<typeof providerHealthStatusSchema>;
+export type ProviderHealthReason = z.infer<typeof providerHealthReasonSchema>;
+export type CatalogProviderSearchStatus = z.infer<typeof catalogProviderSearchStatusSchema>;
 export type ProviderAnimeRef = z.infer<typeof providerAnimeRefSchema>;
 export type ProviderEpisodeRef = z.infer<typeof providerEpisodeRefSchema>;
 export type SearchInput = z.infer<typeof searchInputSchema>;
+export type ProviderMetadata = z.infer<typeof providerMetadataSchema>;
+export type ProviderHealth = z.infer<typeof providerHealthSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export type SearchPage = z.infer<typeof searchPageSchema>;
+export type CatalogSearchProviderResult = z.infer<typeof catalogSearchProviderResultSchema>;
+export type CatalogSearchResponse = z.infer<typeof catalogSearchResponseSchema>;
 export type EpisodeSummary = z.infer<typeof episodeSummarySchema>;
 export type EpisodeList = z.infer<typeof episodeListSchema>;
 export type AnimeDetails = z.infer<typeof animeDetailsSchema>;
@@ -288,6 +373,7 @@ export type ResolvedStream = z.infer<typeof resolvedStreamSchema>;
 export type PlaybackResolution = z.infer<typeof playbackResolutionSchema>;
 export type ProviderSummary = z.infer<typeof providerSummarySchema>;
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
+export type UpdateUserPreferencesInput = z.infer<typeof updateUserPreferencesInputSchema>;
 export type Category = z.infer<typeof categorySchema>;
 export type LibraryItem = z.infer<typeof libraryItemSchema>;
 export type LibraryItemWithCategories = z.infer<typeof libraryItemWithCategoriesSchema>;

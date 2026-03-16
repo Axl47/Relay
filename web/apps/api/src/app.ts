@@ -1,8 +1,9 @@
+import { Readable } from "node:stream";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import {
   assignCategoriesInputSchema,
   authBootstrapInputSchema,
@@ -14,6 +15,7 @@ import {
   updateLibraryItemInputSchema,
   updatePlaybackProgressInputSchema,
   updateProviderConfigInputSchema,
+  updateUserPreferencesInputSchema,
   upsertLibraryItemInputSchema,
 } from "@relay/contracts";
 import { appConfig } from "./config";
@@ -101,6 +103,12 @@ export async function buildApi() {
     return { user, preferences };
   });
 
+  app.patch("/me/preferences", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(updateUserPreferencesInputSchema, request);
+    return relay.updatePreferences(user.id, payload);
+  });
+
   app.get("/providers", async (request) => {
     const user = await requireUser(request);
     return relay.listProviders(user.id);
@@ -120,21 +128,21 @@ export async function buildApi() {
   });
 
   app.get("/catalog/:providerId/anime/:externalAnimeId", async (request) => {
-    await requireUser(request);
+    const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {
       providerId: string;
       externalAnimeId: string;
     };
-    return relay.getAnime(providerId, externalAnimeId);
+    return relay.getAnime(user.id, providerId, externalAnimeId);
   });
 
   app.get("/catalog/:providerId/anime/:externalAnimeId/episodes", async (request) => {
-    await requireUser(request);
+    const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {
       providerId: string;
       externalAnimeId: string;
     };
-    return relay.getEpisodes(providerId, externalAnimeId);
+    return relay.getEpisodes(user.id, providerId, externalAnimeId);
   });
 
   app.get("/library", async (request) => {
@@ -191,13 +199,16 @@ export async function buildApi() {
     return { ok: true };
   });
 
-  app.post("/playback/sessions", async (request) => {
+  app.post("/playback/sessions", async (request, reply) => {
     const user = await requireUser(request);
     const payload = parseBody(createPlaybackSessionInputSchema, request);
-    return relay.createPlaybackSession(user.id, {
+    const session = await relay.createPlaybackSession(user.id, {
       ...payload,
       libraryItemId: payload.libraryItemId ?? null,
     });
+    reply
+      .status(session.status === "ready" ? 201 : 202)
+      .send(session);
   });
 
   app.get("/playback/sessions/:id", async (request) => {
@@ -216,15 +227,54 @@ export async function buildApi() {
     });
   });
 
-  app.get("/stream/:sessionId", async (request, reply) => {
+  async function handleStreamRequest(request: FastifyRequest, reply: FastifyReply) {
     const user = await requireUser(request);
-    const sessionId = (request.params as { sessionId: string }).sessionId;
-    const session = await relay.getPlaybackSession(user.id, sessionId);
-    if (!session) {
-      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    const params = request.params as { sessionId: string; "*": string | undefined };
+    const target = await relay.getPlaybackStreamTarget(user.id, params.sessionId, params["*"] ?? null);
+    const cookieHeader = Object.entries(target.cookies)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("; ");
+
+    if (
+      target.proxyMode === "redirect" &&
+      Object.keys(target.headers).length === 0 &&
+      Object.keys(target.cookies).length === 0
+    ) {
+      return reply.redirect(target.upstreamUrl);
     }
-    return reply.redirect(session.streamUrl);
-  });
+
+    const upstream = await fetch(target.upstreamUrl, {
+      headers: {
+        ...target.headers,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
+    });
+
+    reply.status(upstream.status);
+
+    const passthroughHeaders = [
+      "content-type",
+      "content-length",
+      "cache-control",
+      "accept-ranges",
+      "content-range",
+    ];
+    for (const headerName of passthroughHeaders) {
+      const value = upstream.headers.get(headerName);
+      if (value) {
+        reply.header(headerName, value);
+      }
+    }
+
+    if (!upstream.body) {
+      return reply.send(await upstream.text());
+    }
+
+    return reply.send(Readable.fromWeb(upstream.body as never));
+  }
+
+  app.get("/stream/:sessionId", handleStreamRequest);
+  app.get("/stream/:sessionId/*", handleStreamRequest);
 
   app.get("/history", async (request) => {
     const user = await requireUser(request);
