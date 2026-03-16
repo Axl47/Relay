@@ -107,6 +107,10 @@ export class BrowserExtractionService {
     providerId: string,
     operation: "search" | "anime" | "episodes" | "playback",
   ) {
+    if (providerId === "animepahe" && operation === "playback") {
+      return Math.max(this.timeoutMs, 45_000);
+    }
+
     if (providerId === "hanime" && operation === "playback") {
       return Math.max(this.timeoutMs, 45_000);
     }
