@@ -1,0 +1,276 @@
+import cookie from "@fastify/cookie";
+import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
+import Fastify from "fastify";
+import type { FastifyRequest } from "fastify";
+import {
+  assignCategoriesInputSchema,
+  authBootstrapInputSchema,
+  authLoginInputSchema,
+  createCategoryInputSchema,
+  createPlaybackSessionInputSchema,
+  searchInputSchema,
+  updateCategoryInputSchema,
+  updateLibraryItemInputSchema,
+  updatePlaybackProgressInputSchema,
+  updateProviderConfigInputSchema,
+  upsertLibraryItemInputSchema,
+} from "@relay/contracts";
+import { appConfig } from "./config";
+import { parseBody, setSessionCookie } from "./lib/http";
+import { RelayService } from "./services/relay-service";
+
+declare module "fastify" {
+  interface FastifyRequest {
+    sessionUser?: Awaited<ReturnType<RelayService["getSessionUser"]>>;
+  }
+}
+
+export async function buildApi() {
+  const app = Fastify({ logger: true });
+  const relay = new RelayService();
+
+  await app.register(cors, {
+    origin: appConfig.CORS_ORIGIN,
+    credentials: true,
+  });
+  await app.register(cookie);
+  await app.register(multipart);
+
+  app.decorateRequest("sessionUser", null);
+
+  app.addHook("preHandler", async (request) => {
+    const sessionId =
+      request.cookies[appConfig.SESSION_COOKIE_NAME] ??
+      request.headers["x-relay-session"]?.toString() ??
+      null;
+    request.sessionUser = await relay.getSessionUser(sessionId);
+  });
+
+  app.setErrorHandler((error, _request, reply) => {
+    const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
+    reply.status(statusCode).send({
+      error: error instanceof Error ? error.message : "Unknown error",
+      details: (error as { details?: unknown }).details ?? null,
+    });
+  });
+
+  async function requireUser(request: FastifyRequest) {
+    if (!request.sessionUser) {
+      throw Object.assign(new Error("Authentication required"), { statusCode: 401 });
+    }
+    return request.sessionUser;
+  }
+
+  async function requireAdmin(request: FastifyRequest) {
+    const user = await requireUser(request);
+    if (!user.isAdmin) {
+      throw Object.assign(new Error("Admin access required"), { statusCode: 403 });
+    }
+    return user;
+  }
+
+  app.get("/health", async () => ({ ok: true }));
+
+  app.post("/auth/bootstrap", async (request, reply) => {
+    const payload = parseBody(authBootstrapInputSchema, request);
+    const response = await relay.bootstrap(payload);
+    setSessionCookie(reply, appConfig.SESSION_COOKIE_NAME, response.sessionId);
+    return response;
+  });
+
+  app.post("/auth/login", async (request, reply) => {
+    const payload = parseBody(authLoginInputSchema, request);
+    const response = await relay.login(payload);
+    setSessionCookie(reply, appConfig.SESSION_COOKIE_NAME, response.sessionId);
+    return response;
+  });
+
+  app.post("/auth/logout", async (request, reply) => {
+    const sessionId = request.cookies[appConfig.SESSION_COOKIE_NAME];
+    if (sessionId) {
+      await relay.logout(sessionId);
+    }
+    reply.clearCookie(appConfig.SESSION_COOKIE_NAME, { path: "/" });
+    return { ok: true };
+  });
+
+  app.get("/me", async (request) => {
+    const user = await requireUser(request);
+    const preferences = await relay.getPreferences(user.id);
+    return { user, preferences };
+  });
+
+  app.get("/providers", async (request) => {
+    const user = await requireUser(request);
+    return relay.listProviders(user.id);
+  });
+
+  app.patch("/providers/:providerId/config", async (request) => {
+    const user = await requireAdmin(request);
+    const payload = parseBody(updateProviderConfigInputSchema, request);
+    const providerId = (request.params as { providerId: string }).providerId;
+    return relay.updateProviderConfig(user.id, providerId, payload);
+  });
+
+  app.get("/catalog/search", async (request) => {
+    const user = await requireUser(request);
+    const query = searchInputSchema.parse(request.query);
+    return relay.search(user.id, query);
+  });
+
+  app.get("/catalog/:providerId/anime/:externalAnimeId", async (request) => {
+    await requireUser(request);
+    const { providerId, externalAnimeId } = request.params as {
+      providerId: string;
+      externalAnimeId: string;
+    };
+    return relay.getAnime(providerId, externalAnimeId);
+  });
+
+  app.get("/catalog/:providerId/anime/:externalAnimeId/episodes", async (request) => {
+    await requireUser(request);
+    const { providerId, externalAnimeId } = request.params as {
+      providerId: string;
+      externalAnimeId: string;
+    };
+    return relay.getEpisodes(providerId, externalAnimeId);
+  });
+
+  app.get("/library", async (request) => {
+    const user = await requireUser(request);
+    const [items, categories] = await Promise.all([
+      relay.listLibrary(user.id),
+      relay.listCategories(user.id),
+    ]);
+    return { items, categories };
+  });
+
+  app.post("/library/items", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(upsertLibraryItemInputSchema, request);
+    return relay.addLibraryItem(user.id, {
+      ...payload,
+      status: payload.status ?? "watching",
+      coverImage: payload.coverImage ?? null,
+    });
+  });
+
+  app.patch("/library/items/:id", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(updateLibraryItemInputSchema, request);
+    const id = (request.params as { id: string }).id;
+    return relay.updateLibraryItem(user.id, id, payload);
+  });
+
+  app.delete("/library/items/:id", async (request) => {
+    const user = await requireUser(request);
+    const id = (request.params as { id: string }).id;
+    await relay.deleteLibraryItem(user.id, id);
+    return { ok: true };
+  });
+
+  app.post("/library/categories", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(createCategoryInputSchema, request);
+    return relay.createCategory(user.id, payload);
+  });
+
+  app.patch("/library/categories/:id", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(updateCategoryInputSchema, request);
+    const id = (request.params as { id: string }).id;
+    return relay.updateCategory(user.id, id, payload);
+  });
+
+  app.post("/library/items/:id/categories", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(assignCategoriesInputSchema, request);
+    const id = (request.params as { id: string }).id;
+    await relay.assignCategories(user.id, id, payload);
+    return { ok: true };
+  });
+
+  app.post("/playback/sessions", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(createPlaybackSessionInputSchema, request);
+    return relay.createPlaybackSession(user.id, {
+      ...payload,
+      libraryItemId: payload.libraryItemId ?? null,
+    });
+  });
+
+  app.get("/playback/sessions/:id", async (request) => {
+    const user = await requireUser(request);
+    const id = (request.params as { id: string }).id;
+    return relay.getPlaybackSession(user.id, id);
+  });
+
+  app.post("/playback/sessions/:id/progress", async (request) => {
+    const user = await requireUser(request);
+    const payload = parseBody(updatePlaybackProgressInputSchema, request);
+    const id = (request.params as { id: string }).id;
+    return relay.updatePlaybackProgress(user.id, id, {
+      ...payload,
+      durationSeconds: payload.durationSeconds ?? null,
+    });
+  });
+
+  app.get("/stream/:sessionId", async (request, reply) => {
+    const user = await requireUser(request);
+    const sessionId = (request.params as { sessionId: string }).sessionId;
+    const session = await relay.getPlaybackSession(user.id, sessionId);
+    if (!session) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+    return reply.redirect(session.streamUrl);
+  });
+
+  app.get("/history", async (request) => {
+    const user = await requireUser(request);
+    return relay.getHistory(user.id);
+  });
+
+  app.get("/updates", async (request) => {
+    const user = await requireUser(request);
+    return relay.getUpdates(user.id);
+  });
+
+  app.post("/trackers/:trackerId/connect", async (request) => {
+    const user = await requireUser(request);
+    const trackerId = (request.params as { trackerId: "anilist" | "mal" }).trackerId;
+    return relay.createTrackerConnection(user.id, trackerId);
+  });
+
+  app.delete("/trackers/:trackerId/connect", async (request) => {
+    const user = await requireUser(request);
+    const trackerId = (request.params as { trackerId: string }).trackerId;
+    await relay.deleteTrackerConnection(user.id, trackerId);
+    return { ok: true };
+  });
+
+  app.get("/trackers/entries", async (request) => {
+    const user = await requireUser(request);
+    return relay.getTrackerEntries(user.id);
+  });
+
+  app.patch("/trackers/entries/:id", async () => {
+    throw Object.assign(
+      new Error("Tracker entry updates are scaffolded but not implemented in this pass."),
+      { statusCode: 501 },
+    );
+  });
+
+  app.post("/imports/android-backup", async (request) => {
+    const user = await requireAdmin(request);
+    return relay.createImportJob(user.id);
+  });
+
+  app.get("/imports/:jobId", async (request) => {
+    const user = await requireUser(request);
+    const jobId = (request.params as { jobId: string }).jobId;
+    return relay.getImportJob(user.id, jobId);
+  });
+
+  return app;
+}

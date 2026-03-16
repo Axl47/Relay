@@ -1,0 +1,34 @@
+{
+  "name": "@relay/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "db:push": "drizzle-kit push",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "node --eval \"console.log('API tests are not wired yet')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/multipart": "^9.0.3",
+    "@relay/contracts": "0.1.0",
+    "@relay/providers": "0.1.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.39.3",
+    "fastify": "^5.2.1",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/pg": "^8.11.11",
+    "drizzle-kit": "^0.30.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

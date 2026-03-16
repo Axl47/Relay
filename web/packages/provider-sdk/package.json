@@ -1,0 +1,17 @@
+{
+  "name": "@relay/provider-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "node --eval \"console.log('No provider-sdk package tests yet')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@relay/contracts": "0.1.0"
+  }
+}

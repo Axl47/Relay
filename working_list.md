@@ -1,27 +1,19 @@
----
-created_at: 2026-02-22T04:37
-updated_at: 2026-02-24T16:22
----
 # Working List
 ## Pending
-- [ ] None
+- [ ] Replace the demo provider with the final curated source list
+- [ ] Implement AniList and MAL OAuth callback flows
+- [ ] Implement Android backup parsing and import normalization
 
 ## In Progress
-- [~] None
+- [~] Prepare the next delivery pass around real providers and external integrations
 
 ## Done
-- [x] Reviewed existing backup/restore and extension install architecture
-- [x] Confirmed non-destructive merge behavior in restore pipeline
-- [x] Collected user decisions for migration strategy and UX defaults
-- [x] Added Aniyomi migration detection/discovery services and models
-- [x] Added migration preferences state store and DI wiring
-- [x] Implemented migration worker with backup decode + extension private-copy + restore handoff
-- [x] Added migration launch mode to restore flow and wired to migration job
-- [x] Added migration screen in Data settings with auto-discovery + picker fallback
-- [x] Added first-run migration prompt in MainActivity and prompt state handling
-- [x] Added migration strings/copy
-- [x] Added unit tests for discovery, detector, extension planning, and restore mode defaults
-- [x] Ran compile + targeted tests and captured verification output
-
-## Blocked
-- [!] None
+- [x] Initialize working list and web platform scaffold
+- [x] Create the `web/` workspace, package layout, and base tooling
+- [x] Implement shared contracts and provider SDK packages
+- [x] Implement the provider registry with a built-in demo provider
+- [x] Implement the API app foundation, schemas, and core endpoints
+- [x] Implement the worker app for refresh, playback, and import stubs
+- [x] Implement the Next.js client shell and core routes
+- [x] Add local deployment files and environment documentation
+- [x] Install dependencies and run verification

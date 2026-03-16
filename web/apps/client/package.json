@@ -1,0 +1,27 @@
+{
+  "name": "@relay/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "node --eval \"console.log('Client tests are not wired yet')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@relay/contracts": "0.1.0",
+    "@tanstack/react-query": "^5.69.0",
+    "hls.js": "^1.6.2",
+    "next": "^15.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "typescript": "^5.7.3"
+  }
+}
