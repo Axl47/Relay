@@ -20,6 +20,7 @@ import {
 } from "@relay/contracts";
 import { appConfig } from "./config";
 import { parseBody, setSessionCookie } from "./lib/http";
+import { convertSubtitleToVtt } from "./lib/subtitles";
 import { RelayService } from "./services/relay-service";
 
 const DEFAULT_STREAM_USER_AGENT =
@@ -228,6 +229,33 @@ export async function buildApi() {
       ...payload,
       durationSeconds: payload.durationSeconds ?? null,
     });
+  });
+
+  app.get("/playback/sessions/:id/subtitles/:index", async (request, reply) => {
+    const params = request.params as { id: string; index: string };
+    const index = Number.parseInt(params.index, 10);
+    const subtitle = request.sessionUser
+      ? await relay.getPlaybackSubtitleTrack(request.sessionUser.id, params.id, index)
+      : await relay.getPlaybackSubtitleTrackBySessionId(params.id, index);
+
+    const upstream = await fetch(subtitle.url, {
+      headers: {
+        "user-agent": DEFAULT_STREAM_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+      },
+    });
+    if (!upstream.ok) {
+      throw Object.assign(
+        new Error(`Subtitle request failed with status ${upstream.status}`),
+        { statusCode: 502 },
+      );
+    }
+
+    const body = convertSubtitleToVtt(await upstream.text(), subtitle.format);
+    return reply
+      .header("cache-control", "private, max-age=300")
+      .type("text/vtt; charset=utf-8")
+      .send(body);
   });
 
   async function handleStreamRequest(request: FastifyRequest, reply: FastifyReply) {

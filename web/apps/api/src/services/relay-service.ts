@@ -69,6 +69,7 @@ const PROVIDER_RESOLUTION_TIMEOUT_MS = {
   http: 12_000,
   browser: 25_000,
 } as const;
+const HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS = 60_000;
 
 type SessionUser = {
   id: string;
@@ -87,6 +88,8 @@ type StreamTarget = {
   headers: Record<string, string>;
   cookies: Record<string, string>;
 };
+
+type SubtitleTrack = PlaybackSession["subtitles"][number];
 
 class ProviderTimeoutError extends Error {
   constructor(providerId: string, timeoutMs: number) {
@@ -219,6 +222,10 @@ export class RelayService {
   }
 
   private getProviderResolutionTimeout(provider: RelayProvider) {
+    if (provider.metadata.id === "hanime") {
+      return HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS;
+    }
+
     return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];
   }
 
@@ -309,6 +316,10 @@ export class RelayService {
       typeof row.upstreamUrl === "string" &&
       row.upstreamUrl.includes("komako-b-str.musume-h.xyz")
     ) {
+      return false;
+    }
+
+    if (row.providerId === "hanime" && row.mimeType === "text/html") {
       return false;
     }
 
@@ -1183,6 +1194,50 @@ export class RelayService {
       headers: updated.headers as Record<string, string>,
       cookies: updated.cookies as Record<string, string>,
     };
+  }
+
+  private resolvePlaybackSubtitleTrack(row: PlaybackSessionRow, index: number): SubtitleTrack {
+    if (!Number.isInteger(index) || index < 0) {
+      throw Object.assign(new Error("Subtitle track index must be a non-negative integer"), {
+        statusCode: 400,
+      });
+    }
+
+    const subtitles = row.subtitles as PlaybackSession["subtitles"];
+    const subtitle = subtitles[index];
+    if (!subtitle) {
+      throw Object.assign(new Error("Subtitle track not found"), { statusCode: 404 });
+    }
+
+    return subtitle;
+  }
+
+  async getPlaybackSubtitleTrack(userId: string, playbackSessionId: string, index: number) {
+    const row = await this.getPlaybackSessionRow(userId, playbackSessionId);
+    if (!row) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+
+    const updated = await this.maybeMarkPlaybackExpired(row);
+    if (updated.status !== "ready") {
+      throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
+    }
+
+    return this.resolvePlaybackSubtitleTrack(updated, index);
+  }
+
+  async getPlaybackSubtitleTrackBySessionId(playbackSessionId: string, index: number) {
+    const row = await this.getPlaybackSessionRowById(playbackSessionId);
+    if (!row) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+
+    const updated = await this.maybeMarkPlaybackExpired(row);
+    if (updated.status !== "ready") {
+      throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
+    }
+
+    return this.resolvePlaybackSubtitleTrack(updated, index);
   }
 
   async updatePlaybackProgress(

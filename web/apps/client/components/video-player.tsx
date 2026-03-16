@@ -1,7 +1,7 @@
 "use client";
 
 import Hls from "hls.js";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlaybackSession } from "@relay/contracts";
 import { apiFetch } from "../lib/api";
 
@@ -11,6 +11,17 @@ type Props = {
 
 export function VideoPlayer({ session }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const defaultSubtitleIndex =
+    session.subtitles.findIndex((subtitle) => subtitle.isDefault) >= 0
+      ? session.subtitles.findIndex((subtitle) => subtitle.isDefault)
+      : session.subtitles.length > 0
+        ? 0
+        : null;
+  const [activeSubtitleIndex, setActiveSubtitleIndex] = useState<number | null>(defaultSubtitleIndex);
+
+  useEffect(() => {
+    setActiveSubtitleIndex(defaultSubtitleIndex);
+  }, [defaultSubtitleIndex, session.id]);
 
   useEffect(() => {
     if (!session.streamUrl || session.mimeType === "text/html") {
@@ -52,6 +63,17 @@ export function VideoPlayer({ session }: Props) {
     };
   }, [session]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    for (let index = 0; index < video.textTracks.length; index += 1) {
+      video.textTracks[index].mode = index === activeSubtitleIndex ? "showing" : "disabled";
+    }
+  }, [activeSubtitleIndex, session.id]);
+
   if (session.mimeType === "text/html" && session.streamUrl) {
     return (
       <div className="player-frame">
@@ -65,9 +87,46 @@ export function VideoPlayer({ session }: Props) {
     );
   }
 
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const subtitleToggleLabel =
+    defaultSubtitleIndex !== null ? session.subtitles[defaultSubtitleIndex]?.label ?? "Subtitles" : null;
+
   return (
-    <div className="player-frame">
-      <video className="player-media player-media-video" controls playsInline ref={videoRef} />
-    </div>
+    <>
+      {subtitleToggleLabel ? (
+        <div className="player-controls">
+          <button
+            className={`player-toggle ${activeSubtitleIndex !== null ? "active" : ""}`}
+            onClick={() => {
+              setActiveSubtitleIndex((current) => (current === null ? defaultSubtitleIndex : null));
+            }}
+            type="button"
+          >
+            {activeSubtitleIndex !== null ? "Hide" : "Show"} {subtitleToggleLabel}
+          </button>
+        </div>
+      ) : null}
+      <div className="player-frame">
+        <video
+          className="player-media player-media-video"
+          controls
+          crossOrigin="anonymous"
+          playsInline
+          ref={videoRef}
+        >
+          {session.subtitles.map((subtitle, index) => (
+            <track
+              data-relay-subtitle="true"
+              default={index === activeSubtitleIndex}
+              key={`${session.id}-${subtitle.url}`}
+              kind="subtitles"
+              label={subtitle.label}
+              src={`${apiBaseUrl}/playback/sessions/${session.id}/subtitles/${index}`}
+              srcLang={subtitle.language}
+            />
+          ))}
+        </video>
+      </div>
+    </>
   );
 }

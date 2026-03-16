@@ -89,18 +89,31 @@ export class BrowserExtractionService {
     };
   }
 
+  private getTimeoutMs(
+    providerId: string,
+    operation: "search" | "anime" | "episodes" | "playback",
+  ) {
+    if (providerId === "hanime" && operation === "playback") {
+      return Math.max(this.timeoutMs, 45_000);
+    }
+
+    return this.timeoutMs;
+  }
+
   private async runWithRetry<T>(
     providerId: string,
     domain: string,
+    operationName: "search" | "anime" | "episodes" | "playback",
     operation: (extractor: BrowserProviderExtractor, runtime: ExtractionRuntime) => Promise<T>,
   ): Promise<T> {
     const extractor = this.extractors.get(providerId);
     let attempts = 0;
+    const timeoutMs = this.getTimeoutMs(providerId, operationName);
 
     while (attempts < 2) {
       attempts += 1;
       try {
-        return await withTimeout(this.timeoutMs, async (signal) =>
+        return await withTimeout(timeoutMs, async (signal) =>
           operation(extractor, this.createRuntime(providerId, domain, signal)),
         );
       } catch (error) {
@@ -119,7 +132,7 @@ export class BrowserExtractionService {
 
   async search(providerId: string, input: SearchInput, baseUrl?: string): Promise<SearchPage> {
     const domain = resolveDomain(providerId, baseUrl);
-    return this.runWithRetry(providerId, domain, (extractor, runtime) =>
+    return this.runWithRetry(providerId, domain, "search", (extractor, runtime) =>
       extractor.search(input, runtime),
     );
   }
@@ -130,7 +143,7 @@ export class BrowserExtractionService {
     baseUrl?: string,
   ): Promise<AnimeDetails> {
     const domain = resolveDomain(providerId, baseUrl);
-    return this.runWithRetry(providerId, domain, (extractor, runtime) =>
+    return this.runWithRetry(providerId, domain, "anime", (extractor, runtime) =>
       extractor.getAnime(input, runtime),
     );
   }
@@ -141,7 +154,7 @@ export class BrowserExtractionService {
     baseUrl?: string,
   ): Promise<EpisodeList> {
     const domain = resolveDomain(providerId, baseUrl);
-    return this.runWithRetry(providerId, domain, (extractor, runtime) =>
+    return this.runWithRetry(providerId, domain, "episodes", (extractor, runtime) =>
       extractor.getEpisodes(input, runtime),
     );
   }
@@ -152,7 +165,7 @@ export class BrowserExtractionService {
     baseUrl?: string,
   ): Promise<PlaybackResolution> {
     const domain = resolveDomain(providerId, baseUrl);
-    return this.runWithRetry(providerId, domain, (extractor, runtime) =>
+    return this.runWithRetry(providerId, domain, "playback", (extractor, runtime) =>
       extractor.resolvePlayback(input, runtime),
     );
   }
