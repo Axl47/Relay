@@ -1,29 +1,15 @@
 # Working List
 
-## Aki-H Provider
-- [x] Create the Aki-H ExecPlan/checklist artifacts and map the provider rollout onto the current `web/` provider and browser-broker stack
-- [x] Implement Aki-H catalog parsing and playback resolution
-- [x] Verify Aki-H fixtures/tests and document repo-specific discoveries in `AGENTS.md`
-
 ## Pending
-- [ ] Implement browser-side extractors for the browser-protected providers and Aniwave fallback paths
-- [ ] Finish Android import provider mapping and tracker guardrails for unsupported providers
+- [ ] Validate AnimeOnsen live extraction against a browser context that can clear the current Cloudflare gate
 
 ## In Progress
-- [~] Close the remaining browser-protected and import/tracker scaffolds against the production provider set
+- [~] Document the remaining live-site verification risk caused by the current Cloudflare challenge behavior
 
 ## Done
-- [x] Restore Hanime playback without the blocked iframe fallback
-- [x] Switch Hanime playback back to direct browser extraction while keeping franchise-grouped discovery
-- [x] Verify Hanime provider and browser packages after the playback fix
-- [x] Invalidate stale Hanime HTML playback sessions so the web client stops reusing the embedded fallback
-- [x] Extend Hanime playback timeouts in both the API and browser service so direct extraction is not aborted at 25000ms
-- [x] Replace Hanime’s slow player-boot wait with a direct `/play` -> manifest fetch flow and a short manifest authorization retry
-- [x] Make playback resolution timeouts fail closed and mark stale `resolving` sessions as failed instead of polling forever
-- [x] Create the live checklist and map the requested rollout onto the current `web/` scaffold
-- [x] Extend shared contracts, provider SDK, and persistence schema for provider metadata, adult gating, playback state, and aggregated search responses
-- [x] Add provider base classes, registry metadata, all provider adapters, and fixture-based parser tests
-- [x] Wire the browser broker app into the workspace, API runtime, and deploy manifests
-- [x] Replace `demo` with the seeded curated provider set and remove legacy assumptions
-- [x] Run targeted verification for providers, browser, API, worker, and client typechecks
-- [x] Update worker and client flows for metadata, adult gating, aggregated search, playback polling, and provider settings
+- [x] Inspect AGENTS.md, `.docs`, and the existing browser extractor pipeline
+- [x] Confirm AnimeOnsen is already registered as a browser-only provider and identify the missing extractor wiring
+- [x] Research AnimeOnsen's page and API behavior enough to determine the player token flow and likely extraction path
+- [x] Implement the AnimeOnsen browser extractor and register it
+- [x] Update AGENTS.md with the AnimeOnsen maintenance note about `ao-content-id` and `ao.session`
+- [x] Verify the browser app typechecks after the AnimeOnsen extractor lands
