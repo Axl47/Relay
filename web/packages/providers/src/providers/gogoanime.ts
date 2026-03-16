@@ -27,6 +27,7 @@ import {
 
 type GogoPlayerButton = {
   type: string;
+  label: string;
   enc1: string;
   enc2: string;
   enc3: string;
@@ -53,11 +54,13 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {
     const $ = await this.fetchSearchDocument(input, ctx);
     const items: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
-      $("a[href*='/series/']")
+      $(".listupd .bs, article.bs, .result-item")
         .toArray()
         .map((node: any) => {
-          const href = cleanText($(node).attr("href"));
-          if (!href || !href.includes("/series/") || /\/series\/\?/.test(href)) {
+          const card = $(node);
+          const link = card.find("a[href*='/series/']").first();
+          const href = cleanText(link.attr("href"));
+          if (!href || /\/series\/\?/.test(href)) {
             return null;
           }
 
@@ -66,11 +69,9 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
             return null;
           }
 
-          const card =
-            $(node).closest(".bsx, article.bs, .item, .bs, article") ?? $(node).parent();
-          const rawNodeText = cleanText($(node).text());
-          const rawNodeTitle = cleanText($(node).attr("title"));
-          const imageAlt = cleanText($(node).find("img").first().attr("alt"));
+          const rawNodeText = cleanText(link.text());
+          const rawNodeTitle = cleanText(link.attr("title"));
+          const imageAlt = cleanText(card.find("img").first().attr("alt"));
           const title =
             rawNodeTitle ||
             rawNodeText ||
@@ -85,8 +86,8 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
               this.metadata.baseUrl,
               card.find("img").first().attr("data-src") ??
                 card.find("img").first().attr("src") ??
-                $(node).find("img").first().attr("data-src") ??
-                $(node).find("img").first().attr("src"),
+                link.find("img").first().attr("data-src") ??
+                link.find("img").first().attr("src"),
             ) ?? null;
 
           return createSearchResult({
@@ -218,6 +219,7 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
       .toArray()
       .map((node: any) => ({
         type: cleanText($(node).attr("data-type")),
+        label: cleanText($(node).text()),
         enc1: cleanText($(node).attr("data-encrypted-url1")),
         enc2: cleanText($(node).attr("data-encrypted-url2")),
         enc3: cleanText($(node).attr("data-encrypted-url3")),
@@ -225,7 +227,38 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
         key: cleanText($(node).attr("data-key")),
         plainUrl: cleanText($(node).attr("data-plain-url")),
       }))
-      .filter((button) => button.type && button.enc1);
+      .filter((button) => button.type && (button.enc1 || button.plainUrl));
+  }
+
+  private rankPlayerButton(button: GogoPlayerButton) {
+    const label = button.label.toLowerCase();
+    const type = button.type.toLowerCase();
+
+    if (label.includes("hd")) {
+      return 0;
+    }
+
+    if (label.includes("megacloud") || label.includes("vidsrc") || label.includes("vidhide")) {
+      return 1;
+    }
+
+    if (label.includes("streamwish")) {
+      return 2;
+    }
+
+    if (label.includes("dood")) {
+      return 3;
+    }
+
+    if (button.plainUrl && (type === "embed" || type === "double_player" || type === "kiwi")) {
+      return 4;
+    }
+
+    if (label.includes("fast server") || type === "blogger") {
+      return 9;
+    }
+
+    return 5;
   }
 
   private async extractPlayableSource(
@@ -234,12 +267,12 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
     postId: string,
     ctx: ProviderRequestContext,
   ) {
-    if ((button.type === "embed" || button.type === "kiwi") && button.plainUrl) {
+    if (button.plainUrl) {
       return {
         stream: createStream({
           id: button.type.toLowerCase(),
           url: absoluteUrl(this.metadata.baseUrl, button.plainUrl) ?? button.plainUrl,
-          quality: "embed",
+          quality: button.label || "embed",
           mimeType: "text/html",
           headers: {},
           cookies: {},
@@ -270,7 +303,10 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
       headers: { referer: episodeUrl },
     });
     const iframeUrl =
-      outerHtml.match(/<iframe[^>]+src=["']([^"']+)/i)?.[1] ?? outerUrl.toString();
+      absoluteUrl(
+        outerUrl.toString(),
+        outerHtml.match(/<iframe[^>]+src=["']([^"']+)/i)?.[1],
+      ) ?? outerUrl.toString();
     const innerHtml = await this.fetchText(iframeUrl, ctx, {
       headers: { referer: outerUrl.toString() },
     });
@@ -284,15 +320,16 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
       throw new Error("Gogoanime did not expose a playable stream URL.");
     }
 
+    const mimeType = detectMimeType(fileUrl);
     const stream = createStream({
       id: button.type.toLowerCase(),
       url: fileUrl,
       quality:
         String(
           sources.find((source) => typeof source.label === "string")?.label ??
-            (detectMimeType(fileUrl) === "video/mp4" ? "mp4" : "auto"),
+            (mimeType === "video/mp4" ? "mp4" : "auto"),
         ),
-      mimeType: detectMimeType(fileUrl),
+      mimeType,
       headers: {},
       cookies: {},
       proxyMode: "proxy",
@@ -321,26 +358,40 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
   ): Promise<PlaybackResolution> {
     const episodeUrl = `${this.metadata.baseUrl}/${input.externalEpisodeId.replace(/^\/+/, "")}/`;
     const html = await this.fetchText(episodeUrl, ctx);
-    const buttons = this.parsePlayerButtons(html);
+    const buttons = this.parsePlayerButtons(html).sort(
+      (left, right) => this.rankPlayerButton(left) - this.rankPlayerButton(right),
+    );
     const postId =
       html.match(/name=['"]comment_post_ID['"] value=['"](\d+)['"]/)?.[1] ??
       html.match(/id=['"]comment_post_ID['"] value=['"](\d+)['"]/)?.[1] ??
       "";
 
-    const [primaryButton] = buttons;
-    if (!primaryButton || !postId) {
+    if (!buttons.length || !postId) {
       throw new Error("Gogoanime did not expose any player buttons.");
     }
 
-    const playback = await this.extractPlayableSource(episodeUrl, primaryButton, postId, ctx);
-    return createPlaybackResolution({
-      providerId: this.metadata.id,
-      externalAnimeId: input.externalAnimeId,
-      externalEpisodeId: input.externalEpisodeId,
-      streams: [playback.stream],
-      subtitles: playback.subtitles,
-      cookies: {},
-      expiresAt: this.createResolutionExpiry(ctx),
-    });
+    let lastError: Error | null = null;
+    for (const button of buttons) {
+      try {
+        const playback = await this.extractPlayableSource(episodeUrl, button, postId, ctx);
+        return createPlaybackResolution({
+          providerId: this.metadata.id,
+          externalAnimeId: input.externalAnimeId,
+          externalEpisodeId: input.externalEpisodeId,
+          streams: [playback.stream],
+          subtitles: playback.subtitles,
+          cookies: {},
+          expiresAt: this.createResolutionExpiry(ctx),
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error("Gogoanime did not expose a playable stream URL.");
   }
 }

@@ -109,7 +109,10 @@ export function detectMimeType(url: string): ResolvedStream["mimeType"] {
     return "application/dash+xml";
   }
 
-  if (/\.(?:mp4|m4v)(?:$|\?)/i.test(url)) {
+  if (
+    /\.(?:mp4|m4v)(?:$|\?)/i.test(url) ||
+    /(?:^|\/\/)[^/]*googlevideo\.com\/videoplayback(?:$|\?)/i.test(url)
+  ) {
     return "video/mp4";
   }
 
@@ -166,4 +169,3 @@ export function ensureAbsoluteUrl(baseUrl: string, value?: string | null) {
   }
   return resolved;
 }
-

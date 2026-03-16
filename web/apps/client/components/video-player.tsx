@@ -11,7 +11,6 @@ type Props = {
 
 export function VideoPlayer({ session }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     if (!session.streamUrl || session.mimeType === "text/html") {
@@ -55,15 +54,20 @@ export function VideoPlayer({ session }: Props) {
 
   if (session.mimeType === "text/html" && session.streamUrl) {
     return (
-      <iframe
-        allow="autoplay; fullscreen"
-        className="video"
-        ref={iframeRef}
-        src={session.streamUrl}
-        title="Embedded provider player"
-      />
+      <div className="player-frame">
+        <iframe
+          allow="autoplay; fullscreen"
+          className="player-media"
+          src={session.streamUrl}
+          title="Embedded provider player"
+        />
+      </div>
     );
   }
 
-  return <video className="video" controls ref={videoRef} />;
+  return (
+    <div className="player-frame">
+      <video className="player-media player-media-video" controls playsInline ref={videoRef} />
+    </div>
+  );
 }
