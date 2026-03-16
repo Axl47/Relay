@@ -53,20 +53,40 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {
     const $ = await this.fetchSearchDocument(input, ctx);
     const items: Array<ReturnType<typeof createSearchResult>> = uniqueBy(
-      $(".bsx a[href*='/series/'], article.bs a[href*='/series/']")
+      $("a[href*='/series/']")
         .toArray()
         .map((node: any) => {
           const href = cleanText($(node).attr("href"));
+          if (!href || !href.includes("/series/") || /\/series\/\?/.test(href)) {
+            return null;
+          }
+
           const externalAnimeId = extractIdAfterPrefix(this.metadata.baseUrl, href, "series/");
-          const card = $(node).closest(".bsx, article.bs");
+          if (!externalAnimeId || externalAnimeId.includes("?")) {
+            return null;
+          }
+
+          const card =
+            $(node).closest(".bsx, article.bs, .item, .bs, article") ?? $(node).parent();
+          const rawNodeText = cleanText($(node).text());
+          const rawNodeTitle = cleanText($(node).attr("title"));
+          const imageAlt = cleanText($(node).find("img").first().attr("alt"));
           const title =
-            cleanText(card.find("h2, .tt, [itemprop='headline']").first().text()) ||
-            cleanText($(node).attr("title")) ||
+            rawNodeTitle ||
+            rawNodeText ||
+            imageAlt ||
+            cleanText(card.find("h2, .tt, .entry-title, [itemprop='headline']").first().text()) ||
             externalAnimeId;
+          if (!rawNodeTitle && !rawNodeText && !imageAlt && title === externalAnimeId) {
+            return null;
+          }
           const coverImage =
             absoluteUrl(
               this.metadata.baseUrl,
-              card.find("img").first().attr("data-src") ?? card.find("img").first().attr("src"),
+              card.find("img").first().attr("data-src") ??
+                card.find("img").first().attr("src") ??
+                $(node).find("img").first().attr("data-src") ??
+                $(node).find("img").first().attr("src"),
             ) ?? null;
 
           return createSearchResult({
@@ -82,7 +102,8 @@ export class GogoanimeProvider extends WordPressMirrorProviderBase {
             contentClass: this.metadata.contentClass,
             requiresAdultGate: this.metadata.requiresAdultGate,
           });
-        }),
+        })
+        .filter((item): item is ReturnType<typeof createSearchResult> => item !== null),
       (item) => item.externalAnimeId,
     ).slice(0, input.limit);
 

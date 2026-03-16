@@ -22,6 +22,9 @@ import { appConfig } from "./config";
 import { parseBody, setSessionCookie } from "./lib/http";
 import { RelayService } from "./services/relay-service";
 
+const DEFAULT_STREAM_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
+
 declare module "fastify" {
   interface FastifyRequest {
     sessionUser?: Awaited<ReturnType<RelayService["getSessionUser"]>>;
@@ -245,7 +248,10 @@ export async function buildApi() {
 
     const upstream = await fetch(target.upstreamUrl, {
       headers: {
+        "user-agent": target.headers["user-agent"] ?? DEFAULT_STREAM_USER_AGENT,
+        "accept-language": target.headers["accept-language"] ?? "en-US,en;q=0.9",
         ...target.headers,
+        ...(typeof request.headers.range === "string" ? { range: request.headers.range } : {}),
         ...(cookieHeader ? { cookie: cookieHeader } : {}),
       },
     });

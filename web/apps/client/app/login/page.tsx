@@ -80,8 +80,20 @@ export default function LoginPage() {
 
           <div className="field">
             <label htmlFor="password">Password</label>
-            <input id="password" name="password" type="password" required />
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minLength={mode === "bootstrap" ? 10 : 1}
+            />
           </div>
+
+          {mode === "bootstrap" ? (
+            <p style={{ margin: 0, fontSize: 14, color: "var(--muted-foreground)" }}>
+              Password must be at least 10 characters.
+            </p>
+          ) : null}
 
           {message ? <div className="message">{message}</div> : null}
 
