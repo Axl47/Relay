@@ -345,8 +345,10 @@ export class RelayService {
 
     if (
       row.providerId === "javguru" &&
-      typeof row.upstreamUrl === "string" &&
-      (row.upstreamUrl.includes("creative.mnaspm.com") || row.upstreamUrl.includes("/searcho/"))
+      (row.mimeType === "text/html" ||
+        (typeof row.upstreamUrl === "string" &&
+          (row.upstreamUrl.includes("creative.mnaspm.com") ||
+            row.upstreamUrl.includes("/searcho/"))))
     ) {
       return false;
     }

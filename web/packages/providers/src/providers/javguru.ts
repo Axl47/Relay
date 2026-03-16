@@ -18,6 +18,7 @@ import {
   createPlaybackResolution,
   createSearchResult,
   createStream,
+  detectMimeType,
   decodeMaybeBase64,
   extractIdAfterPrefix,
   normalizePathId,
@@ -25,7 +26,14 @@ import {
 } from "../base/provider-utils";
 
 export class JavGuruProvider extends WordPressMirrorProviderBase {
-  private readonly streamPreference = ["STREAM JK", "STREAM ST", "STREAM VO", "STREAM TV", "STREAM SB", "STREAM DD"];
+  private readonly streamPreference = [
+    "STREAM TV",
+    "STREAM JK",
+    "STREAM ST",
+    "STREAM VO",
+    "STREAM SB",
+    "STREAM DD",
+  ];
 
   private decodePathSegment(value: string) {
     try {
@@ -365,6 +373,52 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
     return location && !location.includes("creative.mnaspm.com") ? location : null;
   }
 
+  private extractDirectStreamUrl(html: string, pageUrl: string) {
+    const candidates = [
+      html.match(/data-hash=["']([^"']+)["']/i)?.[1] ?? null,
+      ...Array.from(
+        html.matchAll(/(?:file|src)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)(?:\?[^"']*)?)["']/gi),
+      ).map((match) => match[1]),
+      ...Array.from(html.matchAll(/https?:\/\/[^"'\\s<>]+\.(?:m3u8|mp4)(?:\?[^"'\\s<>]*)?/gi)).map(
+        (match) => match[0],
+      ),
+    ]
+      .map((value) => absoluteUrl(pageUrl, cleanText(value)))
+      .filter((value): value is string => Boolean(value));
+
+    return candidates.find((value) => detectMimeType(value) !== "text/html") ?? null;
+  }
+
+  private async resolveDirectStream(playbackUrl: string, ctx: ProviderRequestContext) {
+    const html = await this.fetchText(playbackUrl, ctx, {
+      headers: {
+        "user-agent": DEFAULT_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+        referer: this.metadata.baseUrl,
+      },
+    });
+    const directStreamUrl = this.extractDirectStreamUrl(html, playbackUrl);
+    if (!directStreamUrl) {
+      return null;
+    }
+
+    return createStream({
+      id: "direct",
+      url: directStreamUrl,
+      quality: "auto",
+      mimeType: detectMimeType(directStreamUrl),
+      headers: {
+        "user-agent": DEFAULT_USER_AGENT,
+        "accept-language": "en-US,en;q=0.9",
+        referer: playbackUrl,
+        origin: new URL(playbackUrl).origin,
+      },
+      cookies: {},
+      proxyMode: "proxy",
+      isDefault: true,
+    });
+  }
+
   async resolvePlayback(
     input: ProviderEpisodeRef,
     ctx: ProviderRequestContext,
@@ -373,34 +427,43 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
       `${this.metadata.baseUrl}/${this.decodePathSegment(input.externalEpisodeId).replace(/^\/+/, "")}/`,
       ctx,
     );
+    let stream: ReturnType<typeof createStream> | null = null;
     let playbackUrl: string | null = null;
     for (const entry of this.extractStreamButtons(html)) {
-      playbackUrl = await this.resolveSearchoStream(entry.searchoUrl, ctx);
-      if (playbackUrl) {
-        break;
+      const nextPlaybackUrl = await this.resolveSearchoStream(entry.searchoUrl, ctx);
+      if (nextPlaybackUrl && !playbackUrl) {
+        playbackUrl = nextPlaybackUrl;
+      }
+      if (nextPlaybackUrl) {
+        stream = await this.resolveDirectStream(nextPlaybackUrl, ctx);
+        if (stream) {
+          break;
+        }
       }
     }
 
     playbackUrl = playbackUrl ?? this.extractPlaybackUrl(html);
-    if (!playbackUrl) {
+    if (!stream && !playbackUrl) {
       throw new Error("JavGuru did not expose any iframe playback URL.");
     }
+    const fallbackPlaybackUrl = playbackUrl;
 
     return createPlaybackResolution({
       providerId: this.metadata.id,
       externalAnimeId: input.externalAnimeId,
       externalEpisodeId: input.externalEpisodeId,
       streams: [
-        createStream({
+        stream ??
+          createStream({
           id: "iframe",
-          url: playbackUrl,
+          url: fallbackPlaybackUrl!,
           quality: "embed",
           mimeType: "text/html",
           headers: {},
           cookies: {},
           proxyMode: "redirect",
           isDefault: true,
-        }),
+          }),
       ],
       subtitles: [],
       cookies: {},

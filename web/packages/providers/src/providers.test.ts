@@ -211,6 +211,12 @@ describe("Wave 1 provider contract fixtures", () => {
             },
           },
         },
+        {
+          match: (url) => url === "https://maxstream.org/embed-good.html",
+          response: {
+            body: "<html><body><div>embed host without direct media</div></body></html>",
+          },
+        },
       ]),
     });
 
@@ -224,6 +230,79 @@ describe("Wave 1 provider contract fixtures", () => {
     );
 
     expect(playback.streams[0]?.url).toBe("https://maxstream.org/embed-good.html");
+  });
+
+  it("javguru prefers direct hls streams from resolved button hosts", async () => {
+    const provider = new JavGuruProvider();
+    const tvSearchoUrl = "https://jav.guru/searcho/?ud=dummytoken";
+    const resolvedSearchoUrl = "https://jav.guru/searcho/?or=nekotymmud";
+    const embedUrl = "https://emturbovid.com/t/69b595ba080af";
+    const hlsUrl = "https://cdn.turboviplay.com/data1/69b595ba080af/69b595ba080af.m3u8";
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url) => url === "https://jav.guru/953311/test-title/",
+          response: {
+            body: `
+              <html><body>
+                <a class="wp-btn-iframe__shortcode" data-localize="uyqphodeoo">STREAM TV</a>
+                <script>
+                  var uyqphodeoo = {"iframe_url":"${Buffer.from(tvSearchoUrl).toString("base64")}"};
+                </script>
+                <iframe src="https://creative.mnaspm.com/widgets/v4/Universal?bad=1"></iframe>
+              </body></html>
+            `,
+          },
+        },
+        {
+          match: (url) => url === tvSearchoUrl,
+          response: {
+            body: `
+              <html><body>
+                <div id="c1" class="stream-box" data-a="dummy" data-b="token"></div>
+                <script>
+                  window.cfg = { cid: 'c1', base: 'https://jav.guru/searcho/', rtype: 'o', keys: ['data-a', 'data-b'] };
+                </script>
+              </body></html>
+            `,
+          },
+        },
+        {
+          match: (url) => url === resolvedSearchoUrl,
+          response: {
+            body: "",
+            status: 302,
+            headers: {
+              location: embedUrl,
+            },
+          },
+        },
+        {
+          match: (url) => url === embedUrl,
+          response: {
+            body: `
+              <html><body>
+                <div id="video_player" data-hash="${hlsUrl}"></div>
+              </body></html>
+            `,
+          },
+        },
+      ]),
+    });
+
+    const playback = await provider.resolvePlayback(
+      {
+        providerId: "javguru",
+        externalAnimeId: "953311/test-title",
+        externalEpisodeId: "953311/test-title",
+      },
+      ctx,
+    );
+
+    expect(playback.streams[0]?.url).toBe(hlsUrl);
+    expect(playback.streams[0]?.mimeType).toBe("application/vnd.apple.mpegurl");
+    expect(playback.streams[0]?.proxyMode).toBe("proxy");
+    expect(playback.streams[0]?.headers.referer).toBe(embedUrl);
   });
 
   it("hstream exposes streams and subtitles from the player API", async () => {
