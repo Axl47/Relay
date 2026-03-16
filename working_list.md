@@ -20,3 +20,10 @@
 - [x] Restrict HLS body rewriting to real `.m3u8` or `.m3u` upstream URLs and document the proxy edge case in `AGENTS.md`
 - [x] Run `rtk proxy npm --prefix web/apps/api run typecheck` and verify the proxied `i.mp4` fragment still returns MP4 bytes through `/stream/.../__upstream__/...`
 - [x] Treat stale HentaiHaven `text/html` playback sessions as non-reusable so fresh playback requests re-resolve to direct streams
+- [x] Normalize HentaiHaven Anpu fragment response types in `web/apps/api/src/app.ts` so mislabelled `i.mp4`, `ha*.jpg`, and `snd*.jpg` fMP4 payloads are not served as playlists or JPEGs
+- [x] Rewrite mislabelled Anpu fragment proxy URLs with a `.mp4` alias suffix and strip that suffix back out in `RelayService`
+- [x] Switch HentaiHaven direct HLS/MP4 candidates to `redirect` mode so playback can bypass Relay's fragment proxy when upstream CORS is already open
+- [x] Treat stale proxied HentaiHaven HLS sessions as non-reusable so the API stops handing out old `/stream/.../__upstream__/...` playback chains
+- [x] Decode the HentaiHaven iframe token into a deterministic `api.php` POST so playback resolution no longer depends on catching the network response in time
+- [x] Switch HentaiHaven HLS back to proxy mode so Firefox never fetches Anpu's mislabelled fMP4 fragments directly
+- [x] Invalidate stale HentaiHaven redirect sessions too, so the API stops reusing old direct-HLS playback after switching back to proxy mode

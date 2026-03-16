@@ -70,6 +70,11 @@ type PlaybackPageSnapshot = {
   title: string;
 };
 
+type PlayerApiRequestParts = {
+  a: string;
+  b: string;
+};
+
 type StreamMimeType =
   | "application/vnd.apple.mpegurl"
   | "application/dash+xml"
@@ -697,6 +702,88 @@ function buildStreamCandidates(
   });
 }
 
+function parsePlayerApiRequestParts(iframeUrl: string | null): PlayerApiRequestParts | null {
+  const absoluteUrl = safeAbsoluteUrl(iframeUrl);
+  if (!absoluteUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(absoluteUrl);
+    const data = parsedUrl.searchParams.get("data");
+    if (!data) {
+      return null;
+    }
+
+    const decoded = Buffer.from(data, "base64").toString("utf8");
+    const separator = ":|::|:";
+    const separatorIndex = decoded.indexOf(separator);
+    if (separatorIndex < 0) {
+      return null;
+    }
+
+    const a = decoded.slice(0, separatorIndex);
+    const bRaw = decoded.slice(separatorIndex + separator.length);
+    if (!a || !bRaw) {
+      return null;
+    }
+
+    return {
+      a,
+      b: Buffer.from(bRaw, "utf8").toString("base64"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function requestPlayerApiPayload(
+  page: PlaywrightPageLike,
+  iframeUrl: string | null,
+): Promise<PlaybackApiPayload | null> {
+  const requestParts = parsePlayerApiRequestParts(iframeUrl);
+  if (!requestParts) {
+    return null;
+  }
+
+  const result = await (page as unknown as {
+    evaluate<T, Arg>(pageFunction: (arg: Arg) => T | Promise<T>, arg: Arg): Promise<T>;
+  }).evaluate(
+    async ({ playerApiUrl, a, b }) => {
+      const formData = new FormData();
+      formData.set("action", "zarat_get_data_player_ajax");
+      formData.set("a", a);
+      formData.set("b", b);
+
+      const response = await fetch(playerApiUrl, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      return {
+        status: response.status,
+        body: await response.text(),
+      };
+    },
+    {
+      playerApiUrl: PLAYER_API_URL,
+      a: requestParts.a,
+      b: requestParts.b,
+    },
+  );
+
+  if (result.status !== 200) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(result.body) as PlaybackApiPayload;
+  } catch {
+    return null;
+  }
+}
+
 export class HentaiHavenExtractor implements BrowserProviderExtractor {
   async search(input: SearchInput, runtime: ExtractionRuntime): Promise<SearchPage> {
     return runtime.withPage(async (page) => {
@@ -916,6 +1003,10 @@ export class HentaiHavenExtractor implements BrowserProviderExtractor {
       await Promise.allSettled(apiPayloadTasks);
 
       const snapshot = await extractPlaybackSnapshot(browserPage);
+      const directApiPayload = await requestPlayerApiPayload(browserPage, snapshot.iframeUrl);
+      if (directApiPayload) {
+        apiPayloads.push(directApiPayload);
+      }
       const streams = buildStreamCandidates(apiPayloads, mediaUrls, snapshot.iframeUrl).map((stream, index) => ({
         ...stream,
         id: `hentaihaven-${index + 1}`,

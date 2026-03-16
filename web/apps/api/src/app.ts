@@ -27,6 +27,7 @@ import { RelayService } from "./services/relay-service";
 const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
+const PROXY_UPSTREAM_ALIAS_SUFFIX = "~relay";
 
 function getMediaProxyHeaders(url: URL) {
   const headers: Record<string, string> = {
@@ -56,8 +57,28 @@ function getSubtitleProxyHeaders(url: URL) {
   return headers;
 }
 
+function getProxyUpstreamAlias(upstreamUrl: string) {
+  try {
+    const parsedUrl = new URL(upstreamUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const pathname = parsedUrl.pathname.toLowerCase();
+
+    if (
+      hostname === "fdc.anpustream.com" &&
+      (/\/snd\/(?:i\.mp4|snd\d+\.jpg)$/i.test(pathname) ||
+        /\/(?:i\.mp4|ha\d+\.jpg)$/i.test(pathname))
+    ) {
+      return `${PROXY_UPSTREAM_ALIAS_SUFFIX}.mp4`;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 function buildProxyStreamPath(sessionId: string, upstreamUrl: string) {
-  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeURIComponent(upstreamUrl)}`;
+  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeURIComponent(upstreamUrl)}${getProxyUpstreamAlias(upstreamUrl)}`;
 }
 
 function rewritePlaylistUri(value: string, baseUrl: string, sessionId: string) {
@@ -100,6 +121,36 @@ function shouldRewriteHlsBody(upstreamUrl: string, contentType: string) {
   } catch {
     return /\.m3u8?(?:\?|$)/i.test(upstreamUrl);
   }
+}
+
+function normalizeStreamContentType(upstreamUrl: string, contentType: string) {
+  const normalizedContentType = contentType.trim();
+
+  try {
+    const parsedUrl = new URL(upstreamUrl);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const pathname = parsedUrl.pathname.toLowerCase();
+
+    if (hostname === "fdc.anpustream.com") {
+      if (/\/snd\/(?:i\.mp4|snd\d+\.jpg)$/i.test(pathname)) {
+        return "audio/mp4";
+      }
+
+      if (/\/(?:i\.mp4|ha\d+\.jpg)$/i.test(pathname)) {
+        return "video/mp4";
+      }
+    }
+
+    if (/mpegurl/i.test(normalizedContentType) && pathname.endsWith(".mp4")) {
+      return "video/mp4";
+    }
+  } catch {
+    if (/mpegurl/i.test(normalizedContentType) && /\.mp4(?:\?|$)/i.test(upstreamUrl)) {
+      return "video/mp4";
+    }
+  }
+
+  return normalizedContentType || "application/octet-stream";
 }
 
 const catalogAnimeQuerySchema = z.object({
@@ -410,24 +461,20 @@ export async function buildApi() {
 
     reply.status(upstream.status);
 
-    const passthroughHeaders = [
-      "content-type",
-      "content-length",
-      "cache-control",
-      "accept-ranges",
-      "content-range",
-    ];
+    const upstreamContentType = upstream.headers.get("content-type") ?? "";
+    const responseContentType = normalizeStreamContentType(target.upstreamUrl, upstreamContentType);
+    const passthroughHeaders = ["content-length", "cache-control", "accept-ranges", "content-range"];
     for (const headerName of passthroughHeaders) {
       const value = upstream.headers.get(headerName);
       if (value) {
         reply.header(headerName, value);
       }
     }
+    reply.header("content-type", responseContentType);
 
-    const upstreamContentType = upstream.headers.get("content-type") ?? "";
     if (shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType)) {
       const playlist = await upstream.text();
-      reply.type(upstreamContentType);
+      reply.type(responseContentType);
       return reply.send(rewriteHlsPlaylist(playlist, target.upstreamUrl, target.sessionId));
     }
 

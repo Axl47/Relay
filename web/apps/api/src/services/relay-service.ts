@@ -91,6 +91,7 @@ type StreamTarget = {
 };
 
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
+const ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN = /~relay\.(?:mp4|m3u8|m3u|vtt|srt|ass)$/i;
 
 type SubtitleTrack = PlaybackSession["subtitles"][number];
 type CatalogAnimeRow = typeof catalogAnime.$inferSelect;
@@ -225,6 +226,13 @@ export class RelayService {
   private getPlaybackSessionStreamUrl(sessionId: string, mimeType: string | null) {
     const suffix = mimeType === "application/dash+xml" ? "/" : "";
     return `${appConfig.PUBLIC_API_URL}/stream/${sessionId}${suffix}`;
+  }
+
+  private decodeAbsoluteUpstreamRequestPath(requestPath: string) {
+    const encodedUrl = requestPath
+      .slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length)
+      .replace(ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN, "");
+    return decodeURIComponent(encodedUrl);
   }
 
   private getPlaybackCacheTtlMs(provider: RelayProvider) {
@@ -366,7 +374,10 @@ export class RelayService {
       return false;
     }
 
-    if (row.providerId === "hentaihaven" && row.mimeType === "text/html") {
+    if (
+      row.providerId === "hentaihaven" &&
+      (row.mimeType === "text/html" || row.proxyMode !== "proxy")
+    ) {
       return false;
     }
 
@@ -1314,7 +1325,7 @@ export class RelayService {
     const targetUrl =
       requestPath && requestPath.length > 0
         ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
-          ? decodeURIComponent(requestPath.slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length))
+          ? this.decodeAbsoluteUpstreamRequestPath(requestPath)
           : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 
@@ -1345,7 +1356,7 @@ export class RelayService {
     const targetUrl =
       requestPath && requestPath.length > 0
         ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
-          ? decodeURIComponent(requestPath.slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length))
+          ? this.decodeAbsoluteUpstreamRequestPath(requestPath)
           : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 
