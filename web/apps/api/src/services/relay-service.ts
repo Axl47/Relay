@@ -366,6 +366,10 @@ export class RelayService {
       return false;
     }
 
+    if (row.providerId === "hentaihaven" && row.mimeType === "text/html") {
+      return false;
+    }
+
     if (
       row.providerId === "javguru" &&
       (row.mimeType === "text/html" ||

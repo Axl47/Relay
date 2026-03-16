@@ -19,3 +19,4 @@
 - [x] Trace HentaiHaven playback stalls to mislabelled `fdc.anpustream.com` init fragments being rewritten as HLS text by `web/apps/api/src/app.ts`
 - [x] Restrict HLS body rewriting to real `.m3u8` or `.m3u` upstream URLs and document the proxy edge case in `AGENTS.md`
 - [x] Run `rtk proxy npm --prefix web/apps/api run typecheck` and verify the proxied `i.mp4` fragment still returns MP4 bytes through `/stream/.../__upstream__/...`
+- [x] Treat stale HentaiHaven `text/html` playback sessions as non-reusable so fresh playback requests re-resolve to direct streams
