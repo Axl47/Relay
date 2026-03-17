@@ -21,7 +21,7 @@ const DEFAULT_BROWSER_CONTEXT_OPTIONS = {
 } as const;
 
 function shouldUseEphemeralContext(providerId: string) {
-  return providerId === "hentaihaven";
+  return providerId === "hentaihaven" || providerId === "animetake";
 }
 
 function makeContextKey(providerId: string, domain: string) {

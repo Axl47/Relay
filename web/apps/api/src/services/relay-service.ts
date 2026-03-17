@@ -70,6 +70,7 @@ const PROVIDER_RESOLUTION_TIMEOUT_MS = {
   browser: 25_000,
 } as const;
 const HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS = 60_000;
+const ANIMETAKE_PROVIDER_TIMEOUT_MS = 45_000;
 const PLAYBACK_STALL_GRACE_MS = 5_000;
 
 type SessionUser = {
@@ -241,6 +242,10 @@ export class RelayService {
   }
 
   private getProviderSearchTimeout(provider: RelayProvider) {
+    if (provider.metadata.id === "animetake") {
+      return ANIMETAKE_PROVIDER_TIMEOUT_MS;
+    }
+
     return SEARCH_TIMEOUT_MS[provider.metadata.executionMode];
   }
 
@@ -266,6 +271,10 @@ export class RelayService {
   private getProviderResolutionTimeout(provider: RelayProvider) {
     if (provider.metadata.id === "hanime") {
       return HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS;
+    }
+
+    if (provider.metadata.id === "animetake") {
+      return ANIMETAKE_PROVIDER_TIMEOUT_MS;
     }
 
     return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];

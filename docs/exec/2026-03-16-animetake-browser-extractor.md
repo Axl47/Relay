@@ -28,6 +28,8 @@ After this change, Relay can use the existing `animetake` browser-only provider 
   Evidence: search results exposed `/all-anime-shows`, `/az-all-anime/<letter>?page=<n>`, `/anime/<slug>/`, and current episode routes under `/anime/<slug>/episode/<n>`.
 - Observation: older AnimeTake scrapers depended on inline `gstoreplayer.source` payloads and same-origin `/redirect...` links, which suggests the current extractor should keep inline-script and redirect fallbacks even if direct network capture is preferred.
   Evidence: an older `anime_downloader` AnimeTake scraper resolved `gstoreplayer.source` JSON and followed same-origin redirect endpoints before handing playback to provider-specific hosts.
+- Observation: the API service still capped browser-provider requests at 20 seconds after the browser extractor was raised to 45 seconds, so AnimeTake could still time out before the broker budget was fully available.
+  Evidence: a follow-up provider error reported `Provider "animetake" exceeded timeout after 20000ms.`, which maps to the API-layer browser timeout in `web/apps/api/src/services/relay-service.ts`.
 
 ## Decision Log
 
@@ -40,10 +42,13 @@ After this change, Relay can use the existing `animetake` browser-only provider 
 - Decision: document the Cloudflare limitation explicitly instead of treating missing live validation as a silent success.
   Rationale: the extractor should land with clear expectations about what was and was not proven from this environment.
   Date/Author: 2026-03-16 / Codex
+- Decision: add an AnimeTake-specific API timeout override for both search and provider-resolution paths.
+  Rationale: without this override, the API aborts AnimeTake requests at 20 seconds even though the browser service is already configured to allow 45 seconds.
+  Date/Author: 2026-03-16 / Codex
 
 ## Outcomes & Retrospective
 
-Relay now has a concrete AnimeTake browser extractor wired into the registry, plus a longer extraction timeout for this provider's challenge-heavy pages. The implementation is intentionally fallback-oriented: A-Z list scraping backs search and episode-count reconstruction, detail-page scraping provides metadata and explicit episode links when available, and playback resolution prefers direct media requests but degrades to redirect/embed streams when AnimeTake only exposes a hosted player.
+Relay now has a concrete AnimeTake browser extractor wired into the registry, plus matching timeout overrides in both the browser service and API service for this provider's challenge-heavy pages. The implementation is intentionally fallback-oriented: A-Z list scraping backs search and episode-count reconstruction, detail-page scraping provides metadata and explicit episode links when available, and playback resolution prefers direct media requests but degrades to redirect/embed streams when AnimeTake only exposes a hosted player.
 
 The remaining gap is live end-to-end validation from an environment that passes AnimeTake's Cloudflare gate. This repository state is useful because it replaces the prior 501 stub with real extraction logic and explicit challenge-aware failures, but playback quality and selector accuracy still need confirmation on a less-restricted network/browser context.
 
@@ -87,7 +92,11 @@ From the repository root `/Users/axel/Desktop/Code_Projects/Personal/Relay`, per
 
     rtk proxy npm --prefix web/apps/browser run typecheck
 
-5. Optionally, if AnimeTake's Cloudflare challenge is passable in the target environment, run the browser app and manually exercise AnimeTake provider search/details/playback through the normal API flow.
+5. Run:
+
+    rtk proxy npm --prefix web/apps/api run typecheck
+
+6. Optionally, if AnimeTake's Cloudflare challenge is passable in the target environment, run the browser app and manually exercise AnimeTake provider search/details/playback through the normal API flow.
 
 ## Validation and Acceptance
 
@@ -96,6 +105,7 @@ Acceptance is primarily behavior-based:
 - Before the change, an AnimeTake browser extraction request returns a 501 unimplemented-provider error.
 - After the change, the browser service resolves AnimeTake search/details/episodes requests through a concrete extractor implementation and either returns structured data or an explicit challenge/upstream parsing error.
 - `rtk proxy npm --prefix web/apps/browser run typecheck` succeeds.
+- `rtk proxy npm --prefix web/apps/api run typecheck` succeeds.
 - In an environment where AnimeTake's Cloudflare challenge can be satisfied, requesting playback for `/anime/jigokuraku-2nd-season/episode/3` should yield either a direct media stream or an embed-backed session instead of a 501.
 
 ## Idempotence and Recovery
@@ -125,4 +135,4 @@ Observed Cloudflare challenge text during direct fetches:
 
 The extractor should throw `BrowserExtractionError` with code `challenge_failed` when the page never progresses past Cloudflare, and `upstream_error` when the page loads but expected AnimeTake content or playback sources cannot be found.
 
-Revision note: updated the plan after implementation to record the shipped extractor, the added timeout adjustment, the successful browser-app typecheck, and the remaining Cloudflare-blocked live validation gap.
+Revision note: updated the plan after the follow-up timeout report to record the extra API-layer AnimeTake timeout override and the successful API/browser typechecks, while keeping the remaining Cloudflare-blocked live validation gap explicit.

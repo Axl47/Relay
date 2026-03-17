@@ -117,6 +117,9 @@ const MEDIA_URL_PATTERN = /https?:\/\/[^"'`\s)]+?\.(?:m3u8|mpd|mp4)(?:\?[^"'`\s)
 const REDIRECT_URL_PATTERN = /(?:https?:\/\/[^"'`\s)]+)?\/redirect[^"'`\s)]*/gi;
 const SEARCH_STOP_WORDS = new Set(["the", "a", "an"]);
 const MAX_LISTING_PAGES = 12;
+const DETAIL_FALLBACK_LISTING_PAGES = 2;
+const EPISODE_FALLBACK_LISTING_PAGES = 4;
+const CHALLENGE_GRACE_TIMEOUT_MS = 12_000;
 const IGNORED_PLAYBACK_HOST_PATTERNS = [
   /doubleclick/i,
   /googlesyndication/i,
@@ -354,6 +357,7 @@ async function waitForAnimeTakeReady(
   timeoutMs = 35_000,
 ) {
   const deadline = Date.now() + timeoutMs;
+  let challengeSeenAt: number | null = null;
 
   while (Date.now() < deadline) {
     const state = await page.evaluate(() => ({
@@ -376,6 +380,19 @@ async function waitForAnimeTakeReady(
 
     const sample = `${state.title}\n${state.bodyText}`;
     const challenge = looksLikeChallenge(sample);
+    if (challenge) {
+      challengeSeenAt ??= Date.now();
+      if (Date.now() - challengeSeenAt >= CHALLENGE_GRACE_TIMEOUT_MS) {
+        throw new BrowserExtractionError(
+          "challenge_failed",
+          `AnimeTake challenge did not clear for ${path}.`,
+          { statusCode: 502 },
+        );
+      }
+    } else {
+      challengeSeenAt = null;
+    }
+
     const hasListingContent = state.animeLinks > 8 || /all anime|anime list|a-z/i.test(sample);
     const hasDetailContent = state.animeLinks > 0 || /genres|synopsis|episode/i.test(sample);
     const hasEpisodeContent =
@@ -650,11 +667,12 @@ async function scrapeAnimeDetailsPage(
 async function lookupAnimeListingCard(
   page: PlaywrightPageLike,
   externalAnimeId: string,
+  maxPages = MAX_LISTING_PAGES,
 ) {
   const seeds = deriveSearchSeeds(externalAnimeId, externalAnimeId);
 
   for (const seed of seeds) {
-    for (let pageNumber = 1; pageNumber <= MAX_LISTING_PAGES; pageNumber += 1) {
+    for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
       await navigate(page, buildListingPath(seed, pageNumber), "listing");
       const listing = await scrapeListingPage(page, pageNumber);
       const match = listing.items.find((item) => item.externalAnimeId === externalAnimeId);
@@ -813,8 +831,6 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
       const browserPage = page as unknown as PlaywrightPageLike;
       await navigate(browserPage, buildAnimeUrl(input.externalAnimeId), "detail");
       const details = await scrapeAnimeDetailsPage(browserPage, input.externalAnimeId);
-      const listingCard =
-        details.latestEpisode === null || !details.coverImage ? await lookupAnimeListingCard(browserPage, input.externalAnimeId) : null;
 
       if (!details.title) {
         throw new BrowserExtractionError(
@@ -823,6 +839,18 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
           { statusCode: 502 },
         );
       }
+
+      const shouldUseListingFallback =
+        details.latestEpisode === null &&
+        details.episodes.length === 0 &&
+        details.coverImage === null;
+      const listingCard = shouldUseListingFallback
+        ? await lookupAnimeListingCard(
+            browserPage,
+            input.externalAnimeId,
+            DETAIL_FALLBACK_LISTING_PAGES,
+          )
+        : null;
 
       return {
         providerId: input.providerId,
@@ -862,7 +890,11 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
       }));
 
       if (episodes.length === 0) {
-        const listingCard = await lookupAnimeListingCard(browserPage, input.externalAnimeId);
+        const listingCard = await lookupAnimeListingCard(
+          browserPage,
+          input.externalAnimeId,
+          EPISODE_FALLBACK_LISTING_PAGES,
+        );
         const totalEpisodes = Math.trunc(details.latestEpisode ?? listingCard?.latestEpisode ?? 0);
         if (totalEpisodes <= 0) {
           throw new BrowserExtractionError(
