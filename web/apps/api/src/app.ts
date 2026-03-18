@@ -1,5 +1,9 @@
 import { spawn } from "node:child_process";
-import { PassThrough, Readable } from "node:stream";
+import { createReadStream } from "node:fs";
+import { access, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { Readable } from "node:stream";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -29,6 +33,8 @@ const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
 const PROXY_UPSTREAM_ALIAS_SUFFIX = "~relay";
+const COMPATIBILITY_MP4_CACHE_DIR = path.join(os.tmpdir(), "relay-compat-mp4");
+const COMPATIBILITY_MP4_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
 function getMediaProxyHeaders(url: URL) {
   const headers: Record<string, string> = {
@@ -219,20 +225,55 @@ function buildFfmpegHeaderString(headers: Record<string, string>) {
     .join("");
 }
 
-function createCompatibilityMp4Stream(
+async function fileExists(filePath: string) {
+  try {
+    await access(filePath);
+    const details = await stat(filePath);
+    return details.isFile() && details.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupCompatibilityMp4Cache() {
+  try {
+    const entries = await readdir(COMPATIBILITY_MP4_CACHE_DIR, { withFileTypes: true });
+    const expirationCutoff = Date.now() - COMPATIBILITY_MP4_CACHE_TTL_MS;
+
+    await Promise.all(
+      entries
+        .filter((entry) => entry.isFile())
+        .map(async (entry) => {
+          const filePath = path.join(COMPATIBILITY_MP4_CACHE_DIR, entry.name);
+          const details = await stat(filePath).catch(() => null);
+          if (!details || details.mtimeMs >= expirationCutoff) {
+            return;
+          }
+
+          await rm(filePath, { force: true }).catch(() => undefined);
+        }),
+    );
+  } catch {
+    // Best-effort cache cleanup; playback should not fail because cleanup could not run.
+  }
+}
+
+function createCompatibilityMp4TranscodeJob(
   target: {
     providerId: string;
     upstreamUrl: string;
     headers: Record<string, string>;
     cookies: Record<string, string>;
   },
+  outputPath: string,
   onLog: (message: string) => void,
 ) {
-  const output = new PassThrough();
   const ffmpegHeaders = buildFfmpegHeaderString(buildPlaybackRequestHeaders(target));
+  const tempOutputPath = `${outputPath}.tmp.mp4`;
   const ffmpeg = spawn(
     "ffmpeg",
     [
+      "-y",
       "-v",
       "error",
       "-nostdin",
@@ -256,13 +297,13 @@ function createCompatibilityMp4Stream(
       "-profile:a",
       "aac_low",
       "-movflags",
-      "frag_keyframe+empty_moov+default_base_moof",
+      "+faststart",
       "-f",
       "mp4",
-      "pipe:1",
+      tempOutputPath,
     ],
     {
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "ignore", "pipe"],
     },
   );
 
@@ -271,23 +312,63 @@ function createCompatibilityMp4Stream(
     stderr = `${stderr}${chunk.toString()}`.slice(-8_000);
   });
 
-  ffmpeg.stdout.pipe(output);
-  ffmpeg.on("error", (error) => {
-    output.destroy(error);
+  return new Promise<string>((resolve, reject) => {
+    ffmpeg.on("error", async (error) => {
+      await rm(tempOutputPath, { force: true }).catch(() => undefined);
+      reject(error);
+    });
+
+    ffmpeg.on("close", async (code) => {
+      if (code === 0) {
+        await rename(tempOutputPath, outputPath);
+        resolve(outputPath);
+        return;
+      }
+
+      onLog(
+        `FFmpeg compatibility transcode failed for provider "${target.providerId}" with code ${code}. ${stderr.trim()}`.trim(),
+      );
+      await rm(tempOutputPath, { force: true }).catch(() => undefined);
+      reject(new Error("Compatibility transcode failed."));
+    });
   });
-  ffmpeg.on("close", (code) => {
-    if (code === 0) {
-      output.end();
-      return;
+}
+
+function parseByteRange(rangeHeader: string, fileSize: number) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
+  if (!match) {
+    return null;
+  }
+
+  const [, rawStart, rawEnd] = match;
+  if (!rawStart && !rawEnd) {
+    return null;
+  }
+
+  if (!rawStart) {
+    const suffixLength = Number.parseInt(rawEnd, 10);
+    if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+      return null;
     }
 
-    onLog(
-      `FFmpeg compatibility transcode failed for provider "${target.providerId}" with code ${code}. ${stderr.trim()}`.trim(),
-    );
-    output.destroy(new Error("Compatibility transcode failed."));
-  });
+    const start = Math.max(0, fileSize - suffixLength);
+    return { start, end: fileSize - 1 };
+  }
 
-  return { ffmpeg, output };
+  const start = Number.parseInt(rawStart, 10);
+  const requestedEnd = rawEnd ? Number.parseInt(rawEnd, 10) : fileSize - 1;
+  if (!Number.isFinite(start) || !Number.isFinite(requestedEnd)) {
+    return null;
+  }
+
+  if (start < 0 || start >= fileSize || requestedEnd < start) {
+    return null;
+  }
+
+  return {
+    start,
+    end: Math.min(requestedEnd, fileSize - 1),
+  };
 }
 
 const catalogAnimeQuerySchema = z.object({
@@ -314,6 +395,7 @@ declare module "fastify" {
 export async function buildApi() {
   const app = Fastify({ logger: true });
   const relay = new RelayService();
+  const compatibilityMp4Jobs = new Map<string, Promise<string>>();
 
   await app.register(cors, {
     origin: appConfig.corsOrigins,
@@ -670,26 +752,57 @@ export async function buildApi() {
       });
     }
 
-    const { ffmpeg, output } = createCompatibilityMp4Stream(target, (message) => {
-      request.log.warn({ playbackSessionId: params.id, providerId: target.providerId }, message);
-    });
-    const closeTranscode = () => {
-      if (!ffmpeg.killed) {
-        ffmpeg.kill("SIGKILL");
+    await mkdir(COMPATIBILITY_MP4_CACHE_DIR, { recursive: true });
+    void cleanupCompatibilityMp4Cache();
+
+    const outputPath = path.join(COMPATIBILITY_MP4_CACHE_DIR, `${params.id}.mp4`);
+    if (!(await fileExists(outputPath))) {
+      const existingJob = compatibilityMp4Jobs.get(params.id);
+      const generationJob =
+        existingJob ??
+        createCompatibilityMp4TranscodeJob(target, outputPath, (message) => {
+          request.log.warn({ playbackSessionId: params.id, providerId: target.providerId }, message);
+        }).finally(() => {
+          compatibilityMp4Jobs.delete(params.id);
+        });
+
+      if (!existingJob) {
+        compatibilityMp4Jobs.set(params.id, generationJob);
       }
-    };
 
-    request.raw.on("close", closeTranscode);
-    reply.raw.on("close", closeTranscode);
-    output.on("close", () => {
-      request.raw.off("close", closeTranscode);
-      reply.raw.off("close", closeTranscode);
-    });
+      await generationJob;
+    }
 
-    return reply
-      .header("cache-control", "no-store")
-      .type("video/mp4")
-      .send(output);
+    const fileDetails = await stat(outputPath);
+    const rangeHeader = typeof request.headers.range === "string" ? request.headers.range : null;
+    const byteRange = rangeHeader ? parseByteRange(rangeHeader, fileDetails.size) : null;
+
+    if (rangeHeader && !byteRange) {
+      return reply
+        .status(416)
+        .header("content-range", `bytes */${fileDetails.size}`)
+        .send();
+    }
+
+    const start = byteRange?.start ?? 0;
+    const end = byteRange?.end ?? fileDetails.size - 1;
+    const chunkSize = end - start + 1;
+    const statusCode = byteRange ? 206 : 200;
+
+    reply.status(statusCode);
+    reply.header("accept-ranges", "bytes");
+    reply.header("cache-control", "private, max-age=300");
+    reply.header("content-length", chunkSize);
+    reply.header("content-type", "video/mp4");
+    if (byteRange) {
+      reply.header("content-range", `bytes ${start}-${end}/${fileDetails.size}`);
+    }
+
+    if (request.method === "HEAD") {
+      return reply.send();
+    }
+
+    return reply.send(createReadStream(outputPath, { start, end }));
   });
 
   app.get("/history", async (request) => {
