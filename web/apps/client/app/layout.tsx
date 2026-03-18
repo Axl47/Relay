@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Figtree, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "../components/query-provider";
 
-const plexSans = IBM_Plex_Sans({
+const figtree = Figtree({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-plex-sans",
+  variable: "--font-figtree",
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${figtree.variable} ${plexMono.variable}`}>
       <body>
         <QueryProvider>{children}</QueryProvider>
       </body>

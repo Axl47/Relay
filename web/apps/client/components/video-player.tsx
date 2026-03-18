@@ -7,9 +7,28 @@ import { apiFetch } from "../lib/api";
 
 type Props = {
   session: PlaybackSession;
+  progressIntervalSeconds?: number;
+  onEnded?: () => void;
+  onNextEpisode?: () => void;
+  onPreviousEpisode?: () => void;
 };
 
-export function VideoPlayer({ session }: Props) {
+function isInteractiveTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+}
+
+export function VideoPlayer({
+  session,
+  progressIntervalSeconds = 15,
+  onEnded,
+  onNextEpisode,
+  onPreviousEpisode,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const defaultSubtitleIndex =
     session.subtitles.findIndex((subtitle) => subtitle.isDefault) >= 0
@@ -80,19 +99,26 @@ export function VideoPlayer({ session }: Props) {
       }).catch(() => undefined);
     };
 
-    const interval = window.setInterval(sendProgress, 15_000);
+    const interval = window.setInterval(sendProgress, Math.max(10, progressIntervalSeconds) * 1_000);
+    const handleEnded = () => {
+      void sendProgress();
+      onEnded?.();
+    };
+
     video.addEventListener("pause", sendProgress);
+    video.addEventListener("ended", handleEnded);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
       video.removeEventListener("pause", sendProgress);
+      video.removeEventListener("ended", handleEnded);
       dashPlayer?.reset();
       hls?.destroy();
       video.removeAttribute("src");
       video.load();
     };
-  }, [session]);
+  }, [onEnded, progressIntervalSeconds, session]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -104,6 +130,89 @@ export function VideoPlayer({ session }: Props) {
       video.textTracks[index].mode = index === activeSubtitleIndex ? "showing" : "disabled";
     }
   }, [activeSubtitleIndex, session.id]);
+
+  useEffect(() => {
+    if (session.mimeType === "text/html") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isInteractiveTarget(event.target)) {
+        return;
+      }
+
+      const video = videoRef.current;
+      if (!video) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (video.paused) {
+          void video.play().catch(() => undefined);
+        } else {
+          video.pause();
+        }
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        video.currentTime = Math.max(0, video.currentTime - (event.shiftKey ? 30 : 10));
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        video.currentTime = Math.min(video.duration || video.currentTime + 10, video.currentTime + (event.shiftKey ? 30 : 10));
+        return;
+      }
+
+      if (event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        video.muted = !video.muted;
+        return;
+      }
+
+      if (event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        if (document.fullscreenElement) {
+          void document.exitFullscreen().catch(() => undefined);
+        } else {
+          void video.requestFullscreen?.().catch(() => undefined);
+        }
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        video.volume = Math.min(1, Number((video.volume + 0.1).toFixed(2)));
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        video.volume = Math.max(0, Number((video.volume - 0.1).toFixed(2)));
+        return;
+      }
+
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        onNextEpisode?.();
+        return;
+      }
+
+      if (event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        onPreviousEpisode?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onNextEpisode, onPreviousEpisode, session.mimeType]);
 
   if (session.mimeType === "text/html" && session.streamUrl) {
     return (

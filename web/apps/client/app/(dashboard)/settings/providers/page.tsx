@@ -1,82 +1,167 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ProviderSummary } from "@relay/contracts";
 import { apiFetch } from "../../../../lib/api";
 
-export default function ProviderSettingsPage() {
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function loadProviders() {
-    try {
-      const response = await apiFetch<ProviderSummary[]>("/providers");
-      setProviders(response);
-      setMessage(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load providers.");
-    }
+function statusTone(status: ProviderSummary["health"]["status"]) {
+  if (status === "healthy") {
+    return "healthy";
   }
 
-  useEffect(() => {
-    loadProviders();
-  }, []);
+  if (status === "degraded") {
+    return "warn";
+  }
+
+  return "danger";
+}
+
+export default function ProviderSettingsPage() {
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState<string | null>(null);
+
+  const providersQuery = useQuery({
+    queryKey: ["providers"],
+    queryFn: () => apiFetch<ProviderSummary[]>("/providers"),
+  });
+
+  const updateProviderMutation = useMutation({
+    mutationFn: ({
+      providerId,
+      patch,
+    }: {
+      providerId: string;
+      patch: { enabled?: boolean; priority?: number };
+    }) =>
+      apiFetch(`/providers/${providerId}/config`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: async () => {
+      setMessage(null);
+      await queryClient.invalidateQueries({ queryKey: ["providers"] });
+    },
+    onError: (error) => {
+      setMessage(error instanceof Error ? error.message : "Unable to update provider.");
+    },
+  });
+
+  const providers = useMemo(
+    () => [...(providersQuery.data ?? [])].sort((left, right) => left.priority - right.priority),
+    [providersQuery.data],
+  );
 
   async function toggleProvider(provider: ProviderSummary) {
-    try {
-      await apiFetch(`/providers/${provider.id}/config`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          enabled: !provider.enabled,
-          priority: provider.priority,
-        }),
-      });
-      await loadProviders();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to update provider.");
+    await updateProviderMutation.mutateAsync({
+      providerId: provider.id,
+      patch: {
+        enabled: !provider.enabled,
+        priority: provider.priority,
+      },
+    });
+  }
+
+  async function moveProvider(provider: ProviderSummary, direction: -1 | 1) {
+    const index = providers.findIndex((entry) => entry.id === provider.id);
+    const swapTarget = providers[index + direction];
+    if (!swapTarget) {
+      return;
     }
+
+    await updateProviderMutation.mutateAsync({
+      providerId: provider.id,
+      patch: { priority: swapTarget.priority },
+    });
+    await updateProviderMutation.mutateAsync({
+      providerId: swapTarget.id,
+      patch: { priority: provider.priority },
+    });
+  }
+
+  if (providersQuery.isLoading) {
+    return <div className="message">Loading providers...</div>;
+  }
+
+  if (providersQuery.error) {
+    return (
+      <div className="message">
+        {providersQuery.error instanceof Error
+          ? providersQuery.error.message
+          : "Unable to load providers."}
+      </div>
+    );
   }
 
   return (
-    <div className="page-grid">
-      <section className="panel">
-        <div className="topbar-title">
-          <h1>Providers</h1>
-          <p>Curated provider state for the Relay account backend.</p>
+    <div className="page-grid providers-page">
+      <section className="page-heading">
+        <h1>Providers</h1>
+        <p>Manage enablement, ordering, and health for Relay&apos;s content sources.</p>
+      </section>
+
+      <section className="surface">
+        <div className="section-header">
+          <div>
+            <h2>Provider List</h2>
+            <p>
+              {providers.filter((provider) => provider.enabled).length} enabled,{" "}
+              {providers.filter((provider) => !provider.enabled).length} disabled
+            </p>
+          </div>
+        </div>
+
+        <div className="provider-response-list provider-admin-list">
+          {providers.map((provider, index) => (
+            <article className="provider-admin-row" key={provider.id}>
+              <div className="provider-response-main">
+                <div className="provider-response-header">
+                  <span className={`status-dot status-${statusTone(provider.health.status)}`} />
+                  <strong>{provider.displayName}</strong>
+                  <span className="badge">{provider.contentClass}</span>
+                </div>
+                <p>
+                  {provider.enabled ? "Enabled" : "Disabled"} · priority {provider.priority} ·{" "}
+                  {provider.executionMode}
+                </p>
+                <p>
+                  {provider.health.status} · {provider.health.reason} · checked{" "}
+                  {new Date(provider.health.checkedAt).toLocaleString()}
+                </p>
+              </div>
+
+              <div className="provider-admin-actions">
+                <button
+                  className="button-secondary"
+                  disabled={index === 0 || updateProviderMutation.isPending}
+                  onClick={() => moveProvider(provider, -1)}
+                  type="button"
+                >
+                  Up
+                </button>
+                <button
+                  className="button-secondary"
+                  disabled={index === providers.length - 1 || updateProviderMutation.isPending}
+                  onClick={() => moveProvider(provider, 1)}
+                  type="button"
+                >
+                  Down
+                </button>
+                <button
+                  className="button-secondary"
+                  disabled={updateProviderMutation.isPending}
+                  onClick={() => toggleProvider(provider)}
+                  type="button"
+                >
+                  {provider.enabled ? "Disable" : "Enable"}
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
       {message ? <div className="message">{message}</div> : null}
-
-      <section className="list">
-        {providers.map((provider) => (
-          <article className="list-item" key={provider.id}>
-            <div className="list-item-main">
-              <strong>{provider.displayName}</strong>
-              <p>
-                {provider.id} · priority {provider.priority} · {provider.executionMode}
-              </p>
-              <p>
-                class {provider.contentClass} · adult gate{" "}
-                {provider.requiresAdultGate ? "required" : "not required"} · search{" "}
-                {provider.supportsSearch ? "on" : "off"} · tracker sync{" "}
-                {provider.supportsTrackerSync ? "on" : "off"}
-              </p>
-              <p>
-                health {provider.health.status} ({provider.health.reason}) · checked{" "}
-                {new Date(provider.health.checkedAt).toLocaleString()}
-              </p>
-            </div>
-            <div className="actions">
-              <span className="badge">{provider.enabled ? "enabled" : "disabled"}</span>
-              <span className="badge">{provider.contentClass.toUpperCase()}</span>
-              <button className="button-secondary" onClick={() => toggleProvider(provider)} type="button">
-                Toggle
-              </button>
-            </div>
-          </article>
-        ))}
-      </section>
     </div>
   );
 }

@@ -184,6 +184,13 @@ const mediaProxyQuerySchema = z.object({
   url: z.string().url(),
 });
 
+const watchContextQuerySchema = z.object({
+  libraryItemId: z.string().uuid().optional(),
+  providerId: z.string().min(1),
+  externalAnimeId: z.string().min(1),
+  externalEpisodeId: z.string().min(1),
+});
+
 declare module "fastify" {
   interface FastifyRequest {
     sessionUser?: Awaited<ReturnType<RelayService["getSessionUser"]>>;
@@ -305,6 +312,15 @@ export async function buildApi() {
     return relay.getAnime(user.id, providerId, externalAnimeId);
   });
 
+  app.get("/catalog/:providerId/anime/:externalAnimeId/view", async (request) => {
+    const user = await requireUser(request);
+    const { providerId, externalAnimeId } = request.params as {
+      providerId: string;
+      externalAnimeId: string;
+    };
+    return relay.getAnimeDetailView(user.id, providerId, externalAnimeId);
+  });
+
   app.get("/catalog/:providerId/anime/:externalAnimeId/episodes", async (request) => {
     const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {
@@ -351,6 +367,11 @@ export async function buildApi() {
       relay.listCategories(user.id),
     ]);
     return { items, categories };
+  });
+
+  app.get("/library/dashboard", async (request) => {
+    const user = await requireUser(request);
+    return relay.getLibraryDashboard(user.id);
   });
 
   app.post("/library/items", async (request) => {
@@ -408,6 +429,17 @@ export async function buildApi() {
     reply
       .status(session.status === "ready" ? 201 : 202)
       .send(session);
+  });
+
+  app.get("/watch/context", async (request) => {
+    const user = await requireUser(request);
+    const query = watchContextQuerySchema.parse(request.query);
+    return relay.getWatchContext(user.id, {
+      libraryItemId: query.libraryItemId ?? null,
+      providerId: query.providerId,
+      externalAnimeId: query.externalAnimeId,
+      externalEpisodeId: query.externalEpisodeId,
+    });
   });
 
   app.get("/playback/sessions/:id", async (request) => {
@@ -519,6 +551,11 @@ export async function buildApi() {
   app.get("/history", async (request) => {
     const user = await requireUser(request);
     return relay.getHistory(user.id);
+  });
+
+  app.get("/history/grouped", async (request) => {
+    const user = await requireUser(request);
+    return relay.getGroupedHistory(user.id);
   });
 
   app.get("/updates", async (request) => {

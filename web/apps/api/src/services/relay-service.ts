@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type {
+  AnimeDetailView,
   AnimeDetails,
   AssignCategoriesInput,
   AuthBootstrapInput,
@@ -11,8 +12,15 @@ import type {
   CreateCategoryInput,
   CreatePlaybackSessionInput,
   EpisodeList,
+  EpisodeListItemView,
+  EpisodeProgress,
+  EpisodeWatchState,
+  GroupedHistoryResponse,
   HistoryEntry,
+  HistoryEntryView,
   LibraryItemWithCategories,
+  LibraryDashboardItem,
+  LibraryDashboardResponse,
   PlaybackProxyMode,
   PlaybackSession,
   PlaybackSessionStatus,
@@ -27,6 +35,7 @@ import type {
   UpdateUserPreferencesInput,
   UpsertLibraryItemInput,
   UserPreferences,
+  WatchPageContext,
 } from "@relay/contracts";
 import { userPreferencesSchema } from "@relay/contracts";
 import {
@@ -81,6 +90,8 @@ type SessionUser = {
 };
 
 type PlaybackSessionRow = typeof playbackSessions.$inferSelect;
+type WatchProgressRow = typeof watchProgress.$inferSelect;
+type CatalogEpisodeRow = typeof catalogEpisode.$inferSelect;
 
 type StreamTarget = {
   sessionId: string;
@@ -266,6 +277,104 @@ export class RelayService {
       contentClass: provider.metadata.contentClass,
       requiresAdultGate: row.requiresAdultGate,
     };
+  }
+
+  private getEpisodeWatchState(progress: WatchProgressRow | null | undefined): EpisodeWatchState {
+    if (!progress) {
+      return "unwatched";
+    }
+
+    if (progress.completed) {
+      return "watched";
+    }
+
+    if (progress.positionSeconds > 0 || progress.percentComplete > 0) {
+      return "in_progress";
+    }
+
+    return "unwatched";
+  }
+
+  private toEpisodeProgress(progress: WatchProgressRow | null | undefined): EpisodeProgress | null {
+    if (!progress) {
+      return null;
+    }
+
+    return {
+      positionSeconds: progress.positionSeconds,
+      durationSeconds: progress.durationSeconds,
+      percentComplete: progress.percentComplete,
+      completed: progress.completed,
+      updatedAt: progress.updatedAt.toISOString(),
+    };
+  }
+
+  private toEpisodeListItemView(
+    episode: CatalogEpisodeRow | EpisodeList["episodes"][number],
+    progress: WatchProgressRow | null | undefined,
+    options?: {
+      currentEpisodeId?: string | null;
+      nowPlayingEpisodeId?: string | null;
+    },
+  ): EpisodeListItemView {
+    return {
+      providerId: episode.providerId,
+      externalAnimeId: episode.externalAnimeId,
+      externalEpisodeId: episode.externalEpisodeId,
+      number: episode.number,
+      title: episode.title,
+      synopsis: episode.synopsis ?? null,
+      thumbnail: episode.thumbnail ?? null,
+      durationSeconds: episode.durationSeconds ?? null,
+      releasedAt:
+        episode.releasedAt instanceof Date
+          ? episode.releasedAt.toISOString()
+          : episode.releasedAt ?? null,
+      state: this.getEpisodeWatchState(progress),
+      progress: this.toEpisodeProgress(progress),
+      isCurrent: options?.currentEpisodeId === episode.externalEpisodeId,
+      isNowPlaying: options?.nowPlayingEpisodeId === episode.externalEpisodeId,
+    };
+  }
+
+  private createHistoryDayLabel(day: Date, now = new Date()) {
+    const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const diffDays = Math.round((current.valueOf() - target.valueOf()) / 86_400_000);
+
+    if (diffDays === 0) {
+      return "Today";
+    }
+
+    if (diffDays === 1) {
+      return "Yesterday";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+    }).format(day);
+  }
+
+  private createHistoryTimeLabel(value: Date) {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(value);
+  }
+
+  private async getLibraryItemById(userId: string, libraryItemId: string) {
+    const items = await this.listLibrary(userId);
+    return items.find((item) => item.id === libraryItemId) ?? null;
+  }
+
+  private async getLibraryItemByAnime(userId: string, providerId: string, externalAnimeId: string) {
+    const items = await this.listLibrary(userId);
+    return (
+      items.find(
+        (item) => item.providerId === providerId && item.externalAnimeId === externalAnimeId,
+      ) ?? null
+    );
   }
 
   private getProviderResolutionTimeout(provider: RelayProvider) {
@@ -1068,6 +1177,278 @@ export class RelayService {
     return payload;
   }
 
+  async getAnimeDetailView(
+    userId: string,
+    providerId: string,
+    externalAnimeId: string,
+  ): Promise<AnimeDetailView> {
+    const [anime, episodeList, libraryItem] = await Promise.all([
+      this.getAnime(userId, providerId, externalAnimeId),
+      this.getEpisodes(userId, providerId, externalAnimeId),
+      this.getLibraryItemByAnime(userId, providerId, externalAnimeId),
+    ]);
+
+    const progressRows = await db
+      .select()
+      .from(watchProgress)
+      .where(
+        and(
+          eq(watchProgress.userId, userId),
+          eq(watchProgress.providerId, providerId),
+          eq(watchProgress.externalAnimeId, externalAnimeId),
+        ),
+      )
+      .orderBy(desc(watchProgress.updatedAt));
+
+    const progressByEpisode = new Map<string, WatchProgressRow>();
+    for (const row of progressRows) {
+      if (!progressByEpisode.has(row.externalEpisodeId)) {
+        progressByEpisode.set(row.externalEpisodeId, row);
+      }
+    }
+
+    const inProgressEpisode =
+      progressRows.find((row) => !row.completed && row.percentComplete > 0) ?? null;
+    const latestEpisode = progressRows[0] ?? null;
+
+    const episodeViews = episodeList.episodes.map((episode) =>
+      this.toEpisodeListItemView(episode, progressByEpisode.get(episode.externalEpisodeId), {
+        currentEpisodeId: inProgressEpisode?.externalEpisodeId ?? latestEpisode?.externalEpisodeId ?? null,
+      }),
+    );
+
+    const resumeEpisode =
+      episodeViews.find((episode) => episode.state === "in_progress") ??
+      episodeViews.find((episode) => episode.state !== "watched") ??
+      episodeViews[0] ??
+      null;
+
+    const currentEpisode =
+      episodeViews.find((episode) => episode.externalEpisodeId === inProgressEpisode?.externalEpisodeId) ??
+      episodeViews.find((episode) => episode.externalEpisodeId === latestEpisode?.externalEpisodeId) ??
+      resumeEpisode;
+
+    return {
+      anime,
+      libraryItem,
+      inLibrary: libraryItem !== null,
+      resumeEpisodeId: resumeEpisode?.externalEpisodeId ?? null,
+      resumeEpisodeNumber: resumeEpisode?.number ?? null,
+      resumeEpisodeTitle: resumeEpisode?.title ?? null,
+      currentEpisodeId: currentEpisode?.externalEpisodeId ?? null,
+      currentEpisodeNumber: currentEpisode?.number ?? null,
+      currentEpisodeTitle: currentEpisode?.title ?? null,
+      episodes: episodeViews,
+    };
+  }
+
+  async getWatchContext(
+    userId: string,
+    input: CreatePlaybackSessionInput,
+  ): Promise<WatchPageContext> {
+    const detail = await this.getAnimeDetailView(
+      userId,
+      input.providerId,
+      input.externalAnimeId,
+    );
+
+    const libraryItem =
+      input.libraryItemId !== null
+        ? await this.getLibraryItemById(userId, input.libraryItemId)
+        : detail.libraryItem;
+
+    const currentEpisode = detail.episodes.find(
+      (episode) => episode.externalEpisodeId === input.externalEpisodeId,
+    );
+
+    if (!currentEpisode) {
+      throw Object.assign(new Error("Episode not found for this anime."), { statusCode: 404 });
+    }
+
+    const orderedEpisodes = [...detail.episodes].sort((left, right) => left.number - right.number);
+    const currentIndex = orderedEpisodes.findIndex(
+      (episode) => episode.externalEpisodeId === input.externalEpisodeId,
+    );
+    const nextEpisode = currentIndex >= 0 ? orderedEpisodes[currentIndex + 1] ?? null : null;
+
+    return {
+      anime: detail.anime,
+      libraryItem,
+      currentEpisode: {
+        ...currentEpisode,
+        isCurrent: true,
+        isNowPlaying: true,
+      },
+      nextEpisode:
+        nextEpisode !== null
+          ? {
+              ...nextEpisode,
+              isCurrent: false,
+              isNowPlaying: false,
+            }
+          : null,
+      episodes: detail.episodes.map((episode) => ({
+        ...episode,
+        isCurrent: episode.externalEpisodeId === input.externalEpisodeId,
+        isNowPlaying: episode.externalEpisodeId === input.externalEpisodeId,
+      })),
+    };
+  }
+
+  async getLibraryDashboard(userId: string): Promise<LibraryDashboardResponse> {
+    const [items, categories] = await Promise.all([
+      this.listLibrary(userId),
+      this.listCategories(userId),
+    ]);
+
+    if (items.length === 0) {
+      return {
+        continueWatching: [],
+        recentlyAdded: [],
+        allItems: [],
+        categories,
+      };
+    }
+
+    const allowedProviderIds = await this.getAllowedProviderIdsForUser(userId);
+    const progressRows =
+      allowedProviderIds.length > 0
+        ? await db
+            .select()
+            .from(watchProgress)
+            .where(
+              and(
+                eq(watchProgress.userId, userId),
+                inArray(watchProgress.providerId, allowedProviderIds),
+              ),
+            )
+            .orderBy(desc(watchProgress.updatedAt))
+        : [];
+
+    const progressByLibraryItem = new Map<string, WatchProgressRow>();
+    const progressByAnime = new Map<string, WatchProgressRow>();
+
+    for (const row of progressRows) {
+      if (row.libraryItemId && !progressByLibraryItem.has(row.libraryItemId)) {
+        progressByLibraryItem.set(row.libraryItemId, row);
+      }
+
+      const animeKey = `${row.providerId}:${row.externalAnimeId}`;
+      if (!progressByAnime.has(animeKey)) {
+        progressByAnime.set(animeKey, row);
+      }
+    }
+
+    const enrichedItems = await Promise.all(
+      items.map(async (item): Promise<LibraryDashboardItem> => {
+        const progress =
+          progressByLibraryItem.get(item.id) ??
+          progressByAnime.get(`${item.providerId}:${item.externalAnimeId}`) ??
+          null;
+
+        const [animeRow, episodeRow] = await Promise.all([
+          db
+            .select()
+            .from(catalogAnime)
+            .where(
+              and(
+                eq(catalogAnime.providerId, item.providerId),
+                eq(catalogAnime.externalAnimeId, item.externalAnimeId),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0] ?? null),
+          progress
+            ? db
+                .select()
+                .from(catalogEpisode)
+                .where(
+                  and(
+                    eq(catalogEpisode.providerId, progress.providerId),
+                    eq(catalogEpisode.externalAnimeId, progress.externalAnimeId),
+                    eq(catalogEpisode.externalEpisodeId, progress.externalEpisodeId),
+                  ),
+                )
+                .limit(1)
+                .then((rows) => rows[0] ?? null)
+            : Promise.resolve(null),
+        ]);
+
+        return {
+          ...item,
+          totalEpisodes: animeRow?.totalEpisodes ?? null,
+          progress: this.toEpisodeProgress(progress),
+          currentEpisodeId: progress?.externalEpisodeId ?? null,
+          currentEpisodeNumber: episodeRow?.number ?? item.lastEpisodeNumber ?? null,
+          currentEpisodeTitle: episodeRow?.title ?? null,
+          isComplete: progress?.completed ?? item.status === "completed",
+        };
+      }),
+    );
+
+    const continueWatching = enrichedItems
+      .filter((item) => item.progress && !item.isComplete)
+      .sort((left, right) => {
+        const leftValue = left.progress ? new Date(left.progress.updatedAt).valueOf() : 0;
+        const rightValue = right.progress ? new Date(right.progress.updatedAt).valueOf() : 0;
+        return rightValue - leftValue;
+      })
+      .slice(0, 6);
+
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const recentlyAdded = enrichedItems
+      .filter((item) => new Date(item.addedAt).valueOf() >= thirtyDaysAgo)
+      .sort((left, right) => new Date(right.addedAt).valueOf() - new Date(left.addedAt).valueOf())
+      .slice(0, 6);
+
+    const allItems = [...enrichedItems].sort((left, right) => {
+      const leftValue = left.lastWatchedAt ? new Date(left.lastWatchedAt).valueOf() : 0;
+      const rightValue = right.lastWatchedAt ? new Date(right.lastWatchedAt).valueOf() : 0;
+      if (leftValue !== rightValue) {
+        return rightValue - leftValue;
+      }
+
+      return left.title.localeCompare(right.title);
+    });
+
+    return {
+      continueWatching,
+      recentlyAdded,
+      allItems,
+      categories,
+    };
+  }
+
+  async getGroupedHistory(userId: string): Promise<GroupedHistoryResponse> {
+    const entries = await this.getHistory(userId);
+    const groups = new Map<string, { key: string; label: string; entries: HistoryEntryView[] }>();
+
+    for (const entry of entries) {
+      const watchedAt = new Date(entry.watchedAt);
+      const dayKey = watchedAt.toISOString().slice(0, 10);
+      const dayLabel = this.createHistoryDayLabel(watchedAt);
+      const timeLabel = this.createHistoryTimeLabel(watchedAt);
+      const view: HistoryEntryView = {
+        ...entry,
+        dayKey,
+        dayLabel,
+        timeLabel,
+      };
+
+      const current = groups.get(dayKey) ?? {
+        key: dayKey,
+        label: dayLabel,
+        entries: [],
+      };
+      current.entries.push(view);
+      groups.set(dayKey, current);
+    }
+
+    return {
+      groups: Array.from(groups.values()),
+    };
+  }
+
   async listLibrary(userId: string): Promise<LibraryItemWithCategories[]> {
     const allowedProviderIds = await this.getAllowedProviderIdsForUser(userId);
     if (allowedProviderIds.length === 0) {
@@ -1443,6 +1824,7 @@ export class RelayService {
         ? Math.min(100, Math.round((input.positionSeconds / duration) * 100))
         : 0;
     const completed = percentComplete >= threshold;
+    const watchedAt = new Date();
 
     const [existingProgress] = await db
       .select({
@@ -1468,7 +1850,7 @@ export class RelayService {
           durationSeconds: duration,
           percentComplete,
           completed,
-          updatedAt: new Date(),
+          updatedAt: watchedAt,
         })
         .where(eq(watchProgress.id, existingProgress.id));
     } else {
@@ -1482,6 +1864,7 @@ export class RelayService {
         durationSeconds: duration,
         percentComplete,
         completed,
+        updatedAt: watchedAt,
       });
     }
 
@@ -1511,16 +1894,43 @@ export class RelayService {
       )
       .limit(1);
 
+    const libraryTarget =
+      session.libraryItemId !== null
+        ? { id: session.libraryItemId }
+        : await db
+            .select({ id: libraryItems.id })
+            .from(libraryItems)
+            .where(
+              and(
+                eq(libraryItems.userId, userId),
+                eq(libraryItems.providerId, session.providerId),
+                eq(libraryItems.externalAnimeId, session.externalAnimeId),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0] ?? null);
+
+    if (libraryTarget) {
+      await db
+        .update(libraryItems)
+        .set({
+          lastEpisodeNumber: episode?.number ?? null,
+          lastWatchedAt: watchedAt,
+          updatedAt: watchedAt,
+        })
+        .where(and(eq(libraryItems.userId, userId), eq(libraryItems.id, libraryTarget.id)));
+    }
+
     await db.insert(historyEntries).values({
       userId,
-      libraryItemId: session.libraryItemId,
+      libraryItemId: libraryTarget?.id ?? session.libraryItemId,
       providerId: session.providerId,
       externalAnimeId: session.externalAnimeId,
       externalEpisodeId: session.externalEpisodeId,
       animeTitle: anime?.title ?? "Unknown anime",
       episodeTitle: episode?.title ?? "Episode",
       coverImage: anime?.coverImage ?? null,
-      watchedAt: new Date(),
+      watchedAt,
       positionSeconds: input.positionSeconds,
       durationSeconds: duration,
       completed,

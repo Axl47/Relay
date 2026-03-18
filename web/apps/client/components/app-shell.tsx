@@ -5,13 +5,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { apiFetch } from "../lib/api";
 
-const navItems = [
-  { href: "/discover", label: "Discover" },
-  { href: "/library", label: "Library" },
-  { href: "/history", label: "History" },
-  { href: "/updates", label: "Updates" },
-  { href: "/settings", label: "Settings" },
-  { href: "/settings/providers", label: "Providers" },
+type NavItem = {
+  href: string;
+  label: string;
+  shortLabel: string;
+};
+
+const PRIMARY_NAV: NavItem[] = [
+  { href: "/discover", label: "Discover", shortLabel: "D" },
+  { href: "/library", label: "Library", shortLabel: "L" },
+  { href: "/history", label: "History", shortLabel: "H" },
+];
+
+const SYSTEM_NAV: NavItem[] = [
+  { href: "/settings", label: "Settings", shortLabel: "S" },
+  { href: "/settings/providers", label: "Providers", shortLabel: "P" },
+];
+
+const MOBILE_NAV: NavItem[] = [
+  { href: "/discover", label: "Discover", shortLabel: "D" },
+  { href: "/library", label: "Library", shortLabel: "L" },
+  { href: "/history", label: "History", shortLabel: "H" },
+  { href: "/settings", label: "Settings", shortLabel: "S" },
 ];
 
 type SessionUser = {
@@ -20,11 +35,43 @@ type SessionUser = {
   };
 };
 
+function isActivePath(pathname: string, href: string) {
+  if (href === "/settings") {
+    return pathname === "/settings";
+  }
+
+  if (href === "/settings/providers") {
+    return pathname === "/settings/providers";
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SidebarNavItem({
+  item,
+  pathname,
+}: Readonly<{ item: NavItem; pathname: string }>) {
+  const active = isActivePath(pathname, item.href);
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={`nav-link${active ? " active" : ""}`}
+      href={item.href}
+      key={item.href}
+      title={item.label}
+    >
+      <span aria-hidden="true" className="nav-short">
+        {item.shortLabel}
+      </span>
+      <span className="nav-label">{item.label}</span>
+    </Link>
+  );
+}
+
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,78 +98,73 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
     };
   }, []);
 
-  async function logout() {
-    setIsLoggingOut(true);
-
-    try {
-      await apiFetch("/auth/logout", {
-        method: "POST",
-      });
-    } finally {
-      window.location.href = "/login";
-    }
-  }
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <strong>Relay</strong>
-          <span>Web-first self-hosted library and playback.</span>
+          <Link className="brand-wordmark" href="/discover">
+            Relay
+          </Link>
         </div>
 
-        <nav className="nav-list">
-          {navItems.map((item) => (
-            <Link
-              className={`nav-link${pathname === item.href ? " active" : ""}`}
-              href={item.href}
-              key={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <nav className="nav-groups">
+          <section className="nav-section">
+            <p className="nav-section-title">Primary</p>
+            <div className="nav-list">
+              {PRIMARY_NAV.map((item) => (
+                <SidebarNavItem item={item} key={item.href} pathname={pathname} />
+              ))}
+            </div>
+          </section>
+
+          <div className="nav-divider" />
+
+          <section className="nav-section">
+            <p className="nav-section-title">System</p>
+            <div className="nav-list">
+              {SYSTEM_NAV.map((item) => (
+                <SidebarNavItem item={item} key={item.href} pathname={pathname} />
+              ))}
+            </div>
+          </section>
         </nav>
 
-        <div className="panel">
-          <h2>Notes</h2>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
-            Provider health, priorities, and adult-source visibility are managed from Settings and
-            Providers.
-          </p>
+        <div className="sidebar-footer">
+          {isLoadingSession ? (
+            <div className="user-chip user-chip-loading">Loading...</div>
+          ) : session ? (
+            <div className="user-chip">
+              <span className="user-avatar" aria-hidden="true">
+                {session.user.displayName.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="user-name">{session.user.displayName}</span>
+            </div>
+          ) : (
+            <Link className="user-chip user-login" href="/login">
+              Login
+            </Link>
+          )}
         </div>
       </aside>
 
-      <main className="content">
-        <header className="topbar">
-          <div className="topbar-title">
-            <h1>Relay Web</h1>
-            <p>Account-backed catalog, library, watch history, and provider controls.</p>
-          </div>
-          <div className="actions">
-            {isLoadingSession ? null : session ? (
-              <>
-                <Link className="button-secondary" href="/settings">
-                  {session.user.displayName}
-                </Link>
-                <button
-                  className="button-secondary"
-                  disabled={isLoggingOut}
-                  onClick={logout}
-                  type="button"
-                >
-                  {isLoggingOut ? "Logging out..." : "Logout"}
-                </button>
-              </>
-            ) : (
-              <Link className="button-secondary" href="/login">
-                Login
-              </Link>
-            )}
-          </div>
-        </header>
+      <main className="content">{children}</main>
 
-        {children}
-      </main>
+      <nav aria-label="Primary navigation" className="mobile-nav">
+        {MOBILE_NAV.map((item) => {
+          const active = isActivePath(pathname, item.href);
+          return (
+            <Link
+              aria-current={active ? "page" : undefined}
+              className={`mobile-nav-link${active ? " active" : ""}`}
+              href={item.href}
+              key={item.href}
+            >
+              <span className="mobile-nav-short">{item.shortLabel}</span>
+              <span className="mobile-nav-label">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

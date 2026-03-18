@@ -1,111 +1,235 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import type { CatalogSearchResponse } from "@relay/contracts";
+import { FormEvent, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { CatalogSearchResponse, LibraryItemWithCategories } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
+import { FALLBACK_COVER } from "../../../lib/fallback-cover";
 import { resolveMediaUrl } from "../../../lib/media";
 
-const FALLBACK_COVER =
-  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="480" height="720"%3E%3Crect width="100%25" height="100%25" fill="%2316202d"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%23a4b2c8" font-family="Arial" font-size="36"%3ENo%20Image%3C/text%3E%3C/svg%3E';
+type LibraryResponse = {
+  items: LibraryItemWithCategories[];
+};
+
+function buildResultKey(item: CatalogSearchResponse["items"][number]) {
+  return `${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
+}
 
 export default function DiscoverPage() {
-  const [query, setQuery] = useState("relay");
-  const [results, setResults] = useState<CatalogSearchResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [showProviders, setShowProviders] = useState(false);
 
-  async function onSearch(event?: FormEvent) {
-    event?.preventDefault();
-    try {
-      const response = await apiFetch<CatalogSearchResponse>(
-        `/catalog/search?query=${encodeURIComponent(query)}&page=1&limit=12`,
-      );
-      setResults(response);
-      setError(null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to search.");
+  const searchQuery = useQuery({
+    queryKey: ["catalog-search", submittedQuery],
+    queryFn: () =>
+      apiFetch<CatalogSearchResponse>(
+        `/catalog/search?query=${encodeURIComponent(submittedQuery)}&page=1&limit=24`,
+      ),
+    enabled: submittedQuery.trim().length > 0,
+  });
+
+  const libraryQuery = useQuery({
+    queryKey: ["library-index"],
+    queryFn: () => apiFetch<LibraryResponse>("/library"),
+  });
+
+  const groupedResults = useMemo(() => {
+    const items = searchQuery.data?.items ?? [];
+    const libraryKeys = new Set(
+      (libraryQuery.data?.items ?? []).map(
+        (item) => `${item.providerId}:${item.externalAnimeId}`,
+      ),
+    );
+    const groups = new Map<
+      string,
+      {
+        primary: CatalogSearchResponse["items"][number];
+        sources: CatalogSearchResponse["items"][number][];
+        inLibrary: boolean;
+      }
+    >();
+
+    for (const item of items) {
+      const key = buildResultKey(item);
+      const current = groups.get(key);
+      if (current) {
+        current.sources.push(item);
+        current.inLibrary =
+          current.inLibrary || libraryKeys.has(`${item.providerId}:${item.externalAnimeId}`);
+        continue;
+      }
+
+      groups.set(key, {
+        primary: item,
+        sources: [item],
+        inLibrary: libraryKeys.has(`${item.providerId}:${item.externalAnimeId}`),
+      });
     }
+
+    return Array.from(groups.values());
+  }, [libraryQuery.data?.items, searchQuery.data?.items]);
+
+  const providerSummary = useMemo(() => {
+    const providers = searchQuery.data?.providers ?? [];
+    const healthyCount = providers.filter((provider) => provider.status === "success").length;
+    const timeoutCount = providers.filter((provider) => provider.status === "timeout").length;
+    const errorCount = providers.filter((provider) => provider.status === "error").length;
+    const resultCount = searchQuery.data?.items.length ?? 0;
+    const averageLatency =
+      providers.filter((provider) => provider.latencyMs !== null).reduce((total, provider) => total + (provider.latencyMs ?? 0), 0) /
+      Math.max(1, providers.filter((provider) => provider.latencyMs !== null).length);
+
+    return {
+      providers,
+      healthyCount,
+      timeoutCount,
+      errorCount,
+      resultCount,
+      averageLatency: Number.isFinite(averageLatency) ? Math.round(averageLatency) : null,
+    };
+  }, [searchQuery.data]);
+
+  function onSearch(event: FormEvent) {
+    event.preventDefault();
+    setSubmittedQuery(query.trim());
+    setShowProviders(false);
   }
 
   return (
-    <div className="page-grid">
-      <section className="panel">
-        <div className="topbar-title" style={{ marginBottom: 16 }}>
+    <div className="page-grid discover-page">
+      <section className="search-hero">
+        <div className="page-heading">
           <h1>Discover</h1>
-          <p>Search enabled providers and move titles straight into your library.</p>
+          <p>Search across enabled providers and jump straight into playback.</p>
         </div>
 
-        <form className="field-row" onSubmit={onSearch}>
-          <div className="field">
-            <label htmlFor="search">Search</label>
-            <input
-              id="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search anime"
-            />
-          </div>
-          <div className="actions" style={{ alignItems: "end" }}>
-            <button className="button" type="submit">
-              Search
-            </button>
-          </div>
+        <form className="search-form" onSubmit={onSearch}>
+          <input
+            className="search-input"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search across providers..."
+            value={query}
+          />
+          <button className="button" type="submit">
+            Search
+          </button>
         </form>
 
-        {error ? <div className="message" style={{ marginTop: 16 }}>{error}</div> : null}
-        {results?.partial ? (
-          <div className="message" style={{ marginTop: 16 }}>
-            Partial results returned. Some providers timed out or failed.
+        {searchQuery.isFetching ? (
+          <div className="search-status search-status-loading">Searching providers...</div>
+        ) : searchQuery.error ? (
+          <div className="message">
+            {searchQuery.error instanceof Error ? searchQuery.error.message : "Unable to search."}
+          </div>
+        ) : searchQuery.data ? (
+          <button
+            className={`provider-summary${showProviders ? " expanded" : ""}`}
+            onClick={() => setShowProviders((current) => !current)}
+            type="button"
+          >
+            <span>
+              {providerSummary.timeoutCount > 0 || providerSummary.errorCount > 0
+                ? `Warning · ${providerSummary.healthyCount} of ${providerSummary.providers.length} providers healthy`
+                : `Ready · ${providerSummary.providers.length} providers responded`}
+            </span>
+            <span>
+              {providerSummary.resultCount} results
+              {providerSummary.averageLatency !== null
+                ? ` · ${providerSummary.averageLatency}ms avg`
+                : ""}
+            </span>
+          </button>
+        ) : null}
+
+        {showProviders && providerSummary.providers.length > 0 ? (
+          <div className="provider-response-list">
+            {providerSummary.providers.map((provider) => (
+              <article className="provider-response-row" key={provider.providerId}>
+                <div className="provider-response-main">
+                  <div className="provider-response-header">
+                    <span
+                      className={`status-dot status-${provider.status === "success" ? "healthy" : provider.status === "timeout" ? "warn" : "danger"}`}
+                    />
+                    <strong>{provider.displayName}</strong>
+                  </div>
+                  <p>
+                    {provider.status === "success"
+                      ? `${provider.items.length} results`
+                      : provider.error ?? provider.status}
+                    {provider.latencyMs !== null ? ` · ${provider.latencyMs}ms` : ""}
+                  </p>
+                </div>
+                <span className="badge">{provider.contentClass}</span>
+              </article>
+            ))}
           </div>
         ) : null}
       </section>
 
-      {results ? (
-        <section className="panel">
-          <h2>Provider responses</h2>
-          <div className="list">
-            {results.providers.map((provider) => (
-              <article className="list-item" key={provider.providerId}>
-                <div className="list-item-main">
-                  <strong>{provider.displayName}</strong>
-                  <p>
-                    {provider.providerId} · {provider.contentClass} · {provider.status}
-                    {provider.latencyMs !== null ? ` · ${provider.latencyMs}ms` : ""}
-                  </p>
-                  {provider.error ? <p>{provider.error}</p> : null}
-                </div>
-                <span className="badge">{provider.items.length} results</span>
-              </article>
-            ))}
-          </div>
+      {searchQuery.isFetching ? (
+        <section className="discover-results-grid">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div className="result-card result-card-skeleton" key={index} />
+          ))}
         </section>
-      ) : null}
-
-      <section className="grid-cards">
-        {results?.items.map((item) => (
-          <Link
-            href={`/anime/${encodeURIComponent(item.providerId)}/${encodeURIComponent(item.externalAnimeId)}`}
-            className="card"
-            key={`${item.providerId}-${item.externalAnimeId}`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              alt={item.title}
-              className="card-image"
-              src={item.coverImage ? resolveMediaUrl(item.coverImage) : FALLBACK_COVER}
-            />
-            <div className="card-body">
-              <strong>{item.title}</strong>
-              <div className="meta-row">
-                <span className="badge">{item.providerDisplayName}</span>
-                <span className="badge">{item.contentClass}</span>
-                {item.year ? <span>{item.year}</span> : null}
+      ) : groupedResults.length > 0 ? (
+        <section className="discover-results-grid">
+          {groupedResults.map((group) => (
+            <Link
+              className="result-card"
+              href={`/anime/${encodeURIComponent(group.primary.providerId)}/${encodeURIComponent(group.primary.externalAnimeId)}`}
+              key={`${group.primary.providerId}-${group.primary.externalAnimeId}`}
+            >
+              <div className="result-card-image-wrap">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt={group.primary.title}
+                  className="card-image"
+                  src={
+                    group.primary.coverImage
+                      ? resolveMediaUrl(group.primary.coverImage)
+                      : FALLBACK_COVER
+                  }
+                />
+                <div className="result-card-badges">
+                  <span className="badge badge-strong">{group.primary.providerDisplayName}</span>
+                  {group.sources.length > 1 ? (
+                    <span className="badge">{group.sources.length} sources</span>
+                  ) : null}
+                  {group.inLibrary ? <span className="badge badge-success">In Library</span> : null}
+                </div>
               </div>
-              <p>{item.synopsis ?? "No synopsis."}</p>
-            </div>
-          </Link>
-        ))}
-      </section>
+              <div className="card-body">
+                <strong>{group.primary.title}</strong>
+                <div className="meta-row">
+                  <span>{group.primary.kind.toUpperCase()}</span>
+                  {group.primary.year ? <span>{group.primary.year}</span> : null}
+                  <span>{group.primary.contentClass}</span>
+                </div>
+                {group.primary.synopsis ? (
+                  <p>{group.primary.synopsis}</p>
+                ) : (
+                  <p className="card-subtle">
+                    {group.primary.year ? `Released ${group.primary.year}` : "Open details"}
+                  </p>
+                )}
+              </div>
+            </Link>
+          ))}
+        </section>
+      ) : submittedQuery ? (
+        <section className="empty-panel">
+          <h2>No results</h2>
+          <p>No results for "{submittedQuery}" across the currently enabled providers.</p>
+        </section>
+      ) : (
+        <section className="empty-panel">
+          <h2>Ready to search</h2>
+          <p>Use the search bar above to query Relay&apos;s enabled providers.</p>
+        </section>
+      )}
     </div>
   );
 }

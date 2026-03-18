@@ -21,6 +21,9 @@ export const providerHealthReasonSchema = z.enum([
   "rate_limited",
   "upstream_error",
 ]);
+export const episodeWatchStateSchema = z.enum(["unwatched", "in_progress", "watched"]);
+export const audioNormalizationSchema = z.enum(["off", "light", "strong"]);
+export const themePreferenceSchema = z.enum(["relay-dark"]);
 export const catalogProviderSearchStatusSchema = z.enum([
   "success",
   "timeout",
@@ -193,10 +196,15 @@ export const userPreferencesSchema = z.object({
   librarySortMode: librarySortModeSchema.default("lastWatched"),
   categoryTabsVisible: z.boolean().default(true),
   autoplayNextEpisode: z.boolean().default(true),
+  autoplayCountdownSeconds: z.number().int().min(0).default(15),
   preferredQuality: z.string().default("1080p"),
   preferredSubtitleLanguage: z.string().default("en"),
+  audioNormalization: audioNormalizationSchema.default("off"),
+  progressSaveIntervalSeconds: z.number().int().min(10).default(15),
   watchedThresholdPercent: z.number().int().min(1).max(100).default(90),
   updatesRefreshIntervalMinutes: z.number().int().min(15).default(180),
+  theme: themePreferenceSchema.default("relay-dark"),
+  coverBasedTheming: z.boolean().default(true),
   adultContentVisible: z.boolean().default(false),
   allowedContentClasses: z.array(providerContentClassSchema).default(["anime"]),
 });
@@ -260,6 +268,66 @@ export const historyEntrySchema = z.object({
   completed: z.boolean().default(false),
 });
 
+export const episodeProgressSchema = z.object({
+  positionSeconds: z.number().nonnegative(),
+  durationSeconds: z.number().positive().nullable().default(null),
+  percentComplete: z.number().min(0).max(100).default(0),
+  completed: z.boolean().default(false),
+  updatedAt: z.string(),
+});
+
+export const episodeListItemViewSchema = episodeSummarySchema.extend({
+  state: episodeWatchStateSchema.default("unwatched"),
+  progress: episodeProgressSchema.nullable().default(null),
+  isCurrent: z.boolean().default(false),
+  isNowPlaying: z.boolean().default(false),
+});
+
+export const animeDetailViewSchema = z.object({
+  anime: animeDetailsSchema,
+  libraryItem: libraryItemWithCategoriesSchema.nullable().default(null),
+  inLibrary: z.boolean().default(false),
+  resumeEpisodeId: externalIdSchema.nullable().default(null),
+  resumeEpisodeNumber: z.number().nullable().default(null),
+  resumeEpisodeTitle: z.string().nullable().default(null),
+  currentEpisodeId: externalIdSchema.nullable().default(null),
+  currentEpisodeNumber: z.number().nullable().default(null),
+  currentEpisodeTitle: z.string().nullable().default(null),
+  episodes: z.array(episodeListItemViewSchema).default([]),
+});
+
+export const libraryDashboardItemSchema = libraryItemWithCategoriesSchema.extend({
+  totalEpisodes: z.number().int().nullable().default(null),
+  progress: episodeProgressSchema.nullable().default(null),
+  currentEpisodeId: externalIdSchema.nullable().default(null),
+  currentEpisodeNumber: z.number().nullable().default(null),
+  currentEpisodeTitle: z.string().nullable().default(null),
+  isComplete: z.boolean().default(false),
+});
+
+export const libraryDashboardResponseSchema = z.object({
+  continueWatching: z.array(libraryDashboardItemSchema).default([]),
+  recentlyAdded: z.array(libraryDashboardItemSchema).default([]),
+  allItems: z.array(libraryDashboardItemSchema).default([]),
+  categories: z.array(categorySchema).default([]),
+});
+
+export const historyEntryViewSchema = historyEntrySchema.extend({
+  dayKey: z.string().min(1),
+  dayLabel: z.string().min(1),
+  timeLabel: z.string().min(1),
+});
+
+export const historyDayGroupSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  entries: z.array(historyEntryViewSchema).default([]),
+});
+
+export const groupedHistoryResponseSchema = z.object({
+  groups: z.array(historyDayGroupSchema).default([]),
+});
+
 export const playbackSessionSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
@@ -275,6 +343,26 @@ export const playbackSessionSchema = z.object({
   expiresAt: z.string(),
   positionSeconds: z.number().nonnegative().default(0),
   error: z.string().nullable().default(null),
+});
+
+export const watchPageContextSchema = z.object({
+  anime: animeDetailsSchema,
+  libraryItem: libraryItemWithCategoriesSchema.nullable().default(null),
+  currentEpisode: episodeListItemViewSchema,
+  nextEpisode: episodeListItemViewSchema.nullable().default(null),
+  episodes: z.array(episodeListItemViewSchema).default([]),
+});
+
+export const sessionUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  displayName: z.string().min(1),
+  isAdmin: z.boolean(),
+});
+
+export const meResponseSchema = z.object({
+  user: sessionUserSchema,
+  preferences: userPreferencesSchema,
 });
 
 export const authBootstrapInputSchema = z.object({
@@ -355,6 +443,9 @@ export type PlaybackProxyMode = z.infer<typeof playbackProxyModeSchema>;
 export type PlaybackSessionStatus = z.infer<typeof playbackSessionStatusSchema>;
 export type ProviderHealthStatus = z.infer<typeof providerHealthStatusSchema>;
 export type ProviderHealthReason = z.infer<typeof providerHealthReasonSchema>;
+export type EpisodeWatchState = z.infer<typeof episodeWatchStateSchema>;
+export type AudioNormalization = z.infer<typeof audioNormalizationSchema>;
+export type ThemePreference = z.infer<typeof themePreferenceSchema>;
 export type CatalogProviderSearchStatus = z.infer<typeof catalogProviderSearchStatusSchema>;
 export type ProviderAnimeRef = z.infer<typeof providerAnimeRefSchema>;
 export type ProviderEpisodeRef = z.infer<typeof providerEpisodeRefSchema>;
@@ -379,7 +470,18 @@ export type LibraryItem = z.infer<typeof libraryItemSchema>;
 export type LibraryItemWithCategories = z.infer<typeof libraryItemWithCategoriesSchema>;
 export type WatchProgress = z.infer<typeof watchProgressSchema>;
 export type HistoryEntry = z.infer<typeof historyEntrySchema>;
+export type EpisodeProgress = z.infer<typeof episodeProgressSchema>;
+export type EpisodeListItemView = z.infer<typeof episodeListItemViewSchema>;
+export type AnimeDetailView = z.infer<typeof animeDetailViewSchema>;
+export type LibraryDashboardItem = z.infer<typeof libraryDashboardItemSchema>;
+export type LibraryDashboardResponse = z.infer<typeof libraryDashboardResponseSchema>;
+export type HistoryEntryView = z.infer<typeof historyEntryViewSchema>;
+export type HistoryDayGroup = z.infer<typeof historyDayGroupSchema>;
+export type GroupedHistoryResponse = z.infer<typeof groupedHistoryResponseSchema>;
 export type PlaybackSession = z.infer<typeof playbackSessionSchema>;
+export type WatchPageContext = z.infer<typeof watchPageContextSchema>;
+export type SessionUser = z.infer<typeof sessionUserSchema>;
+export type MeResponse = z.infer<typeof meResponseSchema>;
 export type AuthBootstrapInput = z.infer<typeof authBootstrapInputSchema>;
 export type AuthLoginInput = z.infer<typeof authLoginInputSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;

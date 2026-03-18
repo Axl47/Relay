@@ -1,143 +1,256 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { MeResponse, UpdateUserPreferencesInput, UserPreferences } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
 
-type MeResponse = {
-  user: {
-    email: string;
-    displayName: string;
-    isAdmin: boolean;
-  };
-  preferences: {
-    libraryLayoutMode: string;
-    librarySortMode: string;
-    autoplayNextEpisode: boolean;
-    watchedThresholdPercent: number;
-    adultContentVisible: boolean;
-    allowedContentClasses: string[];
-  };
-};
+function formatPreferenceLabel(value: string) {
+  return value.replace(/-/g, " ");
+}
 
 export default function SettingsPage() {
-  const [data, setData] = useState<MeResponse | null>(null);
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch<MeResponse>("/me")
-      .then((response) => {
-        setData(response);
-        setMessage(null);
-      })
-      .catch(() => setData(null));
-  }, []);
+  const meQuery = useQuery({
+    queryKey: ["me"],
+    queryFn: () => apiFetch<MeResponse>("/me"),
+  });
 
-  async function toggleAdultContent() {
-    if (!data) {
-      return;
-    }
-
-    const enabling = !data.preferences.adultContentVisible;
-    if (
-      enabling &&
-      !window.confirm(
-        "Enable hentai and JAV providers for this account? Relay will surface adult catalog and playback routes after this change.",
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const preferences = await apiFetch<MeResponse["preferences"]>("/me/preferences", {
+  const updatePreferencesMutation = useMutation({
+    mutationFn: (patch: UpdateUserPreferencesInput) =>
+      apiFetch<UserPreferences>("/me/preferences", {
         method: "PATCH",
-        body: JSON.stringify({
-          adultContentVisible: enabling,
-          allowedContentClasses: enabling ? ["anime", "hentai", "jav"] : ["anime"],
-        }),
-      });
-      setData((current) => (current ? { ...current, preferences } : current));
-      setMessage(
-        enabling
-          ? "Adult providers are now visible. Provider enablement stays separate."
-          : "Adult providers are hidden again for this account.",
-      );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Unable to update adult content preferences.",
-      );
-    }
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: async () => {
+      setMessage("Settings updated.");
+      await queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (error) => {
+      setMessage(error instanceof Error ? error.message : "Unable to update settings.");
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () =>
+      apiFetch("/auth/logout", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      window.location.href = "/login";
+    },
+  });
+
+  async function updatePreferences(patch: UpdateUserPreferencesInput) {
+    setMessage(null);
+    await updatePreferencesMutation.mutateAsync(patch);
   }
 
+  if (meQuery.isLoading) {
+    return <div className="message">Loading settings...</div>;
+  }
+
+  if (meQuery.error || !meQuery.data) {
+    return (
+      <div className="message">
+        {meQuery.error instanceof Error ? meQuery.error.message : "Unable to load settings."}
+      </div>
+    );
+  }
+
+  const { user, preferences } = meQuery.data;
+
   return (
-    <div className="page-grid">
-      <section className="panel">
-        <div className="topbar-title">
-          <h1>Settings</h1>
-          <p>Current account and cross-platform preference defaults.</p>
-        </div>
+    <div className="page-grid settings-page">
+      <section className="page-heading">
+        <h1>Settings</h1>
+        <p>Playback defaults, appearance preferences, and account controls.</p>
       </section>
 
-      <section className="panel">
-        <h2>Account</h2>
-        {data ? (
-          <div className="list">
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>{data.user.displayName}</strong>
-                <p>{data.user.email}</p>
-              </div>
-              <span className="badge">{data.user.isAdmin ? "admin" : "member"}</span>
+      <section className="settings-grid">
+        <article className="surface">
+          <div className="section-header">
+            <div>
+              <h2>Playback</h2>
+              <p>Defaults applied when a new watch session starts.</p>
             </div>
           </div>
-        ) : (
-          <div className="message">Log in to inspect account settings.</div>
-        )}
-      </section>
 
-      <section className="panel">
-        <h2>Defaults</h2>
-        {data ? (
-          <div className="list">
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>Library layout</strong>
-                <p>{data.preferences.libraryLayoutMode}</p>
-              </div>
-            </div>
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>Library sort</strong>
-                <p>{data.preferences.librarySortMode}</p>
-              </div>
-            </div>
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>Autoplay next episode</strong>
-                <p>{data.preferences.autoplayNextEpisode ? "enabled" : "disabled"}</p>
-              </div>
-            </div>
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>Watched threshold</strong>
-                <p>{data.preferences.watchedThresholdPercent}%</p>
-              </div>
-            </div>
-            <div className="list-item">
-              <div className="list-item-main">
-                <strong>Adult content visibility</strong>
-                <p>
-                  {data.preferences.adultContentVisible ? "enabled" : "disabled"} · allowed classes{" "}
-                  {data.preferences.allowedContentClasses.join(", ")}
-                </p>
-              </div>
-              <button className="button-secondary" onClick={toggleAdultContent} type="button">
-                {data.preferences.adultContentVisible ? "Hide Adult Sources" : "Enable Adult Sources"}
-              </button>
+          <div className="settings-list">
+            <label className="settings-row">
+              <span>Autoplay next episode</span>
+              <input
+                checked={preferences.autoplayNextEpisode}
+                onChange={(event) => updatePreferences({ autoplayNextEpisode: event.target.checked })}
+                type="checkbox"
+              />
+            </label>
+
+            <label className="settings-row">
+              <span>Autoplay countdown</span>
+              <select
+                onChange={(event) =>
+                  updatePreferences({ autoplayCountdownSeconds: Number(event.target.value) })
+                }
+                value={preferences.autoplayCountdownSeconds}
+              >
+                <option value={0}>Off</option>
+                <option value={5}>5 seconds</option>
+                <option value={10}>10 seconds</option>
+                <option value={15}>15 seconds</option>
+              </select>
+            </label>
+
+            <label className="settings-row">
+              <span>Subtitle language</span>
+              <select
+                onChange={(event) =>
+                  updatePreferences({ preferredSubtitleLanguage: event.target.value })
+                }
+                value={preferences.preferredSubtitleLanguage}
+              >
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="ja">Japanese</option>
+                <option value="und">Auto</option>
+              </select>
+            </label>
+
+            <label className="settings-row">
+              <span>Audio normalization</span>
+              <select
+                onChange={(event) =>
+                  updatePreferences({
+                    audioNormalization: event.target.value as UserPreferences["audioNormalization"],
+                  })
+                }
+                value={preferences.audioNormalization}
+              >
+                <option value="off">Off</option>
+                <option value="light">Light</option>
+                <option value="strong">Strong</option>
+              </select>
+            </label>
+
+            <label className="settings-row">
+              <span>Progress save interval</span>
+              <select
+                onChange={(event) =>
+                  updatePreferences({ progressSaveIntervalSeconds: Number(event.target.value) })
+                }
+                value={preferences.progressSaveIntervalSeconds}
+              >
+                <option value={10}>10 seconds</option>
+                <option value={15}>15 seconds</option>
+                <option value={30}>30 seconds</option>
+              </select>
+            </label>
+          </div>
+        </article>
+
+        <article className="surface">
+          <div className="section-header">
+            <div>
+              <h2>Appearance</h2>
+              <p>Dark-first presentation and cover-driven accents.</p>
             </div>
           </div>
-        ) : (
-          <div className="message">No authenticated session detected.</div>
-        )}
+
+          <div className="settings-list">
+            <label className="settings-row">
+              <span>Theme</span>
+              <select
+                onChange={(event) =>
+                  updatePreferences({ theme: event.target.value as UserPreferences["theme"] })
+                }
+                value={preferences.theme}
+              >
+                <option value="relay-dark">Relay Dark</option>
+              </select>
+            </label>
+
+            <label className="settings-row">
+              <span>Cover-based theming</span>
+              <input
+                checked={preferences.coverBasedTheming}
+                onChange={(event) =>
+                  updatePreferences({ coverBasedTheming: event.target.checked })
+                }
+                type="checkbox"
+              />
+            </label>
+          </div>
+        </article>
+
+        <article className="surface">
+          <div className="section-header">
+            <div>
+              <h2>Account</h2>
+              <p>Identity and safety controls for this Relay account.</p>
+            </div>
+          </div>
+
+          <div className="settings-list">
+            <div className="settings-row static">
+              <span>Username</span>
+              <strong>{user.displayName}</strong>
+            </div>
+            <div className="settings-row static">
+              <span>Email</span>
+              <strong>{user.email}</strong>
+            </div>
+            <label className="settings-row">
+              <span>Adult content visibility</span>
+              <input
+                checked={preferences.adultContentVisible}
+                onChange={(event) =>
+                  updatePreferences({
+                    adultContentVisible: event.target.checked,
+                    allowedContentClasses: event.target.checked ? ["anime", "hentai", "jav"] : ["anime"],
+                  })
+                }
+                type="checkbox"
+              />
+            </label>
+          </div>
+
+          <div className="actions">
+            <button
+              className="button-secondary"
+              disabled={logoutMutation.isPending}
+              onClick={() => logoutMutation.mutate()}
+              type="button"
+            >
+              {logoutMutation.isPending ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        </article>
+
+        <article className="surface">
+          <div className="section-header">
+            <div>
+              <h2>About</h2>
+              <p>Relay version and lineage.</p>
+            </div>
+          </div>
+
+          <div className="settings-list">
+            <div className="settings-row static">
+              <span>Theme preset</span>
+              <strong>{formatPreferenceLabel(preferences.theme)}</strong>
+            </div>
+            <div className="settings-row static">
+              <span>Default quality</span>
+              <strong>{preferences.preferredQuality}</strong>
+            </div>
+            <div className="settings-row static">
+              <span>Lineage</span>
+              <strong>Anikku / Aniyomi / Tachiyomi</strong>
+            </div>
+          </div>
+        </article>
       </section>
 
       {message ? <div className="message">{message}</div> : null}
