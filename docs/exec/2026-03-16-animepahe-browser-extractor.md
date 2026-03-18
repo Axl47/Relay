@@ -17,6 +17,8 @@ After this change, Relay can use the browser broker to search AnimePahe, open An
 - [x] (2026-03-16 18:30Z) Verify `@relay/browser` typecheck/build and run a live extractor smoke against AnimePahe search, details, episodes, and playback.
 - [x] (2026-03-16 18:31Z) Update `AGENTS.md` with the AnimePahe maintenance note and revise this ExecPlan with final results.
 - [x] (2026-03-16 18:36Z) Add provider-side AnimePahe search relevance filtering so noisy upstream API matches do not leak unrelated titles into Relay results.
+- [x] (2026-03-17 15:05Z) Mark AnimePahe HLS playback sessions as non-reusable after confirming the fresh extractor path still works, so stale cached `kwik`/`owocdn` URLs do not survive unrelated app changes.
+- [x] (2026-03-18 04:08Z) Stop forwarding upstream `content-length` and `content-range` headers when Relay rewrites HLS playlists, fixing Firefox `NS_BINDING_ERROR` on proxied AnimePahe manifests.
 
 ## Surprises & Discoveries
 
@@ -45,6 +47,14 @@ After this change, Relay can use the browser broker to search AnimePahe, open An
 - Decision: Filter AnimePahe search API results locally instead of trusting the API ordering.
   Rationale: The upstream API can return broadly related or unrelated titles for short queries, so Relay should rank and discard results that do not match the normalized query tokens.
   Date/Author: 2026-03-16 / Codex
+
+- Decision: Never reuse ready AnimePahe HLS playback sessions.
+  Rationale: Fresh extraction still resolves valid manifests and segments, so playback regressions after unrelated app work are more likely to come from stale cached `kwik`/`vault-99.owocdn.top` URLs than from extractor drift. Forcing a new AnimePahe playback session is a cheap and reliable recovery path.
+  Date/Author: 2026-03-17 / Codex
+
+- Decision: Treat HLS playlist rewriting as a new response body for header passthrough purposes.
+  Rationale: Once Relay rewrites segment and key URIs onto `/stream/:sessionId/...`, any upstream `content-length` or `content-range` values describe the old playlist, not the new one. Forwarding them can make browsers abort the response even though the underlying stream is fine.
+  Date/Author: 2026-03-18 / Codex
 
 ## Outcomes & Retrospective
 

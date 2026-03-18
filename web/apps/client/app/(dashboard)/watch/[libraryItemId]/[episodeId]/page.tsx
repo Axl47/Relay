@@ -45,6 +45,7 @@ export default function WatchPage() {
   const router = useRouter();
   const [autoplayCountdown, setAutoplayCountdown] = useState<number | null>(null);
   const [autoplayActive, setAutoplayActive] = useState(false);
+  const [shouldPollSession, setShouldPollSession] = useState(false);
 
   const resolvedParams = useMemo(
     () => ({
@@ -117,6 +118,7 @@ export default function WatchPage() {
       }),
     enabled: payload !== null,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
@@ -124,8 +126,11 @@ export default function WatchPage() {
   const sessionPollQuery = useQuery({
     queryKey: ["playback-session-poll", sessionCreateQuery.data?.id],
     queryFn: () => apiFetch<PlaybackSession>(`/playback/sessions/${sessionCreateQuery.data!.id}`),
-    enabled: sessionCreateQuery.data?.status === "resolving",
+    enabled: shouldPollSession && Boolean(sessionCreateQuery.data?.id),
     refetchInterval: 2_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
 
@@ -136,6 +141,33 @@ export default function WatchPage() {
     meQuery.data?.preferences.autoplayNextEpisode === false
       ? 0
       : meQuery.data?.preferences.autoplayCountdownSeconds ?? 15;
+
+  useEffect(() => {
+    setAutoplayActive(false);
+    setAutoplayCountdown(null);
+    setShouldPollSession(false);
+  }, [payload?.externalEpisodeId, payload?.externalAnimeId, payload?.libraryItemId, payload?.providerId]);
+
+  useEffect(() => {
+    if (sessionCreateQuery.data?.status === "resolving") {
+      setShouldPollSession(true);
+      return;
+    }
+
+    if (sessionCreateQuery.data) {
+      setShouldPollSession(false);
+    }
+  }, [sessionCreateQuery.data]);
+
+  useEffect(() => {
+    if (
+      sessionPollQuery.data?.status === "ready" ||
+      sessionPollQuery.data?.status === "failed" ||
+      sessionPollQuery.data?.status === "expired"
+    ) {
+      setShouldPollSession(false);
+    }
+  }, [sessionPollQuery.data]);
 
   useEffect(() => {
     if (!autoplayActive || autoplayCountdown === null) {

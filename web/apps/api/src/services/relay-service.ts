@@ -104,7 +104,7 @@ type StreamTarget = {
 };
 
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
-const ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN = /~relay\.(?:mp4|m3u8|m3u|vtt|srt|ass)$/i;
+const ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN = /~relay\.(?:mp4|ts|m3u8|m3u|vtt|srt|ass)$/i;
 
 type SubtitleTrack = PlaybackSession["subtitles"][number];
 type CatalogAnimeRow = typeof catalogAnime.$inferSelect;
@@ -516,6 +516,10 @@ export class RelayService {
       typeof row.upstreamUrl === "string" &&
       row.upstreamUrl.includes("shipimagesbolt.online/embed-1/")
     ) {
+      return false;
+    }
+
+    if (row.providerId === "animepahe" && row.mimeType === "application/vnd.apple.mpegurl") {
       return false;
     }
 

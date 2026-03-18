@@ -24,3 +24,4 @@
 - [x] Run `rtk proxy npm --prefix web/apps/client run typecheck`
 - [x] Run `rtk proxy npm --prefix web run typecheck`
 - [x] Run `rtk proxy npm --prefix web/apps/client run build`
+- [x] Verify the live AnimePahe stream proxy serves the playlist with `.ts`-aliased segment URLs and `video/mp2t` segment content types instead of raw `.jpg` / `image/jpeg`

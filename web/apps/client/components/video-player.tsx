@@ -13,6 +13,8 @@ type Props = {
   onPreviousEpisode?: () => void;
 };
 
+type SourceMode = "primary" | "compatibility-mp4";
+
 function isInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -20,6 +22,18 @@ function isInteractiveTarget(target: EventTarget | null) {
 
   const tagName = target.tagName.toLowerCase();
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
+}
+
+function shouldUseCompatibilityMp4(session: PlaybackSession) {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return (
+    session.providerId === "animepahe" &&
+    session.mimeType === "application/vnd.apple.mpegurl" &&
+    navigator.userAgent.toLowerCase().includes("firefox")
+  );
 }
 
 export function VideoPlayer({
@@ -37,14 +51,24 @@ export function VideoPlayer({
         ? 0
         : null;
   const [activeSubtitleIndex, setActiveSubtitleIndex] = useState<number | null>(defaultSubtitleIndex);
+  const [sourceMode, setSourceMode] = useState<SourceMode>(() =>
+    shouldUseCompatibilityMp4(session) ? "compatibility-mp4" : "primary",
+  );
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const compatibilityMp4Url = `${apiBaseUrl}/playback/sessions/${session.id}/compat.mp4`;
 
   useEffect(() => {
     setActiveSubtitleIndex(defaultSubtitleIndex);
   }, [defaultSubtitleIndex, session.id]);
 
   useEffect(() => {
-    const streamUrl = session.streamUrl;
-    const mimeType = session.mimeType;
+    setSourceMode(shouldUseCompatibilityMp4(session) ? "compatibility-mp4" : "primary");
+  }, [session.id, session.mimeType, session.providerId]);
+
+  useEffect(() => {
+    const streamUrl = sourceMode === "compatibility-mp4" ? compatibilityMp4Url : session.streamUrl;
+    const mimeType = sourceMode === "compatibility-mp4" ? "video/mp4" : session.mimeType;
 
     if (!streamUrl || mimeType === "text/html") {
       return;
@@ -61,10 +85,53 @@ export function VideoPlayer({
         }
       | null = null;
     let cancelled = false;
+    let restoredStartPosition = false;
+    const supportsCompatibilityFallback =
+      session.providerId === "animepahe" && session.mimeType === "application/vnd.apple.mpegurl";
+
+    const restoreStartPosition = () => {
+      if (restoredStartPosition || session.positionSeconds <= 0) {
+        return;
+      }
+
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        video.currentTime = Math.min(session.positionSeconds, Math.max(0, video.duration - 1));
+      } else {
+        video.currentTime = session.positionSeconds;
+      }
+      restoredStartPosition = true;
+    };
+
+    const handleCompatibilityFallback = (reason: string, error?: unknown) => {
+      if (!supportsCompatibilityFallback || sourceMode === "compatibility-mp4") {
+        return;
+      }
+
+      console.warn("Relay switching to compatibility MP4 playback", {
+        reason,
+        providerId: session.providerId,
+        playbackSessionId: session.id,
+        error: error instanceof Error ? error.message : String(error ?? ""),
+      });
+      setSourceMode("compatibility-mp4");
+    };
 
     const attachSource = async () => {
       if (mimeType === "application/vnd.apple.mpegurl" && Hls.isSupported()) {
         hls = new Hls();
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          console.error("Relay HLS playback error", {
+            providerId: session.providerId,
+            playbackSessionId: session.id,
+            details: data.details,
+            fatal: data.fatal,
+            error: data.error instanceof Error ? data.error.message : String(data.error ?? ""),
+          });
+
+          if (data.fatal && data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR) {
+            handleCompatibilityFallback("bufferAddCodecError", data.error);
+          }
+        });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         return;
@@ -86,8 +153,6 @@ export function VideoPlayer({
 
     void attachSource();
 
-    video.currentTime = session.positionSeconds;
-
     const sendProgress = async () => {
       if (!video.duration || Number.isNaN(video.duration)) return;
       await apiFetch(`/playback/sessions/${session.id}/progress`, {
@@ -104,21 +169,40 @@ export function VideoPlayer({
       void sendProgress();
       onEnded?.();
     };
+    const handleVideoError = () => {
+      const error = video.error;
+      console.error("Relay video element error", {
+        providerId: session.providerId,
+        playbackSessionId: session.id,
+        code: error?.code ?? null,
+        message: error?.message ?? null,
+      });
+
+      if (error?.message?.includes("AudioConverter AAC cookie")) {
+        handleCompatibilityFallback("audioDecoderCookieError", error);
+      }
+    };
 
     video.addEventListener("pause", sendProgress);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("loadedmetadata", restoreStartPosition);
+    video.addEventListener("loadeddata", restoreStartPosition);
+    video.addEventListener("error", handleVideoError);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
       video.removeEventListener("pause", sendProgress);
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener("loadedmetadata", restoreStartPosition);
+      video.removeEventListener("loadeddata", restoreStartPosition);
+      video.removeEventListener("error", handleVideoError);
       dashPlayer?.reset();
       hls?.destroy();
       video.removeAttribute("src");
       video.load();
     };
-  }, [onEnded, progressIntervalSeconds, session]);
+  }, [compatibilityMp4Url, onEnded, progressIntervalSeconds, session, sourceMode]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -226,8 +310,6 @@ export function VideoPlayer({
       </div>
     );
   }
-
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
   return (
     <div className="player-frame">

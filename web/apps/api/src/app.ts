@@ -1,4 +1,5 @@
-import { Readable } from "node:stream";
+import { spawn } from "node:child_process";
+import { PassThrough, Readable } from "node:stream";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
@@ -69,6 +70,13 @@ function getProxyUpstreamAlias(upstreamUrl: string) {
         /\/(?:i\.mp4|ha\d+\.jpg)$/i.test(pathname))
     ) {
       return `${PROXY_UPSTREAM_ALIAS_SUFFIX}.mp4`;
+    }
+
+    if (
+      hostname.endsWith(".owocdn.top") &&
+      /\/segment-\d+-v\d+-a\d+\.jpg$/i.test(pathname)
+    ) {
+      return `${PROXY_UPSTREAM_ALIAS_SUFFIX}.ts`;
     }
   } catch {
     return "";
@@ -164,6 +172,13 @@ function normalizeStreamContentType(upstreamUrl: string, contentType: string) {
       }
     }
 
+    if (
+      hostname.endsWith(".owocdn.top") &&
+      /\/segment-\d+-v\d+-a\d+\.jpg$/i.test(pathname)
+    ) {
+      return "video/mp2t";
+    }
+
     if (/mpegurl/i.test(normalizedContentType) && pathname.endsWith(".mp4")) {
       return "video/mp4";
     }
@@ -174,6 +189,105 @@ function normalizeStreamContentType(upstreamUrl: string, contentType: string) {
   }
 
   return normalizedContentType || "application/octet-stream";
+}
+
+function buildPlaybackRequestHeaders(
+  target: {
+    headers: Record<string, string>;
+    cookies: Record<string, string>;
+  },
+  options?: {
+    range?: string | null;
+  },
+) {
+  const cookieHeader = Object.entries(target.cookies)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("; ");
+
+  return {
+    "user-agent": target.headers["user-agent"] ?? DEFAULT_STREAM_USER_AGENT,
+    "accept-language": target.headers["accept-language"] ?? "en-US,en;q=0.9",
+    ...target.headers,
+    ...(options?.range ? { range: options.range } : {}),
+    ...(cookieHeader ? { cookie: cookieHeader } : {}),
+  };
+}
+
+function buildFfmpegHeaderString(headers: Record<string, string>) {
+  return Object.entries(headers)
+    .map(([name, value]) => `${name}: ${value}\r\n`)
+    .join("");
+}
+
+function createCompatibilityMp4Stream(
+  target: {
+    providerId: string;
+    upstreamUrl: string;
+    headers: Record<string, string>;
+    cookies: Record<string, string>;
+  },
+  onLog: (message: string) => void,
+) {
+  const output = new PassThrough();
+  const ffmpegHeaders = buildFfmpegHeaderString(buildPlaybackRequestHeaders(target));
+  const ffmpeg = spawn(
+    "ffmpeg",
+    [
+      "-v",
+      "error",
+      "-nostdin",
+      "-allowed_extensions",
+      "ALL",
+      "-extension_picky",
+      "0",
+      "-headers",
+      ffmpegHeaders,
+      "-i",
+      target.upstreamUrl,
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a:0?",
+      "-dn",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-profile:a",
+      "aac_low",
+      "-movflags",
+      "frag_keyframe+empty_moov+default_base_moof",
+      "-f",
+      "mp4",
+      "pipe:1",
+    ],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  let stderr = "";
+  ffmpeg.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk.toString()}`.slice(-8_000);
+  });
+
+  ffmpeg.stdout.pipe(output);
+  ffmpeg.on("error", (error) => {
+    output.destroy(error);
+  });
+  ffmpeg.on("close", (code) => {
+    if (code === 0) {
+      output.end();
+      return;
+    }
+
+    onLog(
+      `FFmpeg compatibility transcode failed for provider "${target.providerId}" with code ${code}. ${stderr.trim()}`.trim(),
+    );
+    output.destroy(new Error("Compatibility transcode failed."));
+  });
+
+  return { ffmpeg, output };
 }
 
 const catalogAnimeQuerySchema = z.object({
@@ -492,9 +606,6 @@ export async function buildApi() {
           params["*"] ?? null,
         )
       : await relay.getPlaybackStreamTargetBySessionId(params.sessionId, params["*"] ?? null);
-    const cookieHeader = Object.entries(target.cookies)
-      .map(([key, value]) => `${key}=${value}`)
-      .join("; ");
 
     if (
       target.proxyMode === "redirect" &&
@@ -505,20 +616,19 @@ export async function buildApi() {
     }
 
     const upstream = await fetch(target.upstreamUrl, {
-      headers: {
-        "user-agent": target.headers["user-agent"] ?? DEFAULT_STREAM_USER_AGENT,
-        "accept-language": target.headers["accept-language"] ?? "en-US,en;q=0.9",
-        ...target.headers,
-        ...(typeof request.headers.range === "string" ? { range: request.headers.range } : {}),
-        ...(cookieHeader ? { cookie: cookieHeader } : {}),
-      },
+      headers: buildPlaybackRequestHeaders(target, {
+        range: typeof request.headers.range === "string" ? request.headers.range : null,
+      }),
     });
 
     reply.status(upstream.status);
 
     const upstreamContentType = upstream.headers.get("content-type") ?? "";
     const responseContentType = normalizeStreamContentType(target.upstreamUrl, upstreamContentType);
-    const passthroughHeaders = ["content-length", "cache-control", "accept-ranges", "content-range"];
+    const willRewriteHls = shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType);
+    const passthroughHeaders = willRewriteHls
+      ? ["cache-control"]
+      : ["content-length", "cache-control", "accept-ranges", "content-range"];
     for (const headerName of passthroughHeaders) {
       const value = upstream.headers.get(headerName);
       if (value) {
@@ -527,7 +637,7 @@ export async function buildApi() {
     }
     reply.header("content-type", responseContentType);
 
-    if (shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType)) {
+    if (willRewriteHls) {
       const playlist = await upstream.text();
       reply.type(responseContentType);
       return reply.send(
@@ -547,6 +657,40 @@ export async function buildApi() {
 
   app.get("/stream/:sessionId", handleStreamRequest);
   app.get("/stream/:sessionId/*", handleStreamRequest);
+
+  app.get("/playback/sessions/:id/compat.mp4", async (request, reply) => {
+    const params = request.params as { id: string };
+    const target = request.sessionUser
+      ? await relay.getPlaybackStreamTarget(request.sessionUser.id, params.id, null)
+      : await relay.getPlaybackStreamTargetBySessionId(params.id, null);
+
+    if (target.mimeType !== "application/vnd.apple.mpegurl") {
+      throw Object.assign(new Error("Compatibility MP4 fallback requires an HLS playback session."), {
+        statusCode: 409,
+      });
+    }
+
+    const { ffmpeg, output } = createCompatibilityMp4Stream(target, (message) => {
+      request.log.warn({ playbackSessionId: params.id, providerId: target.providerId }, message);
+    });
+    const closeTranscode = () => {
+      if (!ffmpeg.killed) {
+        ffmpeg.kill("SIGKILL");
+      }
+    };
+
+    request.raw.on("close", closeTranscode);
+    reply.raw.on("close", closeTranscode);
+    output.on("close", () => {
+      request.raw.off("close", closeTranscode);
+      reply.raw.off("close", closeTranscode);
+    });
+
+    return reply
+      .header("cache-control", "no-store")
+      .type("video/mp4")
+      .send(output);
+  });
 
   app.get("/history", async (request) => {
     const user = await requireUser(request);
