@@ -12,6 +12,59 @@ This workspace contains the web-first Relay platform:
 
 The initial implementation ships with a `demo` provider so the platform is runnable before the final curated source list is selected.
 
+## Dokploy Deployment
+
+Relay now includes a Dokploy-ready deployment for the `web/` workspace at [`docker-compose.yml`](docker-compose.yml). It runs as a full stack:
+
+- `client`: the Next.js app, served on container port `3009`
+- `api`: the Fastify API, served on container port `4000`
+- `browser`: the Playwright-backed extraction service on container port `4100`
+- `worker`: the BullMQ worker
+- `postgres`: the app database
+- `redis`: queue and browser cookie-jar storage
+
+The Dokploy-specific container assets live under [`deploy/dokploy/`](deploy/dokploy/). The existing [`deploy/docker-compose.yml`](deploy/docker-compose.yml) remains the local development compose and should not be repurposed for production.
+
+### Required Dokploy variables
+
+Start from [`deploy/dokploy/dokploy.env.example`](deploy/dokploy/dokploy.env.example) and define:
+
+- `NEXT_PUBLIC_API_URL=https://api.example.com`
+- `PUBLIC_API_URL=https://api.example.com`
+- `CORS_ORIGIN=https://app.example.com`
+- `POSTGRES_DB=relay_web`
+- `POSTGRES_USER=relay`
+- `POSTGRES_PASSWORD=change-me`
+
+`NEXT_PUBLIC_API_URL` is a build-time value for the client image. If the public API domain changes later, rebuild and redeploy the `client` service instead of expecting a runtime env-only change to take effect.
+
+### Dokploy domains
+
+Attach domains in Dokploy's Domains tab instead of hard-coding routing labels in Compose:
+
+- `app.example.com` -> `client` service port `3009`
+- `api.example.com` -> `api` service port `4000`
+
+`browser`, `worker`, `postgres`, and `redis` stay private inside the compose network.
+
+### Local Docker validation
+
+From the `web/` directory, validate the same deployment assets locally:
+
+`docker compose --env-file deploy/dokploy/dokploy.env.example config`
+
+`docker compose --env-file deploy/dokploy/dokploy.env.example build`
+
+`docker compose --env-file deploy/dokploy/dokploy.env.example up -d`
+
+Because the Dokploy compose publishes container ports without fixed host bindings, inspect the assigned local host ports with:
+
+`docker compose port client 3009`
+
+`docker compose port api 4000`
+
+Then visit the reported client URL, open `/login`, and use `Bootstrap` to create the first admin account.
+
 ## Quick Start
 
 1. Install dependencies:

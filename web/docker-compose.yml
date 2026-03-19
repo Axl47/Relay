@@ -1,0 +1,143 @@
+services:
+  client:
+    build:
+      context: .
+      dockerfile: deploy/dokploy/client.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3009/login').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    init: true
+    ports:
+      - "3009"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/dokploy/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      browser:
+        condition: service_healthy
+    environment:
+      PORT: "4000"
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-relay_session}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      BROWSER_SERVICE_URL: http://browser:4100
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    init: true
+    ports:
+      - "4000"
+    restart: unless-stopped
+
+  browser:
+    build:
+      context: .
+      dockerfile: deploy/dokploy/browser.Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: "4100"
+      HOST: "0.0.0.0"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      REDIS_URL: redis://redis:6380
+      BROWSER_POOL_SIZE: "${BROWSER_POOL_SIZE:-3}"
+      EXTRACTION_TIMEOUT_MS: "${EXTRACTION_TIMEOUT_MS:-25000}"
+      COOKIE_JAR_TTL_SECONDS: "${COOKIE_JAR_TTL_SECONDS:-21600}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4100/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/dokploy/worker.Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6380
+    init: true
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+    volumes:
+      - relay-web-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--port", "6380"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+    volumes:
+      - relay-web-redis:/data
+
+volumes:
+  relay-web-postgres:
+  relay-web-redis:

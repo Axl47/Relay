@@ -1,0 +1,8 @@
+node_modules
+apps/*/.next
+apps/*/dist
+npm-debug.log*
+.git
+.env
+.env.local
+.env.*.local
