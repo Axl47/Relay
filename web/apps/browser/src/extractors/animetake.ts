@@ -119,7 +119,11 @@ const SEARCH_STOP_WORDS = new Set(["the", "a", "an"]);
 const MAX_LISTING_PAGES = 12;
 const DETAIL_FALLBACK_LISTING_PAGES = 2;
 const EPISODE_FALLBACK_LISTING_PAGES = 4;
-const CHALLENGE_GRACE_TIMEOUT_MS = 12_000;
+const CHALLENGE_GRACE_TIMEOUT_MS = {
+  listing: 30_000,
+  detail: 18_000,
+  episode: 18_000,
+} as const;
 const IGNORED_PLAYBACK_HOST_PATTERNS = [
   /doubleclick/i,
   /googlesyndication/i,
@@ -358,6 +362,7 @@ async function waitForAnimeTakeReady(
 ) {
   const deadline = Date.now() + timeoutMs;
   let challengeSeenAt: number | null = null;
+  const challengeGraceTimeoutMs = CHALLENGE_GRACE_TIMEOUT_MS[mode];
 
   while (Date.now() < deadline) {
     const state = await page.evaluate(() => ({
@@ -382,7 +387,7 @@ async function waitForAnimeTakeReady(
     const challenge = looksLikeChallenge(sample);
     if (challenge) {
       challengeSeenAt ??= Date.now();
-      if (Date.now() - challengeSeenAt >= CHALLENGE_GRACE_TIMEOUT_MS) {
+      if (Date.now() - challengeSeenAt >= challengeGraceTimeoutMs) {
         throw new BrowserExtractionError(
           "challenge_failed",
           `AnimeTake challenge did not clear for ${path}.`,
