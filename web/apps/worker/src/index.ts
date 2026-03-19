@@ -3,11 +3,11 @@ import { QueueEvents, Worker } from "bullmq";
 
 loadEnv();
 
-const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6380";
 const redisConnection = new URL(redisUrl);
 const connection = {
   host: redisConnection.hostname,
-  port: Number(redisConnection.port || "6379"),
+  port: Number(redisConnection.port || "6380"),
   username: redisConnection.username || undefined,
   password: redisConnection.password || undefined,
   maxRetriesPerRequest: null,
