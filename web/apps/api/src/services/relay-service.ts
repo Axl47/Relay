@@ -79,7 +79,8 @@ const PROVIDER_RESOLUTION_TIMEOUT_MS = {
   browser: 25_000,
 } as const;
 const HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS = 60_000;
-const ANIMETAKE_PROVIDER_TIMEOUT_MS = 45_000;
+const ANIMETAKE_SEARCH_TIMEOUT_MS = 45_000;
+const ANIMETAKE_RESOLUTION_TIMEOUT_MS = 45_000;
 const PLAYBACK_STALL_GRACE_MS = 5_000;
 
 type SessionUser = {
@@ -108,6 +109,18 @@ const ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN = /~relay\.(?:mp4|ts|m3u8|m3u|vtt|s
 
 type SubtitleTrack = PlaybackSession["subtitles"][number];
 type CatalogAnimeRow = typeof catalogAnime.$inferSelect;
+type CatalogSearchProgressStart = {
+  totalProviders: number;
+};
+type CatalogSearchProgressUpdate = {
+  completedProviders: number;
+  totalProviders: number;
+  providerResult: CatalogSearchProviderResult;
+};
+type CatalogSearchProgressHandlers = {
+  onStart?: (payload: CatalogSearchProgressStart) => void | Promise<void>;
+  onProviderResult?: (payload: CatalogSearchProgressUpdate) => void | Promise<void>;
+};
 
 class ProviderTimeoutError extends Error {
   constructor(providerId: string, timeoutMs: number) {
@@ -254,7 +267,7 @@ export class RelayService {
 
   private getProviderSearchTimeout(provider: RelayProvider) {
     if (provider.metadata.id === "animetake") {
-      return ANIMETAKE_PROVIDER_TIMEOUT_MS;
+      return ANIMETAKE_SEARCH_TIMEOUT_MS;
     }
 
     return SEARCH_TIMEOUT_MS[provider.metadata.executionMode];
@@ -383,7 +396,7 @@ export class RelayService {
     }
 
     if (provider.metadata.id === "animetake") {
-      return ANIMETAKE_PROVIDER_TIMEOUT_MS;
+      return ANIMETAKE_RESOLUTION_TIMEOUT_MS;
     }
 
     return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];
@@ -965,17 +978,56 @@ export class RelayService {
   }
 
   async search(userId: string, input: SearchInput): Promise<CatalogSearchResponse> {
+    return this.runCatalogSearch(userId, input);
+  }
+
+  async searchWithProgress(
+    userId: string,
+    input: SearchInput,
+    handlers: CatalogSearchProgressHandlers,
+  ): Promise<CatalogSearchResponse> {
+    return this.runCatalogSearch(userId, input, handlers);
+  }
+
+  private async runCatalogSearch(
+    userId: string,
+    input: SearchInput,
+    handlers?: CatalogSearchProgressHandlers,
+  ): Promise<CatalogSearchResponse> {
     const availableProviders = await this.listProviders(userId);
     const registry = await this.registry();
     const enabledProviders = availableProviders
       .filter((provider) => provider.enabled && provider.supportsSearch)
       .sort((left, right) => left.priority - right.priority);
+    const totalProviders = enabledProviders.length;
+    let completedProviders = 0;
+
+    if (handlers?.onStart) {
+      await handlers.onStart({ totalProviders });
+    }
+
+    const emitProviderResult = async (providerResult: CatalogSearchProviderResult) => {
+      completedProviders += 1;
+      if (!handlers?.onProviderResult) {
+        return;
+      }
+
+      try {
+        await handlers.onProviderResult({
+          completedProviders,
+          totalProviders,
+          providerResult,
+        });
+      } catch {
+        // Search should keep running even when progress observers disconnect.
+      }
+    };
 
     const providerResults = await Promise.all(
       enabledProviders.map(async (providerSummary): Promise<CatalogSearchProviderResult> => {
         const provider = registry.get(providerSummary.id);
         if (!provider) {
-          return {
+          const result: CatalogSearchProviderResult = {
             providerId: providerSummary.id,
             displayName: providerSummary.displayName,
             contentClass: providerSummary.contentClass,
@@ -984,6 +1036,8 @@ export class RelayService {
             error: "Provider runtime is not registered.",
             items: [],
           };
+          await emitProviderResult(result);
+          return result;
         }
 
         const startedAt = Date.now();
@@ -995,7 +1049,7 @@ export class RelayService {
               runtime.search(input, this.createProviderContext(signal)),
           );
 
-          return {
+          const result: CatalogSearchProviderResult = {
             providerId: providerSummary.id,
             displayName: providerSummary.displayName,
             contentClass: providerSummary.contentClass,
@@ -1004,8 +1058,10 @@ export class RelayService {
             error: null,
             items: page.items,
           };
+          await emitProviderResult(result);
+          return result;
         } catch (error) {
-          return {
+          const result: CatalogSearchProviderResult = {
             providerId: providerSummary.id,
             displayName: providerSummary.displayName,
             contentClass: providerSummary.contentClass,
@@ -1014,6 +1070,8 @@ export class RelayService {
             error: error instanceof Error ? error.message : "Provider search failed.",
             items: [],
           };
+          await emitProviderResult(result);
+          return result;
         }
       }),
     );

@@ -26,6 +26,13 @@ const providerBaseUrlMap: Record<string, string> = {
   hentaihaven: "https://hentaihaven.xxx",
 };
 
+const ANIMETAKE_TIMEOUT_MS = {
+  search: 45_000,
+  anime: 45_000,
+  episodes: 45_000,
+  playback: 45_000,
+} as const;
+
 function resolveDomain(providerId: string, baseUrl?: string) {
   const targetUrl = baseUrl ?? providerBaseUrlMap[providerId];
   if (!targetUrl) {
@@ -130,7 +137,7 @@ export class BrowserExtractionService {
     }
 
     if (providerId === "animetake") {
-      return Math.max(this.timeoutMs, 45_000);
+      return Math.max(this.timeoutMs, ANIMETAKE_TIMEOUT_MS[operation]);
     }
 
     return this.timeoutMs;

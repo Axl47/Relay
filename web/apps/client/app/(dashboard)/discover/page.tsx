@@ -12,6 +12,107 @@ type LibraryResponse = {
   items: LibraryItemWithCategories[];
 };
 
+type CatalogSearchStreamEvent =
+  | {
+      type: "start";
+      completedProviders: number;
+      totalProviders: number;
+    }
+  | {
+      type: "progress";
+      completedProviders: number;
+      totalProviders: number;
+    }
+  | {
+      type: "done";
+      response: CatalogSearchResponse;
+    }
+  | {
+      type: "error";
+      message: string;
+    };
+
+async function streamCatalogSearch(
+  searchTerm: string,
+  signal: AbortSignal,
+  onProgress: (completedProviders: number, totalProviders: number) => void,
+) {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const response = await fetch(
+    `${baseUrl}/catalog/search/stream?query=${encodeURIComponent(searchTerm)}&page=1&limit=24`,
+    {
+      cache: "no-store",
+      credentials: "include",
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? `Search failed with status ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Search stream did not return a readable response body.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffered = "";
+  let finalResponse: CatalogSearchResponse | null = null;
+
+  const processLine = (line: string) => {
+    const event = JSON.parse(line) as CatalogSearchStreamEvent;
+    if (event.type === "start" || event.type === "progress") {
+      onProgress(event.completedProviders, event.totalProviders);
+      return;
+    }
+
+    if (event.type === "done") {
+      finalResponse = event.response;
+      return;
+    }
+
+    if (event.type === "error") {
+      throw new Error(event.message || "Unable to search providers.");
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffered += decoder.decode(value, { stream: true });
+
+    while (true) {
+      const lineBreakIndex = buffered.indexOf("\n");
+      if (lineBreakIndex < 0) {
+        break;
+      }
+
+      const line = buffered.slice(0, lineBreakIndex).trim();
+      buffered = buffered.slice(lineBreakIndex + 1);
+      if (line.length === 0) {
+        continue;
+      }
+      processLine(line);
+    }
+  }
+
+  const trailing = buffered.trim();
+  if (trailing.length > 0) {
+    processLine(trailing);
+  }
+
+  if (finalResponse) {
+    return finalResponse;
+  }
+
+  throw new Error("Search stream ended before completion.");
+}
+
 function buildResultKey(item: CatalogSearchResponse["items"][number]) {
   return `${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
 }
@@ -20,13 +121,22 @@ export default function DiscoverPage() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [showProviders, setShowProviders] = useState(false);
+  const [providerProgress, setProviderProgress] = useState<{
+    query: string;
+    completedProviders: number;
+    totalProviders: number;
+  } | null>(null);
 
-  const searchQuery = useQuery({
+  const searchQuery = useQuery<CatalogSearchResponse, Error>({
     queryKey: ["catalog-search", submittedQuery],
-    queryFn: () =>
-      apiFetch<CatalogSearchResponse>(
-        `/catalog/search?query=${encodeURIComponent(submittedQuery)}&page=1&limit=24`,
-      ),
+    queryFn: ({ signal }) =>
+      streamCatalogSearch(submittedQuery, signal, (completedProviders, totalProviders) => {
+        setProviderProgress({
+          query: submittedQuery,
+          completedProviders,
+          totalProviders,
+        });
+      }),
     enabled: submittedQuery.trim().length > 0,
   });
 
@@ -91,9 +201,25 @@ export default function DiscoverPage() {
     };
   }, [searchQuery.data]);
 
+  const activeProviderProgress =
+    providerProgress && providerProgress.query === submittedQuery ? providerProgress : null;
+  const providerProgressLabel = activeProviderProgress
+    ? `${Math.min(activeProviderProgress.completedProviders, activeProviderProgress.totalProviders)}/${activeProviderProgress.totalProviders}`
+    : "0/0";
+
   function onSearch(event: FormEvent) {
     event.preventDefault();
-    setSubmittedQuery(query.trim());
+    const nextQuery = query.trim();
+    setSubmittedQuery(nextQuery);
+    setProviderProgress(
+      nextQuery
+        ? {
+            query: nextQuery,
+            completedProviders: 0,
+            totalProviders: 0,
+          }
+        : null,
+    );
     setShowProviders(false);
   }
 
@@ -118,7 +244,9 @@ export default function DiscoverPage() {
         </form>
 
         {searchQuery.isFetching ? (
-          <div className="search-status search-status-loading">Searching providers...</div>
+          <div className="search-status search-status-loading">
+            Searching providers... {providerProgressLabel}
+          </div>
         ) : searchQuery.error ? (
           <div className="message">
             {searchQuery.error instanceof Error ? searchQuery.error.message : "Unable to search."}

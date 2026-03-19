@@ -492,6 +492,70 @@ export async function buildApi() {
     return relay.search(user.id, query);
   });
 
+  app.get("/catalog/search/stream", async (request, reply) => {
+    const user = await requireUser(request);
+    const query = searchInputSchema.parse(request.query);
+
+    reply.hijack();
+    reply.raw.statusCode = 200;
+    reply.raw.setHeader("content-type", "application/x-ndjson; charset=utf-8");
+    reply.raw.setHeader("cache-control", "no-cache, no-transform");
+    reply.raw.setHeader("connection", "keep-alive");
+    reply.raw.flushHeaders?.();
+
+    let closed = false;
+    request.raw.on("close", () => {
+      closed = true;
+    });
+
+    const writeEvent = (event: unknown) => {
+      if (closed || reply.raw.writableEnded) {
+        return;
+      }
+
+      reply.raw.write(`${JSON.stringify(event)}\n`);
+    };
+
+    try {
+      const response = await relay.searchWithProgress(user.id, query, {
+        onStart: ({ totalProviders }) => {
+          writeEvent({
+            type: "start",
+            completedProviders: 0,
+            totalProviders,
+          });
+        },
+        onProviderResult: ({ completedProviders, totalProviders, providerResult }) => {
+          writeEvent({
+            type: "progress",
+            completedProviders,
+            totalProviders,
+            provider: {
+              providerId: providerResult.providerId,
+              status: providerResult.status,
+              itemCount: providerResult.items.length,
+              latencyMs: providerResult.latencyMs,
+            },
+          });
+        },
+      });
+
+      writeEvent({
+        type: "done",
+        response,
+      });
+    } catch (error) {
+      writeEvent({
+        type: "error",
+        message: error instanceof Error ? error.message : "Unable to search providers.",
+      });
+    } finally {
+      if (!reply.raw.writableEnded) {
+        reply.raw.end();
+      }
+    }
+  });
+
   app.get("/catalog/:providerId/anime/:externalAnimeId", async (request) => {
     const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {

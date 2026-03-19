@@ -46,6 +46,20 @@ type AnimeTakeListingPage = {
   hasNextPage: boolean;
 };
 
+type AnimeTakeSearchCard = {
+  externalAnimeId: string;
+  title: string;
+  coverImage: string | null;
+  latestEpisode: number | null;
+  year: number | null;
+};
+
+type AnimeTakeSearchResultsPage = {
+  items: AnimeTakeSearchCard[];
+  hasNextPage: boolean;
+  noResults: boolean;
+};
+
 type AnimeTakeEpisodeEntry = {
   externalEpisodeId: string;
   number: number;
@@ -120,7 +134,9 @@ const MAX_LISTING_PAGES = 12;
 const DETAIL_FALLBACK_LISTING_PAGES = 2;
 const EPISODE_FALLBACK_LISTING_PAGES = 4;
 const CHALLENGE_GRACE_TIMEOUT_MS = {
+  home: 30_000,
   listing: 30_000,
+  search: 18_000,
   detail: 18_000,
   episode: 18_000,
 } as const;
@@ -265,6 +281,16 @@ function buildListingPath(seed: string, page: number) {
   return `/az-all-anime/${safeSeed}${page > 1 ? `?page=${page}` : ""}`;
 }
 
+function buildSearchUrl(query: string, page = 1) {
+  const params = new URLSearchParams({
+    keyword: query,
+  });
+  if (page > 1) {
+    params.set("page", `${page}`);
+  }
+  return `${BASE_URL}/search?${params.toString()}`;
+}
+
 function buildAnimeUrl(slug: string) {
   return `${BASE_URL}/anime/${encodeURIComponent(slug)}/`;
 }
@@ -356,7 +382,7 @@ function createPlaybackCandidateMap() {
 
 async function waitForAnimeTakeReady(
   page: PlaywrightPageLike,
-  mode: "listing" | "detail" | "episode",
+  mode: "home" | "listing" | "search" | "detail" | "episode",
   path: string,
   timeoutMs = 35_000,
 ) {
@@ -371,6 +397,10 @@ async function waitForAnimeTakeReady(
       readyState: document.readyState,
       animeLinks: document.querySelectorAll("a[href*='/anime/']").length,
       episodeLinks: document.querySelectorAll("a[href*='/episode/']").length,
+      searchItems: document.querySelectorAll(".film-list .item").length,
+      searchForms: document.querySelectorAll(
+        "form#search input[name='keyword'], form#index-search input[name='keyword']",
+      ).length,
       videos: document.querySelectorAll("video, source[src]").length,
       iframes: document.querySelectorAll("iframe[src]").length,
     })).catch(() => ({
@@ -379,6 +409,8 @@ async function waitForAnimeTakeReady(
       readyState: "loading",
       animeLinks: 0,
       episodeLinks: 0,
+      searchItems: 0,
+      searchForms: 0,
       videos: 0,
       iframes: 0,
     }));
@@ -398,7 +430,10 @@ async function waitForAnimeTakeReady(
       challengeSeenAt = null;
     }
 
+    const hasHomeContent = state.searchForms > 0 || state.animeLinks > 8;
     const hasListingContent = state.animeLinks > 8 || /all anime|anime list|a-z/i.test(sample);
+    const hasSearchContent =
+      state.searchItems > 0 || /result for:|no results found/i.test(sample);
     const hasDetailContent = state.animeLinks > 0 || /genres|synopsis|episode/i.test(sample);
     const hasEpisodeContent =
       state.videos > 0 ||
@@ -410,7 +445,9 @@ async function waitForAnimeTakeReady(
       state.readyState === "complete" &&
       !challenge &&
       (
+        (mode === "home" && hasHomeContent) ||
         (mode === "listing" && hasListingContent) ||
+        (mode === "search" && hasSearchContent) ||
         (mode === "detail" && hasDetailContent) ||
         (mode === "episode" && hasEpisodeContent)
       )
@@ -435,7 +472,7 @@ async function waitForAnimeTakeReady(
 async function navigate(
   page: PlaywrightPageLike,
   pathOrUrl: string,
-  mode: "listing" | "detail" | "episode",
+  mode: "home" | "listing" | "search" | "detail" | "episode",
 ) {
   const url = pathOrUrl.startsWith("http") ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
   await page.goto(url, {
@@ -693,6 +730,157 @@ async function lookupAnimeListingCard(
   return null;
 }
 
+async function submitNativeSearch(page: PlaywrightPageLike, query: string) {
+  await page.waitForSelector(
+    "form#search input[name='keyword'], form#index-search input[name='keyword']",
+    { timeout: 8_000 },
+  );
+  await page.evaluate((value) => {
+    const input = document.querySelector<HTMLInputElement>(
+      "form#index-search input[name='keyword'], form#search input[name='keyword']",
+    );
+    if (!input || !input.form) {
+      throw new Error("AnimeTake search form was not available.");
+    }
+
+    input.focus();
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    if (typeof input.form.requestSubmit === "function") {
+      input.form.requestSubmit();
+      return;
+    }
+
+    input.form.submit();
+  }, query);
+}
+
+async function openSearchResultsPage(
+  page: PlaywrightPageLike,
+  query: string,
+) {
+  await navigate(page, "/", "home");
+  await submitNativeSearch(page, query);
+  await waitForAnimeTakeReady(page, "search", buildSearchUrl(query, 1), 20_000);
+  await page.waitForTimeout(750);
+}
+
+async function scrapeSearchResultsPage(
+  page: PlaywrightPageLike,
+  currentPage: number,
+): Promise<AnimeTakeSearchResultsPage> {
+  return page.evaluate((pageNumber) => {
+    const clean = (value?: string | null) => value?.replace(/\s+/g, " ").trim() ?? "";
+    const toAbsolute = (value?: string | null) => {
+      const cleaned = clean(value);
+      if (!cleaned) {
+        return null;
+      }
+
+      try {
+        return new URL(cleaned, location.origin).toString();
+      } catch {
+        return null;
+      }
+    };
+    const extractSlug = (href: string) => {
+      try {
+        const url = new URL(href);
+        const match = url.pathname.match(/^\/anime\/([^/?#]+)\/?$/i);
+        return clean(match?.[1] ?? "");
+      } catch {
+        return "";
+      }
+    };
+    const parseLatestEpisode = (value?: string | null) => {
+      const cleaned = clean(value);
+      const match = cleaned.match(/(?:sub|dub)?\s*ep(?:isode)?\s*0*(\d+(?:\.\d+)?)/i)
+        ?? cleaned.match(/episode\s*0*(\d+(?:\.\d+)?)/i);
+      if (!match?.[1]) {
+        return null;
+      }
+
+      const parsed = Number.parseFloat(match[1]);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const parseYearLocal = (value?: string | null) => {
+      const match = clean(value).match(/\b(19|20)\d{2}\b/);
+      if (!match) {
+        return null;
+      }
+
+      const parsed = Number.parseInt(match[0], 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const cards = new Map<string, AnimeTakeSearchCard>();
+
+    for (const item of Array.from(document.querySelectorAll<HTMLElement>(".film-list .item"))) {
+      const nameAnchor = item.querySelector<HTMLAnchorElement>("a.name[href]");
+      const posterAnchor = item.querySelector<HTMLAnchorElement>("a.poster[href]");
+      const href = toAbsolute(nameAnchor?.getAttribute("href") ?? posterAnchor?.getAttribute("href"));
+      if (!href) {
+        continue;
+      }
+
+      const slug = extractSlug(href);
+      if (!slug) {
+        continue;
+      }
+
+      const title =
+        clean(nameAnchor?.getAttribute("data-jtitle"))
+        || clean(nameAnchor?.textContent)
+        || clean(item.querySelector("img")?.getAttribute("alt"));
+      if (!title) {
+        continue;
+      }
+
+      const text = clean(item.textContent);
+      const coverImage = toAbsolute(
+        item.querySelector("img")?.getAttribute("data-src")
+          ?? item.querySelector("img")?.getAttribute("src"),
+      );
+
+      cards.set(slug, {
+        externalAnimeId: slug,
+        title,
+        coverImage,
+        latestEpisode: parseLatestEpisode(text),
+        year: parseYearLocal(text),
+      });
+    }
+
+    const hasNextPage = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]")).some(
+      (anchor) => {
+        const href = toAbsolute(anchor.getAttribute("href"));
+        if (!href) {
+          return false;
+        }
+
+        try {
+          const url = new URL(href);
+          const nextPage = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+          if (Number.isFinite(nextPage) && nextPage === pageNumber + 1) {
+            return !anchor.className.toLowerCase().includes("disabled");
+          }
+        } catch {
+          return false;
+        }
+
+        return false;
+      },
+    );
+
+    return {
+      items: Array.from(cards.values()),
+      hasNextPage,
+      noResults: /no results found/i.test(clean(document.body?.innerText)),
+    };
+  }, currentPage);
+}
+
 async function extractPlaybackSnapshot(page: PlaywrightPageLike): Promise<AnimeTakePlaybackSnapshot> {
   return page.evaluate(() => {
     const clean = (value?: string | null) => value?.replace(/\s+/g, " ").trim() ?? "";
@@ -769,52 +957,40 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
   async search(input: SearchInput, runtime: ExtractionRuntime): Promise<SearchPage> {
     return runtime.withPage(async (page) => {
       const browserPage = page as unknown as PlaywrightPageLike;
-      const matches: Array<AnimeTakeListingCard & { score: number }> = [];
-      const seen = new Set<string>();
-      const seeds = deriveSearchSeeds(input.query);
+      await openSearchResultsPage(browserPage, input.query);
+      const results = await scrapeSearchResultsPage(browserPage, 1);
 
-      for (const seed of seeds) {
-        for (let pageNumber = 1; pageNumber <= MAX_LISTING_PAGES; pageNumber += 1) {
-          await navigate(browserPage, buildListingPath(seed, pageNumber), "listing");
-          const listing = await scrapeListingPage(browserPage, pageNumber);
-
-          for (const item of listing.items) {
-            if (seen.has(item.externalAnimeId)) {
-              continue;
-            }
-
-            const score = rankTitleAgainstQuery(item.title, input.query);
-            if (score === null) {
-              continue;
-            }
-
-            seen.add(item.externalAnimeId);
-            matches.push({ ...item, score });
-          }
-
-          if (!listing.hasNextPage) {
-            break;
-          }
-        }
+      if (results.items.length === 0 && !results.noResults) {
+        throw new BrowserExtractionError(
+          "upstream_error",
+          `AnimeTake search did not expose results for "${input.query}".`,
+          { statusCode: 502 },
+        );
       }
 
-      matches.sort((left, right) => {
-        if (left.score !== right.score) {
-          return right.score - left.score;
-        }
-        return left.title.localeCompare(right.title);
-      });
+      const ranked = results.items
+        .map((item, index) => ({
+          ...item,
+          score: rankTitleAgainstQuery(item.title, input.query) ?? 0,
+          index,
+        }))
+        .sort((left, right) => {
+          if (left.score !== right.score) {
+            return right.score - left.score;
+          }
+          return left.index - right.index;
+        });
 
       const start = (input.page - 1) * input.limit;
       const end = start + input.limit;
-      const items = matches.slice(start, end).map((item) => ({
+      const items = ranked.slice(start, end).map((item) => ({
         providerId: runtime.providerId,
         providerDisplayName: PROVIDER_DISPLAY_NAME,
         externalAnimeId: item.externalAnimeId,
         title: item.title,
-        synopsis: item.synopsis,
+        synopsis: null,
         coverImage: item.coverImage,
-        year: null,
+        year: item.year,
         kind: "unknown" as const,
         language: "en",
         contentClass: "anime" as const,
@@ -825,7 +1001,7 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
         providerId: runtime.providerId,
         query: input.query,
         page: input.page,
-        hasNextPage: end < matches.length,
+        hasNextPage: results.hasNextPage || end < ranked.length,
         items,
       };
     });
