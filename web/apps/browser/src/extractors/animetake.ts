@@ -116,6 +116,34 @@ type PlaybackCandidate = {
   isDefault: boolean;
 };
 
+type AnimeTakeAjaxServer = {
+  name: string;
+  id: string;
+  type: string;
+};
+
+type AnimeTakeAjaxEpisode = {
+  externalEpisodeId: string;
+  number: number;
+  title: string;
+  href: string;
+};
+
+type AnimeTakeServerSnapshot = {
+  servers: AnimeTakeAjaxServer[];
+  episodes: AnimeTakeAjaxEpisode[];
+};
+
+type AnimeTakeEpisodeInfoResponse = {
+  grabber?: string;
+  params?: unknown;
+  backup?: number;
+  target?: string;
+  type?: string;
+  name?: string;
+  subtitle?: string;
+};
+
 const BASE_URL = "https://animetake.com.co";
 const PROVIDER_DISPLAY_NAME = "AnimeTake";
 const CHALLENGE_MARKERS = [
@@ -123,7 +151,6 @@ const CHALLENGE_MARKERS = [
   "performing security verification",
   "enable javascript and cookies to continue",
   "checking your browser before accessing",
-  "cloudflare",
 ];
 const PLAY_BUTTON_SELECTORS = [
   "text=/play/i",
@@ -160,6 +187,20 @@ const IGNORED_PLAYBACK_HOST_PATTERNS = [
   /facebook/i,
   /cloudflareinsights/i,
 ];
+const ANIMETAKE_HTTP_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0";
+const VARIANT_TITLE_TERMS = new Set([
+  "dub",
+  "dubbed",
+  "movie",
+  "special",
+  "specials",
+  "ova",
+  "ona",
+  "zero",
+  "part",
+  "season",
+]);
 
 function cleanText(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
@@ -191,12 +232,20 @@ function compactSearchValue(value: string) {
   return normalizeSearchValue(value).replace(/\s+/g, "");
 }
 
+function stripVariantTerms(value: string) {
+  return value
+    .replace(/\b(?:dub|dubbed|movie|specials?|ova|ona|zero|part|season)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function rankTitleAgainstQuery(title: string, query: string) {
   const normalizedTitle = normalizeSearchValue(title);
   const normalizedQuery = normalizeSearchValue(query);
   const compactTitle = compactSearchValue(title);
   const compactQuery = compactSearchValue(query);
   const tokens = normalizedQuery.split(" ").filter(Boolean);
+  const queryTokenSet = new Set(tokens);
 
   if (!normalizedTitle || !normalizedQuery || tokens.length === 0) {
     return null;
@@ -212,11 +261,21 @@ function rankTitleAgainstQuery(title: string, query: string) {
     return null;
   }
 
+  const canonicalTitle = stripVariantTerms(normalizedTitle);
+  const canonicalMatch = canonicalTitle === normalizedQuery;
+  const variantPenalty = Array.from(VARIANT_TITLE_TERMS).some(
+    (term) => normalizedTitle.includes(term) && !queryTokenSet.has(term),
+  )
+    ? -850
+    : 0;
+
   return (
     (exactMatch ? 5_000 : 0) +
     (phraseMatch ? 2_000 : 0) +
     (compactMatch ? 1_000 : 0) +
-    matchedTokens.length * 150
+    (canonicalMatch ? 1_800 : 0) +
+    matchedTokens.length * 150 +
+    variantPenalty
   );
 }
 
@@ -390,6 +449,332 @@ function createPlaybackCandidateMap() {
       return Array.from(candidates.values());
     },
   };
+}
+
+function createAnimeTakeRequestHeaders(
+  referer: string,
+  accept: string,
+  requestType: "html" | "ajax",
+) {
+  const headers: Record<string, string> = {
+    accept,
+    "accept-language": "en-US,en;q=0.9",
+    origin: BASE_URL,
+    referer,
+    "user-agent": ANIMETAKE_HTTP_USER_AGENT,
+  };
+
+  if (requestType === "ajax") {
+    headers["x-requested-with"] = "XMLHttpRequest";
+  }
+
+  return headers;
+}
+
+async function fetchAnimeTakeResponseText(
+  url: string,
+  signal: AbortSignal,
+  referer: string,
+  accept: string,
+  requestType: "html" | "ajax",
+) {
+  const response = await fetch(url, {
+    method: "GET",
+    signal,
+    headers: createAnimeTakeRequestHeaders(referer, accept, requestType),
+  });
+  const body = await response.text();
+
+  if (!response.ok) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeTake request failed with status ${response.status} for ${url}.`,
+      { statusCode: 502 },
+    );
+  }
+
+  if (looksLikeChallenge(body)) {
+    throw new BrowserExtractionError(
+      "challenge_failed",
+      `AnimeTake challenge did not clear for ${url}.`,
+      { statusCode: 502 },
+    );
+  }
+
+  return body;
+}
+
+async function fetchAnimeTakeJson<T>(
+  url: string,
+  signal: AbortSignal,
+  referer: string,
+) {
+  const body = await fetchAnimeTakeResponseText(
+    url,
+    signal,
+    referer,
+    "application/json,text/plain,*/*",
+    "ajax",
+  );
+
+  try {
+    return JSON.parse(body) as T;
+  } catch (error) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeTake returned invalid JSON for ${url}.`,
+      { statusCode: 502, cause: error },
+    );
+  }
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function extractHtmlAttribute(tag: string, attributeName: string) {
+  const match = tag.match(new RegExp(`${attributeName}\\s*=\\s*(['"])(.*?)\\1`, "i"));
+  return decodeHtmlEntities(cleanText(match?.[2] ?? ""));
+}
+
+function parseAnimeTakeServerSnapshot(
+  html: string,
+  externalAnimeId: string,
+): AnimeTakeServerSnapshot {
+  const servers = new Map<string, AnimeTakeAjaxServer>();
+  for (const match of html.matchAll(/<div\b[^>]*class=(['"])[^"']*\bserver\b[^"']*\1[^>]*>/gi)) {
+    const tag = match[0] ?? "";
+    const name = extractHtmlAttribute(tag, "data-name");
+    const id = extractHtmlAttribute(tag, "data-id");
+    const type = extractHtmlAttribute(tag, "data-type");
+    if (!name || !id) {
+      continue;
+    }
+
+    servers.set(`${name}:${id}`, { name, id, type });
+  }
+
+  const episodes = new Map<string, AnimeTakeAjaxEpisode>();
+  const normalizedAnimeId = cleanText(externalAnimeId);
+  for (const match of html.matchAll(/<a\b[^>]*href=(['"])([^"']*\/episode\/[^"']+)\1[^>]*>(.*?)<\/a>/gis)) {
+    const hrefValue = decodeHtmlEntities(match[2] ?? "");
+    const href = safeAbsoluteUrl(hrefValue);
+    if (!href) {
+      continue;
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(href);
+    } catch {
+      continue;
+    }
+
+    const episodeMatch = parsedUrl.pathname.match(/^\/anime\/([^/?#]+)\/episode\/([^/?#]+)/i);
+    if (!episodeMatch?.[1] || !episodeMatch?.[2]) {
+      continue;
+    }
+
+    const animeIdFromHref = decodeURIComponent(cleanText(episodeMatch[1]));
+    if (animeIdFromHref && animeIdFromHref !== normalizedAnimeId) {
+      continue;
+    }
+
+    const externalEpisodeId = decodeURIComponent(cleanText(episodeMatch[2]));
+    const label = cleanText(decodeHtmlEntities((match[3] ?? "").replace(/<[^>]+>/g, " ")));
+    const number = parseEpisodeNumber(externalEpisodeId) ?? parseEpisodeNumber(label);
+    if (number === null) {
+      continue;
+    }
+
+    episodes.set(externalEpisodeId, {
+      externalEpisodeId,
+      number,
+      title: label || `Episode ${number}`,
+      href,
+    });
+  }
+
+  return {
+    servers: Array.from(servers.values()),
+    episodes: Array.from(episodes.values()).sort((left, right) => left.number - right.number),
+  };
+}
+
+async function fetchAnimeTakeServerSnapshot(
+  externalAnimeId: string,
+  signal: AbortSignal,
+): Promise<AnimeTakeServerSnapshot> {
+  const url = `${BASE_URL}/ajax/film/sv?id=${encodeURIComponent(externalAnimeId)}`;
+  const referer = buildEpisodeUrl(externalAnimeId, "1");
+  const payload = await fetchAnimeTakeJson<{ html?: unknown }>(url, signal, referer);
+  const html = typeof payload.html === "string" ? payload.html : "";
+  if (!cleanText(html)) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeTake did not expose server HTML for anime "${externalAnimeId}".`,
+      { statusCode: 502 },
+    );
+  }
+
+  const snapshot = parseAnimeTakeServerSnapshot(html, externalAnimeId);
+  if (snapshot.episodes.length === 0) {
+    throw new BrowserExtractionError(
+      "upstream_error",
+      `AnimeTake did not expose episodes for anime "${externalAnimeId}".`,
+      { statusCode: 502 },
+    );
+  }
+
+  return snapshot;
+}
+
+function resolveEpisodeIdFromSnapshot(
+  snapshot: AnimeTakeServerSnapshot,
+  requestedEpisodeId: string,
+) {
+  const requested = cleanText(requestedEpisodeId);
+  const byId = snapshot.episodes.find((episode) => episode.externalEpisodeId === requested);
+  if (byId) {
+    return byId.externalEpisodeId;
+  }
+
+  const requestedNumber = parseEpisodeNumber(requestedEpisodeId);
+  if (requestedNumber !== null) {
+    const byNumber = snapshot.episodes.find((episode) => episode.number === requestedNumber);
+    if (byNumber) {
+      return byNumber.externalEpisodeId;
+    }
+  }
+
+  return requested;
+}
+
+function selectPreferredAnimeTakeServer(snapshot: AnimeTakeServerSnapshot) {
+  const preferred =
+    snapshot.servers.find((server) => !/\bads?\b/i.test(server.name))
+    ?? snapshot.servers[0];
+  return preferred?.name ?? "vidstreaming.io";
+}
+
+async function fetchAnimeTakeEpisodeInfo(
+  externalAnimeId: string,
+  externalEpisodeId: string,
+  serverName: string,
+  signal: AbortSignal,
+) {
+  const epr = `${externalAnimeId}/${externalEpisodeId}/${serverName}`;
+  const params = new URLSearchParams({ epr });
+  const url = `${BASE_URL}/ajax/episode/info?${params.toString()}`;
+  const referer = buildEpisodeUrl(externalAnimeId, externalEpisodeId);
+  const payload = await fetchAnimeTakeJson<AnimeTakeEpisodeInfoResponse>(
+    url,
+    signal,
+    referer,
+  );
+
+  return {
+    grabber: safeAbsoluteUrl(payload.grabber),
+    params: payload.params ?? null,
+    backup: typeof payload.backup === "number" ? payload.backup : null,
+    target: safeAbsoluteUrl(payload.target),
+    type: cleanText(payload.type),
+    name: cleanText(payload.name),
+    subtitle: safeAbsoluteUrl(payload.subtitle),
+  };
+}
+
+function addPlaybackCandidatesFromEpisodeInfo(
+  candidates: ReturnType<typeof createPlaybackCandidateMap>,
+  payload: Awaited<ReturnType<typeof fetchAnimeTakeEpisodeInfo>>,
+  defaultHeaders: Record<string, string>,
+) {
+  const qualityHint = cleanText(payload.name);
+  const typeHint = cleanText(payload.type).toLowerCase();
+
+  if (payload.target && !shouldIgnorePlaybackUrl(payload.target)) {
+    const mimeType =
+      typeHint === "iframe" || guessMimeType(payload.target) === "text/html"
+        ? "text/html"
+        : guessMimeType(payload.target);
+    const proxyMode = mimeType === "text/html" ? "redirect" : "proxy";
+
+    candidates.add({
+      id: `animetake-${candidates.values().length + 1}`,
+      url: payload.target,
+      mimeType,
+      quality: inferQuality(`${qualityHint} ${payload.target}`, mimeType === "text/html" ? "embed" : "default"),
+      headers: proxyMode === "proxy" ? defaultHeaders : {},
+      proxyMode,
+      isDefault: true,
+    });
+  }
+
+  const sample = JSON.stringify(payload);
+  for (const match of sample.match(MEDIA_URL_PATTERN) ?? []) {
+    if (shouldIgnorePlaybackUrl(match)) {
+      continue;
+    }
+
+    candidates.add({
+      id: `animetake-${candidates.values().length + 1}`,
+      url: match,
+      mimeType: guessMimeType(match),
+      quality: inferQuality(match, /\.m3u8/i.test(match) ? "auto" : "default"),
+      headers: defaultHeaders,
+      proxyMode: "proxy",
+      isDefault: false,
+    });
+  }
+
+  for (const match of sample.match(REDIRECT_URL_PATTERN) ?? []) {
+    const absoluteUrl = safeAbsoluteUrl(match);
+    if (!absoluteUrl || shouldIgnorePlaybackUrl(absoluteUrl)) {
+      continue;
+    }
+
+    candidates.add({
+      id: `animetake-${candidates.values().length + 1}`,
+      url: absoluteUrl,
+      mimeType: "text/html",
+      quality: inferQuality(absoluteUrl, "embed"),
+      headers: {},
+      proxyMode: "redirect",
+      isDefault: false,
+    });
+  }
+}
+
+function orderPlaybackCandidates(candidates: PlaybackCandidate[]) {
+  return [...candidates].sort((left, right) => {
+    const leftScore =
+      left.mimeType === "application/vnd.apple.mpegurl"
+        ? 4
+        : left.mimeType === "application/dash+xml"
+          ? 3
+          : left.mimeType === "video/mp4"
+            ? 2
+            : 1;
+    const rightScore =
+      right.mimeType === "application/vnd.apple.mpegurl"
+        ? 4
+        : right.mimeType === "application/dash+xml"
+          ? 3
+          : right.mimeType === "video/mp4"
+            ? 2
+            : 1;
+
+    if (leftScore !== rightScore) {
+      return rightScore - leftScore;
+    }
+
+    return left.url.localeCompare(right.url);
+  });
 }
 
 async function waitForAnimeTakeReady(
@@ -922,8 +1307,13 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
       const ranked = results.items
         .map((item, index) => ({
           ...item,
-          score: rankTitleAgainstQuery(item.title, input.query) ?? 0,
+          score: rankTitleAgainstQuery(item.title, input.query),
           index,
+        }))
+        .filter((item) => item.score !== null || results.items.length <= input.limit)
+        .map((item) => ({
+          ...item,
+          score: item.score ?? 0,
         }))
         .sort((left, right) => {
           if (left.score !== right.score) {
@@ -1004,103 +1394,184 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
   }
 
   async getEpisodes(input: ProviderAnimeRef, runtime: ExtractionRuntime): Promise<EpisodeList> {
-    return runtime.withPage(async (page) => {
-      const browserPage = page as unknown as PlaywrightPageLike;
-      await navigate(browserPage, buildAnimeUrl(input.externalAnimeId), "detail");
-      const details = await scrapeAnimeDetailsPage(browserPage, input.externalAnimeId);
-
-      let episodes = details.episodes.map((episode) => ({
-        providerId: input.providerId,
-        externalAnimeId: input.externalAnimeId,
-        externalEpisodeId: episode.externalEpisodeId,
-        number: episode.number,
-        title: episode.title || `Episode ${episode.number}`,
-        synopsis: null,
-        thumbnail: episode.thumbnail,
-        durationSeconds: null,
-        releasedAt: null,
-      }));
-
-      if (episodes.length === 0) {
-        const listingCard = await lookupAnimeListingCard(
-          browserPage,
-          input.externalAnimeId,
-          EPISODE_FALLBACK_LISTING_PAGES,
-        );
-        const totalEpisodes = Math.trunc(details.latestEpisode ?? listingCard?.latestEpisode ?? 0);
-        if (totalEpisodes <= 0) {
-          throw new BrowserExtractionError(
-            "upstream_error",
-            `AnimeTake did not expose an episode list for "${input.externalAnimeId}".`,
-            { statusCode: 502 },
-          );
-        }
-
-        episodes = Array.from({ length: totalEpisodes }, (_, index) => {
-          const number = index + 1;
-          return {
-            providerId: input.providerId,
-            externalAnimeId: input.externalAnimeId,
-            externalEpisodeId: `${number}`,
-            number,
-            title: `Episode ${number}`,
-            synopsis: null,
-            thumbnail: listingCard?.coverImage ?? null,
-            durationSeconds: null,
-            releasedAt: null,
-          };
-        });
-      }
-
-      episodes.sort((left, right) => left.number - right.number);
-
+    try {
+      const snapshot = await fetchAnimeTakeServerSnapshot(input.externalAnimeId, runtime.signal);
       return {
         providerId: input.providerId,
         externalAnimeId: input.externalAnimeId,
-        episodes,
+        episodes: snapshot.episodes.map((episode) => ({
+          providerId: input.providerId,
+          externalAnimeId: input.externalAnimeId,
+          externalEpisodeId: episode.externalEpisodeId,
+          number: episode.number,
+          title: episode.title || `Episode ${episode.number}`,
+          synopsis: null,
+          thumbnail: null,
+          durationSeconds: null,
+          releasedAt: null,
+        })),
       };
-    });
+    } catch {
+      return runtime.withPage(async (page) => {
+        const browserPage = page as unknown as PlaywrightPageLike;
+        await navigate(browserPage, buildAnimeUrl(input.externalAnimeId), "detail");
+        const details = await scrapeAnimeDetailsPage(browserPage, input.externalAnimeId);
+
+        let episodes = details.episodes.map((episode) => ({
+          providerId: input.providerId,
+          externalAnimeId: input.externalAnimeId,
+          externalEpisodeId: episode.externalEpisodeId,
+          number: episode.number,
+          title: episode.title || `Episode ${episode.number}`,
+          synopsis: null,
+          thumbnail: episode.thumbnail,
+          durationSeconds: null,
+          releasedAt: null,
+        }));
+
+        if (episodes.length === 0) {
+          const listingCard = await lookupAnimeListingCard(
+            browserPage,
+            input.externalAnimeId,
+            EPISODE_FALLBACK_LISTING_PAGES,
+          );
+          const totalEpisodes = Math.trunc(details.latestEpisode ?? listingCard?.latestEpisode ?? 0);
+          if (totalEpisodes <= 0) {
+            throw new BrowserExtractionError(
+              "upstream_error",
+              `AnimeTake did not expose an episode list for "${input.externalAnimeId}".`,
+              { statusCode: 502 },
+            );
+          }
+
+          episodes = Array.from({ length: totalEpisodes }, (_, index) => {
+            const number = index + 1;
+            return {
+              providerId: input.providerId,
+              externalAnimeId: input.externalAnimeId,
+              externalEpisodeId: `${number}`,
+              number,
+              title: `Episode ${number}`,
+              synopsis: null,
+              thumbnail: listingCard?.coverImage ?? null,
+              durationSeconds: null,
+              releasedAt: null,
+            };
+          });
+        }
+
+        episodes.sort((left, right) => left.number - right.number);
+
+        return {
+          providerId: input.providerId,
+          externalAnimeId: input.externalAnimeId,
+          episodes,
+        };
+      });
+    }
   }
 
   async resolvePlayback(
     input: ProviderEpisodeRef,
     runtime: ExtractionRuntime,
   ): Promise<PlaybackResolution> {
-    return runtime.withPage(async (page) => {
-      const browserPage = page as unknown as PlaywrightPageLike;
-      const episodeUrl = buildEpisodeUrl(input.externalAnimeId, input.externalEpisodeId);
+    try {
+      const serverSnapshot = await fetchAnimeTakeServerSnapshot(
+        input.externalAnimeId,
+        runtime.signal,
+      );
+      const resolvedEpisodeId = resolveEpisodeIdFromSnapshot(
+        serverSnapshot,
+        input.externalEpisodeId,
+      );
+      const episodeUrl = buildEpisodeUrl(input.externalAnimeId, resolvedEpisodeId);
       const defaultHeaders = {
         referer: episodeUrl,
         origin: BASE_URL,
+        "user-agent": ANIMETAKE_HTTP_USER_AGENT,
       };
       const candidates = createPlaybackCandidateMap();
+      const preferredServer = selectPreferredAnimeTakeServer(serverSnapshot);
 
-      browserPage.on("request", async (request) => {
-        const url = request.url();
-        if (!/\.(?:m3u8|mpd|mp4)(?:\?|$)/i.test(url) || shouldIgnorePlaybackUrl(url)) {
-          return;
+      const payload = await fetchAnimeTakeEpisodeInfo(
+        input.externalAnimeId,
+        resolvedEpisodeId,
+        preferredServer,
+        runtime.signal,
+      );
+      addPlaybackCandidatesFromEpisodeInfo(candidates, payload, defaultHeaders);
+
+      if (candidates.values().length === 0 && payload.grabber) {
+        const grabberUrl = `${payload.grabber}${encodeURIComponent(preferredServer)}`;
+        const grabberBody = await fetchAnimeTakeResponseText(
+          grabberUrl,
+          runtime.signal,
+          episodeUrl,
+          "application/json,text/plain,*/*",
+          "ajax",
+        ).catch(() => "");
+
+        for (const match of grabberBody.match(MEDIA_URL_PATTERN) ?? []) {
+          if (shouldIgnorePlaybackUrl(match)) {
+            continue;
+          }
+
+          candidates.add({
+            id: `animetake-${candidates.values().length + 1}`,
+            url: match,
+            mimeType: guessMimeType(match),
+            quality: inferQuality(match, /\.m3u8/i.test(match) ? "auto" : "default"),
+            headers: defaultHeaders,
+            proxyMode: "proxy",
+            isDefault: true,
+          });
         }
+      }
 
-        const headers = normalizeHeaders(await request.allHeaders().catch(() => ({})));
-        candidates.add({
-          id: `animetake-${candidates.values().length + 1}`,
-          url,
-          mimeType: guessMimeType(url),
-          quality: inferQuality(url, /\.m3u8/i.test(url) ? "auto" : "default"),
-          headers: { ...defaultHeaders, ...headers },
-          proxyMode: "proxy",
-          isDefault: true,
-        });
-      });
+      const ordered = orderPlaybackCandidates(candidates.values());
+      if (ordered.length === 0) {
+        throw new BrowserExtractionError(
+          "upstream_error",
+          `AnimeTake did not expose a playable source for episode "${input.externalEpisodeId}".`,
+          { statusCode: 502 },
+        );
+      }
 
-      browserPage.on("response", async (response) => {
-        const url = response.url();
-        if (response.status() >= 400 || shouldIgnorePlaybackUrl(url)) {
-          return;
-        }
+      return {
+        providerId: input.providerId,
+        externalAnimeId: input.externalAnimeId,
+        externalEpisodeId: input.externalEpisodeId,
+        streams: ordered.slice(0, 4).map((candidate, index) => ({
+          id: candidate.id,
+          url: candidate.url,
+          quality: candidate.quality,
+          mimeType: candidate.mimeType,
+          headers: candidate.headers,
+          cookies: {},
+          proxyMode: candidate.proxyMode,
+          isDefault: index === 0,
+        })),
+        subtitles: [],
+        cookies: {},
+        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      };
+    } catch {
+      return runtime.withPage(async (page) => {
+        const browserPage = page as unknown as PlaywrightPageLike;
+        const episodeUrl = buildEpisodeUrl(input.externalAnimeId, input.externalEpisodeId);
+        const defaultHeaders = {
+          referer: episodeUrl,
+          origin: BASE_URL,
+        };
+        const candidates = createPlaybackCandidateMap();
 
-        const headers = normalizeHeaders(await response.request().allHeaders().catch(() => ({})));
-        if (/\.(?:m3u8|mpd|mp4)(?:\?|$)/i.test(url)) {
+        browserPage.on("request", async (request) => {
+          const url = request.url();
+          if (!/\.(?:m3u8|mpd|mp4)(?:\?|$)/i.test(url) || shouldIgnorePlaybackUrl(url)) {
+            return;
+          }
+
+          const headers = normalizeHeaders(await request.allHeaders().catch(() => ({})));
           candidates.add({
             id: `animetake-${candidates.values().length + 1}`,
             url,
@@ -1110,141 +1581,135 @@ export class AnimeTakeExtractor implements BrowserProviderExtractor {
             proxyMode: "proxy",
             isDefault: true,
           });
-          return;
-        }
+        });
 
-        if (!/(json|source|embed|player|redirect|watch|episode|ajax)/i.test(url)) {
-          return;
-        }
+        browserPage.on("response", async (response) => {
+          const url = response.url();
+          if (response.status() >= 400 || shouldIgnorePlaybackUrl(url)) {
+            return;
+          }
 
-        const body = await response.text().catch(() => "");
-        for (const match of body.match(MEDIA_URL_PATTERN) ?? []) {
-          candidates.add({
-            id: `animetake-${candidates.values().length + 1}`,
-            url: match,
-            mimeType: guessMimeType(match),
-            quality: inferQuality(match, /\.m3u8/i.test(match) ? "auto" : "default"),
-            headers: { ...defaultHeaders, ...headers },
-            proxyMode: "proxy",
-            isDefault: true,
-          });
-        }
+          const headers = normalizeHeaders(await response.request().allHeaders().catch(() => ({})));
+          if (/\.(?:m3u8|mpd|mp4)(?:\?|$)/i.test(url)) {
+            candidates.add({
+              id: `animetake-${candidates.values().length + 1}`,
+              url,
+              mimeType: guessMimeType(url),
+              quality: inferQuality(url, /\.m3u8/i.test(url) ? "auto" : "default"),
+              headers: { ...defaultHeaders, ...headers },
+              proxyMode: "proxy",
+              isDefault: true,
+            });
+            return;
+          }
 
-        for (const match of body.match(REDIRECT_URL_PATTERN) ?? []) {
-          const absoluteUrl = safeAbsoluteUrl(match);
-          if (!absoluteUrl) {
+          if (!/(json|source|embed|player|redirect|watch|episode|ajax)/i.test(url)) {
+            return;
+          }
+
+          const body = await response.text().catch(() => "");
+          for (const match of body.match(MEDIA_URL_PATTERN) ?? []) {
+            candidates.add({
+              id: `animetake-${candidates.values().length + 1}`,
+              url: match,
+              mimeType: guessMimeType(match),
+              quality: inferQuality(match, /\.m3u8/i.test(match) ? "auto" : "default"),
+              headers: { ...defaultHeaders, ...headers },
+              proxyMode: "proxy",
+              isDefault: true,
+            });
+          }
+
+          for (const match of body.match(REDIRECT_URL_PATTERN) ?? []) {
+            const absoluteUrl = safeAbsoluteUrl(match);
+            if (!absoluteUrl) {
+              continue;
+            }
+
+            candidates.add({
+              id: `animetake-${candidates.values().length + 1}`,
+              url: absoluteUrl,
+              mimeType: "text/html",
+              quality: "embed",
+              headers: {},
+              proxyMode: "redirect",
+              isDefault: false,
+            });
+          }
+        });
+
+        await navigate(browserPage, episodeUrl, "episode");
+        await browserPage.waitForTimeout(2_000);
+        await triggerPlayback(browserPage);
+        await browserPage.waitForTimeout(3_000);
+
+        const snapshot = await extractPlaybackSnapshot(browserPage);
+        for (const url of [...snapshot.videoSources, ...snapshot.inlineMediaUrls]) {
+          if (shouldIgnorePlaybackUrl(url)) {
             continue;
           }
 
           candidates.add({
             id: `animetake-${candidates.values().length + 1}`,
-            url: absoluteUrl,
+            url,
+            mimeType: guessMimeType(url),
+            quality: inferQuality(url, /\.m3u8/i.test(url) ? "auto" : "default"),
+            headers: defaultHeaders,
+            proxyMode: "proxy",
+            isDefault: true,
+          });
+        }
+
+        for (const url of [...snapshot.iframeSources, ...snapshot.redirectUrls, ...snapshot.inlineRedirectUrls]) {
+          if (shouldIgnorePlaybackUrl(url)) {
+            continue;
+          }
+
+          candidates.add({
+            id: `animetake-${candidates.values().length + 1}`,
+            url,
             mimeType: "text/html",
-            quality: "embed",
+            quality: inferQuality(url, "embed"),
             headers: {},
             proxyMode: "redirect",
             isDefault: false,
           });
         }
-      });
 
-      await navigate(browserPage, episodeUrl, "episode");
-      await browserPage.waitForTimeout(2_000);
-      await triggerPlayback(browserPage);
-      await browserPage.waitForTimeout(3_000);
-
-      const snapshot = await extractPlaybackSnapshot(browserPage);
-      for (const url of [...snapshot.videoSources, ...snapshot.inlineMediaUrls]) {
-        if (shouldIgnorePlaybackUrl(url)) {
-          continue;
-        }
-
-        candidates.add({
-          id: `animetake-${candidates.values().length + 1}`,
-          url,
-          mimeType: guessMimeType(url),
-          quality: inferQuality(url, /\.m3u8/i.test(url) ? "auto" : "default"),
-          headers: defaultHeaders,
-          proxyMode: "proxy",
-          isDefault: true,
-        });
-      }
-
-      for (const url of [...snapshot.iframeSources, ...snapshot.redirectUrls, ...snapshot.inlineRedirectUrls]) {
-        if (shouldIgnorePlaybackUrl(url)) {
-          continue;
-        }
-
-        candidates.add({
-          id: `animetake-${candidates.values().length + 1}`,
-          url,
-          mimeType: "text/html",
-          quality: inferQuality(url, "embed"),
-          headers: {},
-          proxyMode: "redirect",
-          isDefault: false,
-        });
-      }
-
-      const ordered = candidates.values().sort((left, right) => {
-        const leftScore =
-          left.mimeType === "application/vnd.apple.mpegurl"
-            ? 4
-            : left.mimeType === "application/dash+xml"
-              ? 3
-              : left.mimeType === "video/mp4"
-                ? 2
-                : 1;
-        const rightScore =
-          right.mimeType === "application/vnd.apple.mpegurl"
-            ? 4
-            : right.mimeType === "application/dash+xml"
-              ? 3
-              : right.mimeType === "video/mp4"
-                ? 2
-                : 1;
-
-        if (leftScore !== rightScore) {
-          return rightScore - leftScore;
-        }
-
-        return left.url.localeCompare(right.url);
-      });
-
-      if (ordered.length === 0) {
-        throw new BrowserExtractionError(
-          "upstream_error",
-          `AnimeTake did not expose a playable source for episode "${input.externalEpisodeId}".`,
-          {
-            statusCode: 502,
-            details: {
-              title: snapshot.title,
-              sample: cleanText(snapshot.bodyText).slice(0, 240),
+        const ordered = orderPlaybackCandidates(candidates.values());
+        if (ordered.length === 0) {
+          throw new BrowserExtractionError(
+            "upstream_error",
+            `AnimeTake did not expose a playable source for episode "${input.externalEpisodeId}".`,
+            {
+              statusCode: 502,
+              details: {
+                title: snapshot.title,
+                sample: cleanText(snapshot.bodyText).slice(0, 240),
+              },
             },
-          },
-        );
-      }
+          );
+        }
 
-      const streams = ordered.slice(0, 4).map((candidate, index) => ({
-        id: candidate.id,
-        url: candidate.url,
-        quality: candidate.quality,
-        mimeType: candidate.mimeType,
-        headers: candidate.headers,
-        cookies: {},
-        proxyMode: candidate.proxyMode,
-        isDefault: index === 0,
-      }));
-
-      return {
-        providerId: input.providerId,
-        externalAnimeId: input.externalAnimeId,
-        externalEpisodeId: input.externalEpisodeId,
-        streams,
-        subtitles: [],
-        cookies: {},
-        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-      };
-    });
+        return {
+          providerId: input.providerId,
+          externalAnimeId: input.externalAnimeId,
+          externalEpisodeId: input.externalEpisodeId,
+          streams: ordered.slice(0, 4).map((candidate, index) => ({
+            id: candidate.id,
+            url: candidate.url,
+            quality: candidate.quality,
+            mimeType: candidate.mimeType,
+            headers: candidate.headers,
+            cookies: {},
+            proxyMode: candidate.proxyMode,
+            isDefault: index === 0,
+          })),
+          subtitles: [],
+          cookies: {},
+          expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        };
+      });
+    }
   }
 }

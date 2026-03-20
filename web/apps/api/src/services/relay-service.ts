@@ -471,36 +471,6 @@ export class RelayService {
     };
   }
 
-  private buildAnimetakeFallbackEpisodeList(
-    providerId: string,
-    externalAnimeId: string,
-    cachedAnime: CatalogAnimeRow | null | undefined,
-  ): EpisodeList {
-    const totalEpisodes = Math.min(
-      500,
-      Math.max(1, Math.trunc(cachedAnime?.totalEpisodes ?? 0) || 1),
-    );
-
-    return {
-      providerId,
-      externalAnimeId,
-      episodes: Array.from({ length: totalEpisodes }, (_, index) => {
-        const number = index + 1;
-        return {
-          providerId,
-          externalAnimeId,
-          externalEpisodeId: `${number}`,
-          number,
-          title: `Episode ${number}`,
-          synopsis: null,
-          thumbnail: cachedAnime?.coverImage ?? null,
-          durationSeconds: null,
-          releasedAt: null,
-        };
-      }),
-    };
-  }
-
   private async buildProviderHealthMap() {
     const rows = await db
       .select()
@@ -1319,17 +1289,6 @@ export class RelayService {
     externalAnimeId: string,
   ): Promise<EpisodeList> {
     const { provider } = await this.getProviderWithPreferences(userId, providerId);
-    const [cachedAnime] = await db
-      .select()
-      .from(catalogAnime)
-      .where(
-        and(
-          eq(catalogAnime.providerId, providerId),
-          eq(catalogAnime.externalAnimeId, externalAnimeId),
-        ),
-      )
-      .limit(1);
-
     const cachedEpisodeRows = await db
       .select()
       .from(catalogEpisode)
@@ -1368,14 +1327,6 @@ export class RelayService {
     const payload = await runtimeCall().catch((error) => {
       if (cachedEpisodeList) {
         return cachedEpisodeList;
-      }
-
-      if (providerId === "animetake") {
-        return this.buildAnimetakeFallbackEpisodeList(
-          providerId,
-          externalAnimeId,
-          cachedAnime,
-        );
       }
 
       throw error;
