@@ -1,8 +1,15 @@
 ---
 created_at: 2026-02-22T04:37
-updated_at: 2026-03-19T20:54
+updated_at: 2026-03-20T01:06
 ---
 # Working List
+
+## Current Task: Discover Last Search Restore
+- [x] Add contracts schema/type for cached catalog search snapshot response
+- [x] Add RelayService in-memory per-user last-search cache with 30-minute TTL
+- [x] Expose authenticated `GET /catalog/search/last` endpoint
+- [x] Update Discover page to auto-restore cached results and prefill query
+- [x] Run typecheck for contracts/api/client and capture verification notes
 
 ## Pending
 - [ ] Add custom Relay-owned player controls to replace native browser controls
@@ -27,5 +34,8 @@ updated_at: 2026-03-19T20:54
 - [x] Run `rtk proxy npm --prefix web/apps/api run typecheck`
 - [x] Run `rtk proxy npm --prefix web/apps/client run typecheck`
 - [x] Run `rtk proxy npm --prefix web run typecheck`
+- [x] Run `rtk proxy npm --prefix web run typecheck -w @relay/contracts`
+- [x] Run `rtk proxy npm --prefix web run typecheck -w @relay/api`
+- [x] Run `rtk proxy npm --prefix web run typecheck -w @relay/client`
 - [x] Run `rtk proxy npm --prefix web/apps/client run build`
 - [x] Verify the live AnimePahe stream proxy serves the playlist with `.ts`-aliased segment URLs and `video/mp2t` segment content types instead of raw `.jpg` / `image/jpeg`

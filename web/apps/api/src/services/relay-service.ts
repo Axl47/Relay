@@ -6,6 +6,7 @@ import type {
   AuthBootstrapInput,
   AuthLoginInput,
   AuthResponse,
+  CatalogSearchLastResponse,
   CatalogSearchProviderResult,
   CatalogSearchResponse,
   Category,
@@ -83,6 +84,7 @@ const ANIMETAKE_SEARCH_TIMEOUT_MS = 45_000;
 const ANIMETAKE_RESOLUTION_TIMEOUT_MS = 45_000;
 const ANIMETAKE_CATALOG_TIMEOUT_MS = 6_000;
 const PLAYBACK_STALL_GRACE_MS = 5_000;
+const DISCOVER_LAST_SEARCH_TTL_MS = 30 * 60 * 1000;
 
 type SessionUser = {
   id: string;
@@ -118,6 +120,11 @@ type CatalogSearchProgressUpdate = {
   totalProviders: number;
   providerResult: CatalogSearchProviderResult;
 };
+type CachedCatalogSearchSnapshot = {
+  response: CatalogSearchResponse;
+  cachedAtMs: number;
+  expiresAtMs: number;
+};
 type CatalogSearchProgressHandlers = {
   onStart?: (payload: CatalogSearchProgressStart) => void | Promise<void>;
   onProviderResult?: (payload: CatalogSearchProgressUpdate) => void | Promise<void>;
@@ -133,6 +140,7 @@ class ProviderTimeoutError extends Error {
 export class RelayService {
   private readonly registryPromise: Promise<ProviderRegistry>;
   private readonly playbackResolutionJobs = new Map<string, Promise<void>>();
+  private readonly lastCatalogSearchByUser = new Map<string, CachedCatalogSearchSnapshot>();
   private readonly browserBroker = new HttpBrowserBrokerClient(appConfig.BROWSER_SERVICE_URL);
 
   constructor() {
@@ -1058,6 +1066,47 @@ export class RelayService {
     return this.runCatalogSearch(userId, input, handlers);
   }
 
+  async getLastCatalogSearch(userId: string): Promise<CatalogSearchLastResponse> {
+    const snapshot = this.getCachedLastCatalogSearch(userId);
+    if (!snapshot) {
+      return {
+        result: null,
+        cachedAt: null,
+        expiresAt: null,
+      };
+    }
+
+    return {
+      result: snapshot.response,
+      cachedAt: new Date(snapshot.cachedAtMs).toISOString(),
+      expiresAt: new Date(snapshot.expiresAtMs).toISOString(),
+    };
+  }
+
+  private pruneExpiredLastCatalogSearches(nowMs = Date.now()) {
+    for (const [cachedUserId, snapshot] of this.lastCatalogSearchByUser.entries()) {
+      if (snapshot.expiresAtMs <= nowMs) {
+        this.lastCatalogSearchByUser.delete(cachedUserId);
+      }
+    }
+  }
+
+  private cacheLastCatalogSearch(userId: string, response: CatalogSearchResponse) {
+    const cachedAtMs = Date.now();
+    this.lastCatalogSearchByUser.set(userId, {
+      response,
+      cachedAtMs,
+      expiresAtMs: cachedAtMs + DISCOVER_LAST_SEARCH_TTL_MS,
+    });
+    this.pruneExpiredLastCatalogSearches(cachedAtMs);
+  }
+
+  private getCachedLastCatalogSearch(userId: string) {
+    const nowMs = Date.now();
+    this.pruneExpiredLastCatalogSearches(nowMs);
+    return this.lastCatalogSearchByUser.get(userId) ?? null;
+  }
+
   private async runCatalogSearch(
     userId: string,
     input: SearchInput,
@@ -1185,7 +1234,7 @@ export class RelayService {
       );
     }
 
-    return {
+    const response: CatalogSearchResponse = {
       query: input.query,
       page: input.page,
       limit: input.limit,
@@ -1193,6 +1242,10 @@ export class RelayService {
       providers: providerResults,
       items: discoveredItems,
     };
+
+    this.cacheLastCatalogSearch(userId, response);
+
+    return response;
   }
 
   async getAnime(userId: string, providerId: string, externalAnimeId: string): Promise<AnimeDetails> {

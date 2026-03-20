@@ -108,6 +108,12 @@ export const catalogSearchResponseSchema = z.object({
   items: z.array(searchResultSchema).default([]),
 });
 
+export const catalogSearchLastResponseSchema = z.object({
+  result: catalogSearchResponseSchema.nullable().default(null),
+  cachedAt: z.string().nullable().default(null),
+  expiresAt: z.string().nullable().default(null),
+});
+
 export const episodeSummarySchema = z.object({
   providerId: providerIdSchema,
   externalAnimeId: externalIdSchema,
@@ -456,6 +462,7 @@ export type SearchResult = z.infer<typeof searchResultSchema>;
 export type SearchPage = z.infer<typeof searchPageSchema>;
 export type CatalogSearchProviderResult = z.infer<typeof catalogSearchProviderResultSchema>;
 export type CatalogSearchResponse = z.infer<typeof catalogSearchResponseSchema>;
+export type CatalogSearchLastResponse = z.infer<typeof catalogSearchLastResponseSchema>;
 export type EpisodeSummary = z.infer<typeof episodeSummarySchema>;
 export type EpisodeList = z.infer<typeof episodeListSchema>;
 export type AnimeDetails = z.infer<typeof animeDetailsSchema>;

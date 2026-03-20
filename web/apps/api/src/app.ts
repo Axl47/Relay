@@ -497,6 +497,12 @@ export async function buildApi() {
     return relay.search(user.id, query);
   });
 
+  app.get("/catalog/search/last", async (request, reply) => {
+    const user = await requireUser(request);
+    reply.header("cache-control", "no-store");
+    return relay.getLastCatalogSearch(user.id);
+  });
+
   async function streamCatalogSearchResponse(request: FastifyRequest, reply: FastifyReply) {
     const user = await requireUser(request);
     const query = searchInputSchema.parse(request.query);

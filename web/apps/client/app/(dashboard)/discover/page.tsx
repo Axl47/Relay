@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { CatalogSearchResponse, LibraryItemWithCategories } from "@relay/contracts";
+import type {
+  CatalogSearchLastResponse,
+  CatalogSearchResponse,
+  LibraryItemWithCategories,
+} from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
 import { FALLBACK_COVER } from "../../../lib/fallback-cover";
 import { resolveMediaUrl } from "../../../lib/media";
@@ -114,7 +118,7 @@ async function streamCatalogSearch(
 }
 
 function buildResultKey(item: CatalogSearchResponse["items"][number]) {
-  return `${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
+  return `${item.providerId}:${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
 }
 
 function scoreResult(item: CatalogSearchResponse["items"][number]) {
@@ -148,13 +152,33 @@ export default function DiscoverPage() {
     enabled: submittedQuery.trim().length > 0,
   });
 
+  const lastSearchQuery = useQuery<CatalogSearchLastResponse>({
+    queryKey: ["catalog-search-last"],
+    queryFn: () => apiFetch<CatalogSearchLastResponse>("/catalog/search/last"),
+  });
+
   const libraryQuery = useQuery({
     queryKey: ["library-index"],
     queryFn: () => apiFetch<LibraryResponse>("/library"),
   });
 
+  const restoredSearchResponse = submittedQuery.trim().length > 0
+    ? null
+    : (lastSearchQuery.data?.result ?? null);
+  const activeSearchResponse = searchQuery.data ?? restoredSearchResponse;
+  const activeQueryLabel = activeSearchResponse?.query ?? submittedQuery;
+
+  useEffect(() => {
+    const restoredQuery = restoredSearchResponse?.query?.trim();
+    if (!restoredQuery) {
+      return;
+    }
+
+    setQuery((current) => (current.trim().length > 0 ? current : restoredQuery));
+  }, [restoredSearchResponse?.query]);
+
   const groupedResults = useMemo(() => {
-    const items = searchQuery.data?.items ?? [];
+    const items = activeSearchResponse?.items ?? [];
     const libraryKeys = new Set(
       (libraryQuery.data?.items ?? []).map(
         (item) => `${item.providerId}:${item.externalAnimeId}`,
@@ -190,14 +214,14 @@ export default function DiscoverPage() {
     }
 
     return Array.from(groups.values());
-  }, [libraryQuery.data?.items, searchQuery.data?.items]);
+  }, [activeSearchResponse?.items, libraryQuery.data?.items]);
 
   const providerSummary = useMemo(() => {
-    const providers = searchQuery.data?.providers ?? [];
+    const providers = activeSearchResponse?.providers ?? [];
     const healthyCount = providers.filter((provider) => provider.status === "success").length;
     const timeoutCount = providers.filter((provider) => provider.status === "timeout").length;
     const errorCount = providers.filter((provider) => provider.status === "error").length;
-    const resultCount = searchQuery.data?.items.length ?? 0;
+    const resultCount = activeSearchResponse?.items.length ?? 0;
     const averageLatency =
       providers.filter((provider) => provider.latencyMs !== null).reduce((total, provider) => total + (provider.latencyMs ?? 0), 0) /
       Math.max(1, providers.filter((provider) => provider.latencyMs !== null).length);
@@ -210,13 +234,17 @@ export default function DiscoverPage() {
       resultCount,
       averageLatency: Number.isFinite(averageLatency) ? Math.round(averageLatency) : null,
     };
-  }, [searchQuery.data]);
+  }, [activeSearchResponse]);
 
   const activeProviderProgress =
     providerProgress && providerProgress.query === submittedQuery ? providerProgress : null;
   const providerProgressLabel = activeProviderProgress
     ? `${Math.min(activeProviderProgress.completedProviders, activeProviderProgress.totalProviders)}/${activeProviderProgress.totalProviders}`
     : "0/0";
+  const isRestoringCachedSearch =
+    submittedQuery.trim().length === 0 &&
+    !searchQuery.data &&
+    lastSearchQuery.isLoading;
 
   function onSearch(event: FormEvent) {
     event.preventDefault();
@@ -258,11 +286,13 @@ export default function DiscoverPage() {
           <div className="search-status search-status-loading">
             Searching providers... {providerProgressLabel}
           </div>
+        ) : isRestoringCachedSearch ? (
+          <div className="search-status search-status-loading">Restoring last search...</div>
         ) : searchQuery.error ? (
           <div className="message">
             {searchQuery.error instanceof Error ? searchQuery.error.message : "Unable to search."}
           </div>
-        ) : searchQuery.data ? (
+        ) : activeSearchResponse ? (
           <button
             className={`provider-summary${showProviders ? " expanded" : ""}`}
             onClick={() => setShowProviders((current) => !current)}
@@ -307,7 +337,7 @@ export default function DiscoverPage() {
         ) : null}
       </section>
 
-      {searchQuery.isFetching ? (
+      {searchQuery.isFetching || isRestoringCachedSearch ? (
         <section className="discover-results-grid">
           {Array.from({ length: 8 }).map((_, index) => (
             <div className="result-card result-card-skeleton" key={index} />
@@ -358,10 +388,10 @@ export default function DiscoverPage() {
             </Link>
           ))}
         </section>
-      ) : submittedQuery ? (
+      ) : activeSearchResponse ? (
         <section className="empty-panel">
           <h2>No results</h2>
-          <p>No results for "{submittedQuery}" across the currently enabled providers.</p>
+          <p>No results for "{activeQueryLabel}" across the currently enabled providers.</p>
         </section>
       ) : (
         <section className="empty-panel">
