@@ -81,6 +81,7 @@ const PROVIDER_RESOLUTION_TIMEOUT_MS = {
 const HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS = 60_000;
 const ANIMETAKE_SEARCH_TIMEOUT_MS = 45_000;
 const ANIMETAKE_RESOLUTION_TIMEOUT_MS = 45_000;
+const ANIMETAKE_CATALOG_TIMEOUT_MS = 6_000;
 const PLAYBACK_STALL_GRACE_MS = 5_000;
 
 type SessionUser = {
@@ -350,6 +351,35 @@ export class RelayService {
     };
   }
 
+  private toEpisodeListFromCatalogRows(
+    providerId: string,
+    externalAnimeId: string,
+    rows: CatalogEpisodeRow[],
+  ): EpisodeList {
+    return {
+      providerId,
+      externalAnimeId,
+      episodes: rows
+        .map((row) => ({
+          providerId: row.providerId,
+          externalAnimeId: row.externalAnimeId,
+          externalEpisodeId: row.externalEpisodeId,
+          number: row.number,
+          title: row.title,
+          synopsis: row.synopsis,
+          thumbnail: row.thumbnail,
+          durationSeconds: row.durationSeconds,
+          releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
+        }))
+        .sort((left, right) => {
+          if (left.number !== right.number) {
+            return left.number - right.number;
+          }
+          return left.externalEpisodeId.localeCompare(right.externalEpisodeId);
+        }),
+    };
+  }
+
   private createHistoryDayLabel(day: Date, now = new Date()) {
     const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const target = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -400,6 +430,75 @@ export class RelayService {
     }
 
     return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];
+  }
+
+  private getProviderCatalogTimeout(provider: RelayProvider) {
+    if (provider.metadata.id === "animetake") {
+      return ANIMETAKE_CATALOG_TIMEOUT_MS;
+    }
+
+    return null;
+  }
+
+  private humanizeAnimeId(externalAnimeId: string) {
+    return externalAnimeId
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (value) => value.toUpperCase());
+  }
+
+  private buildAnimetakeFallbackAnimeDetails(
+    provider: RelayProvider,
+    providerId: string,
+    externalAnimeId: string,
+  ): AnimeDetails {
+    return {
+      providerId,
+      providerDisplayName: provider.metadata.displayName,
+      externalAnimeId,
+      title: this.humanizeAnimeId(externalAnimeId) || externalAnimeId,
+      synopsis: null,
+      coverImage: null,
+      bannerImage: null,
+      status: "unknown",
+      year: null,
+      tags: [],
+      language: "en",
+      totalEpisodes: null,
+      contentClass: provider.metadata.contentClass,
+      requiresAdultGate: provider.metadata.requiresAdultGate,
+    };
+  }
+
+  private buildAnimetakeFallbackEpisodeList(
+    providerId: string,
+    externalAnimeId: string,
+    cachedAnime: CatalogAnimeRow | null | undefined,
+  ): EpisodeList {
+    const totalEpisodes = Math.min(
+      500,
+      Math.max(1, Math.trunc(cachedAnime?.totalEpisodes ?? 0) || 1),
+    );
+
+    return {
+      providerId,
+      externalAnimeId,
+      episodes: Array.from({ length: totalEpisodes }, (_, index) => {
+        const number = index + 1;
+        return {
+          providerId,
+          externalAnimeId,
+          externalEpisodeId: `${number}`,
+          number,
+          title: `Episode ${number}`,
+          synopsis: null,
+          thumbnail: cachedAnime?.coverImage ?? null,
+          durationSeconds: null,
+          releasedAt: null,
+        };
+      }),
+    };
   }
 
   private async buildProviderHealthMap() {
@@ -1143,13 +1242,35 @@ export class RelayService {
       return this.toAnimeDetailsFromCatalogRow(cachedAnime, provider);
     }
 
-    const anime = await provider.getAnime(
-      { providerId, externalAnimeId },
-      this.createProviderContext(),
-    ).catch((error) => {
+    const runtimeCall = () => {
+      const timeoutMs = this.getProviderCatalogTimeout(provider);
+      if (timeoutMs !== null) {
+        return this.withProviderTimeout(
+          provider,
+          timeoutMs,
+          (runtime, signal) =>
+            runtime.getAnime(
+              { providerId, externalAnimeId },
+              this.createProviderContext(signal),
+            ),
+        );
+      }
+
+      return provider.getAnime(
+        { providerId, externalAnimeId },
+        this.createProviderContext(),
+      );
+    };
+
+    const anime = await runtimeCall().catch((error) => {
       if (cachedAnime) {
         return this.toAnimeDetailsFromCatalogRow(cachedAnime, provider);
       }
+
+      if (providerId === "animetake") {
+        return this.buildAnimetakeFallbackAnimeDetails(provider, providerId, externalAnimeId);
+      }
+
       throw error;
     });
 
@@ -1198,10 +1319,67 @@ export class RelayService {
     externalAnimeId: string,
   ): Promise<EpisodeList> {
     const { provider } = await this.getProviderWithPreferences(userId, providerId);
-    const payload = await provider.getEpisodes(
-      { providerId, externalAnimeId },
-      this.createProviderContext(),
-    );
+    const [cachedAnime] = await db
+      .select()
+      .from(catalogAnime)
+      .where(
+        and(
+          eq(catalogAnime.providerId, providerId),
+          eq(catalogAnime.externalAnimeId, externalAnimeId),
+        ),
+      )
+      .limit(1);
+
+    const cachedEpisodeRows = await db
+      .select()
+      .from(catalogEpisode)
+      .where(
+        and(
+          eq(catalogEpisode.providerId, providerId),
+          eq(catalogEpisode.externalAnimeId, externalAnimeId),
+        ),
+      )
+      .orderBy(asc(catalogEpisode.number), asc(catalogEpisode.externalEpisodeId));
+
+    const cachedEpisodeList = cachedEpisodeRows.length > 0
+      ? this.toEpisodeListFromCatalogRows(providerId, externalAnimeId, cachedEpisodeRows)
+      : null;
+
+    const runtimeCall = () => {
+      const timeoutMs = this.getProviderCatalogTimeout(provider);
+      if (timeoutMs !== null) {
+        return this.withProviderTimeout(
+          provider,
+          timeoutMs,
+          (runtime, signal) =>
+            runtime.getEpisodes(
+              { providerId, externalAnimeId },
+              this.createProviderContext(signal),
+            ),
+        );
+      }
+
+      return provider.getEpisodes(
+        { providerId, externalAnimeId },
+        this.createProviderContext(),
+      );
+    };
+
+    const payload = await runtimeCall().catch((error) => {
+      if (cachedEpisodeList) {
+        return cachedEpisodeList;
+      }
+
+      if (providerId === "animetake") {
+        return this.buildAnimetakeFallbackEpisodeList(
+          providerId,
+          externalAnimeId,
+          cachedAnime,
+        );
+      }
+
+      throw error;
+    });
 
     for (const episode of payload.episodes) {
       await db

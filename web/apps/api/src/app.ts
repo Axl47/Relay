@@ -47,6 +47,11 @@ function getMediaProxyHeaders(url: URL) {
     headers.origin = "https://hanime.tv";
   }
 
+  if (url.hostname === "animetake.com.co" || url.hostname.endsWith(".animetake.com.co")) {
+    headers.referer = "https://animetake.com.co/";
+    headers.origin = "https://animetake.com.co";
+  }
+
   return headers;
 }
 
