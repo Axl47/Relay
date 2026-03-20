@@ -29,6 +29,7 @@ type PlaywrightPageLike = {
 type SearchCard = {
   externalAnimeId: string;
   title: string;
+  searchTitles: string[];
   synopsis: string | null;
   coverImage: string | null;
   year: number | null;
@@ -175,9 +176,22 @@ function uniqueBy<T>(values: T[], keyFn: (value: T) => string) {
   return output;
 }
 
+function normalizeSearchValue(value: string) {
+  return cleanText(value)
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function compactSearchValue(value: string) {
+  return normalizeSearchValue(value).replace(/\s+/g, "");
+}
+
 function scoreTitleAgainstQuery(title: string, query: string) {
-  const normalizedTitle = cleanText(title).toLowerCase();
-  const normalizedQuery = cleanText(query).toLowerCase();
+  const normalizedTitle = normalizeSearchValue(title);
+  const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedTitle || !normalizedQuery) {
     return 0;
   }
@@ -186,19 +200,24 @@ function scoreTitleAgainstQuery(title: string, query: string) {
     return 1_000;
   }
 
-  let score = 0;
-  if (normalizedTitle.includes(normalizedQuery)) {
-    score += 200;
-  }
-
+  const compactTitle = compactSearchValue(title);
+  const compactQuery = compactSearchValue(query);
+  const phraseMatch = normalizedTitle.includes(normalizedQuery);
+  const compactMatch = compactQuery.length > 0 && compactTitle.includes(compactQuery);
   const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
-  for (const token of tokens) {
-    if (normalizedTitle.includes(token)) {
-      score += 30;
-    }
+  const matchedTokens = tokens.filter((token) => normalizedTitle.includes(token));
+  const allTokensMatch = tokens.length > 0 && matchedTokens.length === tokens.length;
+
+  if (!phraseMatch && !compactMatch && !allTokensMatch) {
+    return 0;
   }
 
-  return score;
+  return (
+    (phraseMatch ? 400 : 0) +
+    (compactMatch ? 200 : 0) +
+    (allTokensMatch ? 150 : 0) +
+    matchedTokens.length * 40
+  );
 }
 
 function looksLikeChallenge(sample: string) {
@@ -320,10 +339,15 @@ async function searchAnimeOnsenCatalog(
 
   const rawItems = (payload.hits ?? []).map((hit): SearchCard | null => {
     const externalAnimeId = cleanText(hit.content_id);
-    const title =
-      cleanText(hit.content_title_en) ||
-      cleanText(hit.content_title) ||
-      cleanText(hit.content_title_jp);
+    const searchTitles = uniqueBy(
+      [
+        cleanText(hit.content_title_en),
+        cleanText(hit.content_title),
+        cleanText(hit.content_title_jp),
+      ].filter((value): value is string => value.length > 0),
+      (value) => normalizeSearchValue(value),
+    );
+    const title = searchTitles[0] ?? "";
 
     if (!externalAnimeId || !title) {
       return null;
@@ -332,25 +356,48 @@ async function searchAnimeOnsenCatalog(
     return {
       externalAnimeId,
       title,
+      searchTitles,
       synopsis: null,
       coverImage: buildAnimeOnsenImageUrl(externalAnimeId),
       year: null,
     };
   });
 
-  const items = uniqueBy(
+  const uniqueItems = uniqueBy(
     rawItems.filter((entry): entry is SearchCard => entry !== null),
     (item) => item.externalAnimeId,
   );
+  const rankedItems = uniqueItems
+    .map((item) => ({
+      item,
+      score: Math.max(
+        ...item.searchTitles.map((candidateTitle) =>
+          scoreTitleAgainstQuery(candidateTitle, input.query),
+        ),
+      ),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
 
-  const estimatedTotalHits = payload.estimatedTotalHits ?? items.length;
+      return left.item.title.localeCompare(right.item.title);
+    })
+    .slice(0, input.limit)
+    .map((entry) => entry.item);
+
+  const estimatedTotalHits = payload.estimatedTotalHits ?? rankedItems.length;
+  const hasNextPage =
+    rankedItems.length === input.limit &&
+    estimatedTotalHits > offset + (payload.hits ?? []).length;
 
   return {
     providerId: "animeonsen",
     query: input.query,
     page: input.page,
-    hasNextPage: estimatedTotalHits > offset + items.length,
-    items: items.map((item) => ({
+    hasNextPage,
+    items: rankedItems.map((item) => ({
       providerId: "animeonsen",
       providerDisplayName: "AnimeOnsen",
       externalAnimeId: item.externalAnimeId,
