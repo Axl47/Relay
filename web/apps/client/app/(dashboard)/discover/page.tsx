@@ -117,6 +117,14 @@ function buildResultKey(item: CatalogSearchResponse["items"][number]) {
   return `${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
 }
 
+function scoreResult(item: CatalogSearchResponse["items"][number]) {
+  return (
+    (item.coverImage ? 4 : 0) +
+    (item.synopsis ? 2 : 0) +
+    (item.year ? 1 : 0)
+  );
+}
+
 export default function DiscoverPage() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -166,6 +174,9 @@ export default function DiscoverPage() {
       const current = groups.get(key);
       if (current) {
         current.sources.push(item);
+        if (scoreResult(item) > scoreResult(current.primary)) {
+          current.primary = item;
+        }
         current.inLibrary =
           current.inLibrary || libraryKeys.has(`${item.providerId}:${item.externalAnimeId}`);
         continue;
