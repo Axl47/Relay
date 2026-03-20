@@ -151,24 +151,46 @@ export function looksLikeChallengePage(html: string) {
     sample.includes("checking your browser") ||
     sample.includes("verify you are human") ||
     sample.includes("please enable javascript and cookies");
-  const hasChallengeWidgets =
+  const hasStrongWidgetMarkers =
     sample.includes("cf-challenge") ||
-    sample.includes("cf-browser-verification") ||
+    sample.includes("cf-browser-verification");
+  const hasTurnstileMarkers =
     sample.includes("cf-turnstile") ||
+    sample.includes("turnstile-recaptcha") ||
+    sample.includes("challenges.cloudflare.com/turnstile/") ||
     sample.includes("turnstile");
-  const hasCloudflareBlockSignals =
+  const hasCloudflareInterstitialPaths =
+    sample.includes("/cdn-cgi/challenge-platform/h/") ||
+    sample.includes("/cdn-cgi/challenge-platform/managed/") ||
+    sample.includes("/cdn-cgi/challenge-platform/orchestrate/");
+  const hasCloudflareRuntimeSignals =
     sample.includes("window.__cf$cv$params") ||
     sample.includes("/cdn-cgi/challenge-platform/") ||
     sample.includes("challenge-platform");
+  const hasCloudflareMention = sample.includes("cloudflare");
+  const hasDdosGuardChallenge = sample.includes("ddos-guard");
+  const hasCaptchaPrompt = sample.includes("why do i have to complete a captcha");
+  const hasStrongChallengeSignals =
+    hasHumanVerificationCopy ||
+    hasStrongWidgetMarkers ||
+    hasDdosGuardChallenge ||
+    hasCaptchaPrompt;
+  const hasCloudflareInterstitialContext =
+    hasHumanVerificationCopy ||
+    hasStrongWidgetMarkers ||
+    hasCloudflareInterstitialPaths;
+  const hasTurnstileChallengeSignals =
+    hasTurnstileMarkers && hasCloudflareInterstitialContext;
+  const hasCloudflareChallengeSignalsWithContext =
+    (hasCloudflareRuntimeSignals ||
+      hasCloudflareMention ||
+      hasCloudflareInterstitialPaths) &&
+    hasCloudflareInterstitialContext;
 
   return (
-    hasHumanVerificationCopy ||
-    hasChallengeWidgets ||
-    (hasCloudflareBlockSignals && hasHumanVerificationCopy) ||
-    (sample.includes("cloudflare") &&
-      (hasHumanVerificationCopy || hasChallengeWidgets)) ||
-    sample.includes("ddos-guard") ||
-    sample.includes("why do i have to complete a captcha")
+    hasStrongChallengeSignals ||
+    hasTurnstileChallengeSignals ||
+    hasCloudflareChallengeSignalsWithContext
   );
 }
 

@@ -68,6 +68,23 @@ describe("looksLikeChallengePage", () => {
     ).toBe(false);
   });
 
+  it("ignores normal pages that include Turnstile widgets", () => {
+    expect(
+      looksLikeChallengePage(`
+        <html>
+          <head>
+            <title>Advanced Anime Filter - Find Your Perfect Series</title>
+            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+          </head>
+          <body>
+            <article>Real search results</article>
+            <div class="turnstile-recaptcha"></div>
+          </body>
+        </html>
+      `),
+    ).toBe(false);
+  });
+
   it("matches Cloudflare interstitial challenge pages", () => {
     expect(
       looksLikeChallengePage(`
