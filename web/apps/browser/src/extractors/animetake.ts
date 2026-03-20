@@ -22,11 +22,23 @@ type PlaywrightResponseLike = {
   request(): PlaywrightRequestLike;
 };
 
+type PlaywrightLocatorLike = {
+  count(): Promise<number>;
+  first(): PlaywrightLocatorLike;
+  nth(index: number): PlaywrightLocatorLike;
+  locator(selector: string): PlaywrightLocatorLike;
+  getAttribute(name: string): Promise<string | null>;
+  textContent(): Promise<string | null>;
+  fill(value: string): Promise<void>;
+  press(key: string): Promise<void>;
+};
+
 type PlaywrightPageLike = {
   goto(url: string, options?: Record<string, unknown>): Promise<unknown>;
   waitForTimeout(timeoutMs: number): Promise<void>;
   waitForSelector(selector: string, options?: Record<string, unknown>): Promise<unknown>;
   click(selector: string, options?: Record<string, unknown>): Promise<void>;
+  locator(selector: string): PlaywrightLocatorLike;
   evaluate<T>(pageFunction: () => T | Promise<T>): Promise<T>;
   evaluate<T, Arg>(pageFunction: (arg: Arg) => T | Promise<T>, arg: Arg): Promise<T>;
   on(event: "request", listener: (request: PlaywrightRequestLike) => void): void;
@@ -731,30 +743,11 @@ async function lookupAnimeListingCard(
 }
 
 async function submitNativeSearch(page: PlaywrightPageLike, query: string) {
-  await page.waitForSelector(
-    "form#search input[name='keyword'], form#index-search input[name='keyword']",
-    { timeout: 8_000 },
-  );
-  await page.evaluate((value) => {
-    const input = document.querySelector<HTMLInputElement>(
-      "form#index-search input[name='keyword'], form#search input[name='keyword']",
-    );
-    if (!input || !input.form) {
-      throw new Error("AnimeTake search form was not available.");
-    }
-
-    input.focus();
-    input.value = value;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-
-    if (typeof input.form.requestSubmit === "function") {
-      input.form.requestSubmit();
-      return;
-    }
-
-    input.form.submit();
-  }, query);
+  const selector = "form#index-search input[name='keyword'], form#search input[name='keyword']";
+  await page.waitForSelector(selector, { timeout: 8_000 });
+  const input = page.locator(selector).first();
+  await input.fill(query);
+  await input.press("Enter");
 }
 
 async function openSearchResultsPage(
@@ -771,114 +764,72 @@ async function scrapeSearchResultsPage(
   page: PlaywrightPageLike,
   currentPage: number,
 ): Promise<AnimeTakeSearchResultsPage> {
-  return page.evaluate((pageNumber) => {
-    const clean = (value?: string | null) => value?.replace(/\s+/g, " ").trim() ?? "";
-    const toAbsolute = (value?: string | null) => {
-      const cleaned = clean(value);
-      if (!cleaned) {
-        return null;
-      }
+  const cards = new Map<string, AnimeTakeSearchCard>();
+  const itemLocator = page.locator(".film-list .item");
+  const itemCount = await itemLocator.count();
 
-      try {
-        return new URL(cleaned, location.origin).toString();
-      } catch {
-        return null;
-      }
-    };
-    const extractSlug = (href: string) => {
-      try {
-        const url = new URL(href);
-        const match = url.pathname.match(/^\/anime\/([^/?#]+)\/?$/i);
-        return clean(match?.[1] ?? "");
-      } catch {
-        return "";
-      }
-    };
-    const parseLatestEpisode = (value?: string | null) => {
-      const cleaned = clean(value);
-      const match = cleaned.match(/(?:sub|dub)?\s*ep(?:isode)?\s*0*(\d+(?:\.\d+)?)/i)
-        ?? cleaned.match(/episode\s*0*(\d+(?:\.\d+)?)/i);
-      if (!match?.[1]) {
-        return null;
-      }
+  for (let index = 0; index < itemCount; index += 1) {
+    const item = itemLocator.nth(index);
+    const nameLink = item.locator("a.name[href]");
+    const posterLink = item.locator("a.poster[href]");
+    const nameLinkCount = await nameLink.count();
+    const posterLinkCount = await posterLink.count();
 
-      const parsed = Number.parseFloat(match[1]);
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-    const parseYearLocal = (value?: string | null) => {
-      const match = clean(value).match(/\b(19|20)\d{2}\b/);
-      if (!match) {
-        return null;
-      }
-
-      const parsed = Number.parseInt(match[0], 10);
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-    const cards = new Map<string, AnimeTakeSearchCard>();
-
-    for (const item of Array.from(document.querySelectorAll<HTMLElement>(".film-list .item"))) {
-      const nameAnchor = item.querySelector<HTMLAnchorElement>("a.name[href]");
-      const posterAnchor = item.querySelector<HTMLAnchorElement>("a.poster[href]");
-      const href = toAbsolute(nameAnchor?.getAttribute("href") ?? posterAnchor?.getAttribute("href"));
-      if (!href) {
-        continue;
-      }
-
-      const slug = extractSlug(href);
-      if (!slug) {
-        continue;
-      }
-
-      const title =
-        clean(nameAnchor?.getAttribute("data-jtitle"))
-        || clean(nameAnchor?.textContent)
-        || clean(item.querySelector("img")?.getAttribute("alt"));
-      if (!title) {
-        continue;
-      }
-
-      const text = clean(item.textContent);
-      const coverImage = toAbsolute(
-        item.querySelector("img")?.getAttribute("data-src")
-          ?? item.querySelector("img")?.getAttribute("src"),
-      );
-
-      cards.set(slug, {
-        externalAnimeId: slug,
-        title,
-        coverImage,
-        latestEpisode: parseLatestEpisode(text),
-        year: parseYearLocal(text),
-      });
+    const href =
+      (nameLinkCount > 0 ? await nameLink.first().getAttribute("href").catch(() => null) : null)
+      ?? (posterLinkCount > 0 ? await posterLink.first().getAttribute("href").catch(() => null) : null);
+    const absoluteHref = safeAbsoluteUrl(href);
+    if (!absoluteHref) {
+      continue;
     }
 
-    const hasNextPage = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]")).some(
-      (anchor) => {
-        const href = toAbsolute(anchor.getAttribute("href"));
-        if (!href) {
-          return false;
-        }
+    const slugMatch = new URL(absoluteHref).pathname.match(/^\/anime\/([^/?#]+)\/?$/i);
+    const slug = cleanText(slugMatch?.[1] ?? "");
+    if (!slug) {
+      continue;
+    }
 
-        try {
-          const url = new URL(href);
-          const nextPage = Number.parseInt(url.searchParams.get("page") ?? "", 10);
-          if (Number.isFinite(nextPage) && nextPage === pageNumber + 1) {
-            return !anchor.className.toLowerCase().includes("disabled");
-          }
-        } catch {
-          return false;
-        }
+    const title =
+      (nameLinkCount > 0 ? cleanText(await nameLink.first().getAttribute("data-jtitle")) : "")
+      || (nameLinkCount > 0 ? cleanText(await nameLink.first().textContent().catch(() => "")) : "")
+      || cleanText(await item.locator("img").first().getAttribute("alt").catch(() => ""));
+    if (!title) {
+      continue;
+    }
 
-        return false;
-      },
-    );
+    const image = item.locator("img");
+    const imageCount = await image.count();
+    const coverImage = imageCount > 0
+      ? (
+          safeAbsoluteUrl(await image.first().getAttribute("data-src").catch(() => null))
+          ?? safeAbsoluteUrl(await image.first().getAttribute("src").catch(() => null))
+        )
+      : null;
+    const text = cleanText(await item.textContent().catch(() => ""));
 
-    return {
-      items: Array.from(cards.values()),
-      hasNextPage,
-      noResults: /no results found/i.test(clean(document.body?.innerText)),
-    };
-  }, currentPage);
+    cards.set(slug, {
+      externalAnimeId: slug,
+      title,
+      coverImage,
+      latestEpisode: parseEpisodeNumber(text),
+      year: parseYear(text),
+    });
+  }
+
+  const nextPageLink = page
+    .locator(`a[href*="/search?"][href*="page=${currentPage + 1}"]`)
+    .first();
+  const nextPageLinkCount = await nextPageLink.count();
+  const nextPageClass =
+    nextPageLinkCount > 0 ? cleanText(await nextPageLink.getAttribute("class").catch(() => null)) : "";
+  const hasNextPage = nextPageLinkCount > 0 && !nextPageClass.toLowerCase().includes("disabled");
+  const noResults = /no results found/i.test(cleanText(await page.locator("body").textContent().catch(() => "")));
+
+  return {
+    items: Array.from(cards.values()),
+    hasNextPage,
+    noResults,
+  };
 }
 
 async function extractPlaybackSnapshot(page: PlaywrightPageLike): Promise<AnimeTakePlaybackSnapshot> {

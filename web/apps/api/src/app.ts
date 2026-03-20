@@ -492,12 +492,26 @@ export async function buildApi() {
     return relay.search(user.id, query);
   });
 
-  app.get("/catalog/search/stream", async (request, reply) => {
+  async function streamCatalogSearchResponse(request: FastifyRequest, reply: FastifyReply) {
     const user = await requireUser(request);
     const query = searchInputSchema.parse(request.query);
 
     reply.hijack();
     reply.raw.statusCode = 200;
+    const originHeader = request.headers.origin;
+    const allowAnyOrigin = appConfig.corsOrigins.includes("*");
+    const isAllowedOrigin =
+      typeof originHeader === "string" &&
+      (allowAnyOrigin || appConfig.corsOrigins.includes(originHeader));
+    if (isAllowedOrigin && originHeader) {
+      reply.raw.setHeader("access-control-allow-origin", originHeader);
+      reply.raw.setHeader("access-control-allow-credentials", "true");
+      const existingVaryHeader = reply.raw.getHeader("vary");
+      const existingVary =
+        Array.isArray(existingVaryHeader) ? existingVaryHeader.join(", ") : `${existingVaryHeader ?? ""}`;
+      const hasOriginVary = existingVary.toLowerCase().includes("origin");
+      reply.raw.setHeader("vary", hasOriginVary ? existingVary : (existingVary ? `${existingVary}, Origin` : "Origin"));
+    }
     reply.raw.setHeader("content-type", "application/x-ndjson; charset=utf-8");
     reply.raw.setHeader("cache-control", "no-cache, no-transform");
     reply.raw.setHeader("connection", "keep-alive");
@@ -554,7 +568,11 @@ export async function buildApi() {
         reply.raw.end();
       }
     }
-  });
+  }
+
+  app.get("/catalog/search/stream", streamCatalogSearchResponse);
+  // Compatibility path for older client builds that still call `/stream?query=...`.
+  app.get("/stream", streamCatalogSearchResponse);
 
   app.get("/catalog/:providerId/anime/:externalAnimeId", async (request) => {
     const user = await requireUser(request);
