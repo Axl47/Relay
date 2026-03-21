@@ -4,7 +4,7 @@ import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import type { PlaybackSession } from "@relay/contracts";
 import { apiFetch } from "../lib/api";
-import { getApiBaseUrl } from "../lib/api-base-url";
+import { getApiBaseUrl, resolveRelayApiUrlForClient } from "../lib/api-base-url";
 
 type Props = {
   session: PlaybackSession;
@@ -76,6 +76,7 @@ export function VideoPlayer({
 
   const apiBaseUrl = getApiBaseUrl();
   const compatibilityMp4Url = `${apiBaseUrl}/playback/sessions/${session.id}/compat.mp4`;
+  const resolvedSessionStreamUrl = resolveRelayApiUrlForClient(session.streamUrl);
 
   useEffect(() => {
     setActiveSubtitleIndex(defaultSubtitleIndex);
@@ -86,7 +87,7 @@ export function VideoPlayer({
   }, [session.id, session.mimeType, session.providerId]);
 
   useEffect(() => {
-    const streamUrl = sourceMode === "compatibility-mp4" ? compatibilityMp4Url : session.streamUrl;
+    const streamUrl = sourceMode === "compatibility-mp4" ? compatibilityMp4Url : resolvedSessionStreamUrl;
     const mimeType = sourceMode === "compatibility-mp4" ? "video/mp4" : session.mimeType;
 
     if (!streamUrl || mimeType === "text/html") {
@@ -229,7 +230,7 @@ export function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [compatibilityMp4Url, onEnded, progressIntervalSeconds, session, sourceMode]);
+  }, [compatibilityMp4Url, onEnded, progressIntervalSeconds, resolvedSessionStreamUrl, session, sourceMode]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -325,13 +326,13 @@ export function VideoPlayer({
     };
   }, [onNextEpisode, onPreviousEpisode, session.mimeType]);
 
-  if (session.mimeType === "text/html" && session.streamUrl) {
+  if (session.mimeType === "text/html" && resolvedSessionStreamUrl) {
     return (
       <div className="player-frame">
         <iframe
           allow="autoplay; fullscreen"
           className="player-media"
-          src={session.streamUrl}
+          src={resolvedSessionStreamUrl}
           title="Embedded provider player"
         />
       </div>

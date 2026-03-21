@@ -30,3 +30,22 @@ export function getApiBaseUrl() {
   return trimTrailingSlash(configuredBaseUrl);
 }
 
+export function resolveRelayApiUrlForClient(url?: string | null) {
+  if (!url) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    if (typeof window !== "undefined") {
+      const browserHostname = window.location.hostname;
+      if (isLoopbackHostname(parsedUrl.hostname) && !isLoopbackHostname(browserHostname)) {
+        return `${getApiBaseUrl()}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+      }
+    }
+
+    return parsedUrl.toString();
+  } catch {
+    return url;
+  }
+}
