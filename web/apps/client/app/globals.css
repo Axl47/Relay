@@ -866,9 +866,24 @@ button {
   gap: 12px;
 }
 
+.watch-topline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .watch-backlink {
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.watch-origin-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .watch-player-shell {
@@ -1163,6 +1178,10 @@ button {
   .anime-hero-topline,
   .watch-topline {
     align-items: stretch;
+  }
+
+  .watch-topline-actions {
+    justify-content: flex-start;
   }
 
   .watch-layout {
