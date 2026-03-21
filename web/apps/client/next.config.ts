@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/stream/:path*",
+        destination: `${relayApiOrigin}/stream/:path*`,
+      },
+      {
         source: "/__relay_api/:path*",
         destination: `${relayApiOrigin}/:path*`,
       },
