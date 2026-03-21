@@ -19,12 +19,6 @@ type PlaybackPayload = {
   externalEpisodeId: string;
 };
 
-type OriginalAnimeUrlInput = {
-  providerId: string;
-  externalAnimeId: string;
-  externalEpisodeId: string;
-};
-
 function decodeRouteParam(value: string) {
   try {
     return decodeURIComponent(value);
@@ -43,45 +37,6 @@ function isUuid(value: string | null | undefined): value is string {
 
 function buildWatchHref(payload: PlaybackPayload, nextEpisodeId: string) {
   return `/watch/${encodeURIComponent(payload.libraryItemId ?? "direct")}/${encodeURIComponent(nextEpisodeId)}?providerId=${encodeURIComponent(payload.providerId)}&externalAnimeId=${encodeURIComponent(payload.externalAnimeId)}`;
-}
-
-function encodeExternalIdPath(value: string) {
-  return value
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(decodeRouteParam(segment)))
-    .join("/");
-}
-
-function buildOriginalAnimeUrl(input: OriginalAnimeUrlInput) {
-  const encodedAnimeId = encodeExternalIdPath(input.externalAnimeId);
-
-  switch (input.providerId) {
-    case "aki-h":
-      return `https://aki-h.com/${encodedAnimeId}/`;
-    case "aniwave":
-      return `https://aniwaves.ru/watch/${encodedAnimeId}`;
-    case "animeonsen":
-      return `https://www.animeonsen.xyz/watch/${encodedAnimeId}?episode=1`;
-    case "animepahe":
-      return `https://animepahe.si/anime/${encodedAnimeId}`;
-    case "animetake":
-      return `https://animetake.com.co/anime/${encodedAnimeId}/`;
-    case "gogoanime":
-      return `https://gogoanime.by/series/${encodedAnimeId}/`;
-    case "hanime": {
-      const encodedEpisodeId = encodeExternalIdPath(input.externalEpisodeId);
-      return encodedEpisodeId ? `https://hanime.tv/videos/hentai/${encodedEpisodeId}` : null;
-    }
-    case "hentaihaven":
-      return `https://hentaihaven.xxx/watch/${encodedAnimeId}/`;
-    case "hstream":
-      return `https://hstream.moe/hentai/${encodedAnimeId}`;
-    case "javguru":
-      return `https://jav.guru/${encodedAnimeId}/`;
-    default:
-      return null;
-  }
 }
 
 export default function WatchPage() {
@@ -290,11 +245,6 @@ export default function WatchPage() {
     (episode) => episode.externalEpisodeId === context.currentEpisode.externalEpisodeId,
   );
   const previousEpisode = currentEpisodeIndex > 0 ? context.episodes[currentEpisodeIndex - 1] : null;
-  const originalAnimeUrl = buildOriginalAnimeUrl({
-    providerId: context.anime.providerId,
-    externalAnimeId: context.anime.externalAnimeId,
-    externalEpisodeId: context.currentEpisode.externalEpisodeId,
-  });
 
   return (
     <div className="page-grid watch-page">
@@ -307,19 +257,7 @@ export default function WatchPage() {
             >
               &larr; {context.anime.title}
             </Link>
-            <div className="watch-topline-actions">
-              <span className="badge">Episode {context.currentEpisode.number}</span>
-              {originalAnimeUrl ? (
-                <a
-                  className="button-secondary watch-origin-link"
-                  href={originalAnimeUrl}
-                  rel="noreferrer noopener"
-                  target="_blank"
-                >
-                  Open on {context.anime.providerDisplayName}
-                </a>
-              ) : null}
-            </div>
+            <span className="badge">Episode {context.currentEpisode.number}</span>
           </div>
 
           {session?.status === "failed" ? (

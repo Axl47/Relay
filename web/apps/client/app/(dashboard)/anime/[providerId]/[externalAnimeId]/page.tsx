@@ -26,6 +26,51 @@ function formatDuration(durationSeconds: number | null) {
   return `${minutes} min`;
 }
 
+type OriginalAnimeUrlInput = {
+  providerId: string;
+  externalAnimeId: string;
+  firstEpisodeId?: string | null;
+};
+
+function encodeExternalIdPath(value: string) {
+  return value
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(decodeRouteParam(segment)))
+    .join("/");
+}
+
+function buildOriginalAnimeUrl(input: OriginalAnimeUrlInput) {
+  const encodedAnimeId = encodeExternalIdPath(input.externalAnimeId);
+
+  switch (input.providerId) {
+    case "aki-h":
+      return `https://aki-h.com/${encodedAnimeId}/`;
+    case "aniwave":
+      return `https://aniwaves.ru/watch/${encodedAnimeId}`;
+    case "animeonsen":
+      return `https://www.animeonsen.xyz/watch/${encodedAnimeId}?episode=1`;
+    case "animepahe":
+      return `https://animepahe.si/anime/${encodedAnimeId}`;
+    case "animetake":
+      return `https://animetake.com.co/anime/${encodedAnimeId}/`;
+    case "gogoanime":
+      return `https://gogoanime.by/series/${encodedAnimeId}/`;
+    case "hanime": {
+      const firstEpisodeId = input.firstEpisodeId ? encodeExternalIdPath(input.firstEpisodeId) : "";
+      return firstEpisodeId ? `https://hanime.tv/videos/hentai/${firstEpisodeId}` : null;
+    }
+    case "hentaihaven":
+      return `https://hentaihaven.xxx/watch/${encodedAnimeId}/`;
+    case "hstream":
+      return `https://hstream.moe/hentai/${encodedAnimeId}`;
+    case "javguru":
+      return `https://jav.guru/${encodedAnimeId}/`;
+    default:
+      return null;
+  }
+}
+
 export default function AnimeDetailPage() {
   const routeParams = useParams<{ providerId: string; externalAnimeId: string }>();
   const queryClient = useQueryClient();
@@ -98,6 +143,12 @@ export default function AnimeDetailPage() {
     );
   }
 
+  const originalAnimeUrl = buildOriginalAnimeUrl({
+    providerId: anime.providerId,
+    externalAnimeId: anime.externalAnimeId,
+    firstEpisodeId: detail.episodes[0]?.externalEpisodeId ?? null,
+  });
+
   return (
     <div className="page-grid anime-detail-page">
       <section className="anime-hero">
@@ -162,6 +213,17 @@ export default function AnimeDetailPage() {
                   {addToLibraryMutation.isPending ? "Adding..." : "Add to Library"}
                 </button>
               )}
+
+              {originalAnimeUrl ? (
+                <a
+                  className="button-secondary"
+                  href={originalAnimeUrl}
+                  rel="noreferrer noopener"
+                  target="_blank"
+                >
+                  Open on {anime.providerDisplayName}
+                </a>
+              ) : null}
             </div>
           </div>
 
