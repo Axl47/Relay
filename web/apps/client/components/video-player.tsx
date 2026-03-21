@@ -16,6 +16,22 @@ type Props = {
 
 type SourceMode = "primary" | "compatibility-mp4";
 
+function isFirefoxUserAgent() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return navigator.userAgent.toLowerCase().includes("firefox");
+}
+
+function isAndroidUserAgent() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return navigator.userAgent.toLowerCase().includes("android");
+}
+
 function isInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -26,15 +42,17 @@ function isInteractiveTarget(target: EventTarget | null) {
 }
 
 function shouldUseCompatibilityMp4(session: PlaybackSession) {
-  if (typeof navigator === "undefined") {
+  if (session.mimeType !== "application/vnd.apple.mpegurl") {
     return false;
   }
 
-  return (
-    session.providerId === "animepahe" &&
-    session.mimeType === "application/vnd.apple.mpegurl" &&
-    navigator.userAgent.toLowerCase().includes("firefox")
-  );
+  if (!isFirefoxUserAgent()) {
+    return false;
+  }
+
+  // AnimePahe always starts in compatibility mode on Firefox, and Android Firefox
+  // uses compatibility mode for all HLS providers due to unreliable MSE playback.
+  return session.providerId === "animepahe" || isAndroidUserAgent();
 }
 
 export function VideoPlayer({
@@ -88,7 +106,7 @@ export function VideoPlayer({
     let cancelled = false;
     let restoredStartPosition = false;
     const supportsCompatibilityFallback =
-      session.providerId === "animepahe" && session.mimeType === "application/vnd.apple.mpegurl";
+      session.mimeType === "application/vnd.apple.mpegurl" && isFirefoxUserAgent();
 
     const restoreStartPosition = () => {
       if (restoredStartPosition || session.positionSeconds <= 0) {
@@ -124,18 +142,26 @@ export function VideoPlayer({
           console.error("Relay HLS playback error", {
             providerId: session.providerId,
             playbackSessionId: session.id,
-            details: data.details,
-            fatal: data.fatal,
-            error: data.error instanceof Error ? data.error.message : String(data.error ?? ""),
+            type: data?.type ?? "unknown",
+            details: data?.details ?? "unknown",
+            fatal: Boolean(data?.fatal),
+            error: data?.error instanceof Error ? data.error.message : String(data?.error ?? ""),
           });
 
-          if (data.fatal && data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR) {
-            handleCompatibilityFallback("bufferAddCodecError", data.error);
+          if (data?.fatal) {
+            handleCompatibilityFallback(`hlsFatal:${data.details ?? "unknown"}`, data.error ?? data);
           }
         });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         return;
+      }
+
+      if (mimeType === "application/vnd.apple.mpegurl" && !Hls.isSupported()) {
+        handleCompatibilityFallback("hlsNotSupported");
+        if (supportsCompatibilityFallback) {
+          return;
+        }
       }
 
       if (mimeType === "application/dash+xml") {
@@ -179,7 +205,7 @@ export function VideoPlayer({
         message: error?.message ?? null,
       });
 
-      if (error?.message?.includes("AudioConverter AAC cookie")) {
+      if (error?.message?.includes("AudioConverter AAC cookie") || error?.code === MediaError.MEDIA_ERR_DECODE) {
         handleCompatibilityFallback("audioDecoderCookieError", error);
       }
     };
