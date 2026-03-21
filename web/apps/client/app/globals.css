@@ -1032,6 +1032,20 @@ button {
   font-weight: 500;
 }
 
+.settings-mobile-tabs {
+  display: none;
+}
+
+.settings-mobile-tab {
+  border: 1px solid var(--border);
+}
+
+.settings-mobile-tab.active {
+  border-color: rgba(78, 205, 196, 0.6);
+  background: rgba(78, 205, 196, 0.15);
+  color: var(--text);
+}
+
 .provider-admin-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1182,6 +1196,12 @@ button {
 
   .provider-admin-actions {
     width: 100%;
+  }
+
+  .settings-mobile-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .shelf-row {
