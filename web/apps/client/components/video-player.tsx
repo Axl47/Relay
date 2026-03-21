@@ -4,6 +4,7 @@ import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import type { PlaybackSession } from "@relay/contracts";
 import { apiFetch } from "../lib/api";
+import { getApiBaseUrl } from "../lib/api-base-url";
 
 type Props = {
   session: PlaybackSession;
@@ -55,7 +56,7 @@ export function VideoPlayer({
     shouldUseCompatibilityMp4(session) ? "compatibility-mp4" : "primary",
   );
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const apiBaseUrl = getApiBaseUrl();
   const compatibilityMp4Url = `${apiBaseUrl}/playback/sessions/${session.id}/compat.mp4`;
 
   useEffect(() => {

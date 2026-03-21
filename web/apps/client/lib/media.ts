@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { getApiBaseUrl } from "./api-base-url";
 
 export function resolveMediaUrl(url?: string | null) {
   if (!url) {
@@ -9,5 +9,5 @@ export function resolveMediaUrl(url?: string | null) {
     return url;
   }
 
-  return `${API_BASE_URL}/media/proxy?url=${encodeURIComponent(url)}`;
+  return `${getApiBaseUrl()}/media/proxy?url=${encodeURIComponent(url)}`;
 }

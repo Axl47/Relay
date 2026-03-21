@@ -97,6 +97,7 @@ npm run dev:client
 5. Open `http://localhost:3000/login` and use `Bootstrap` once to create the first admin account.
 
 The client dev server binds to `0.0.0.0`, so LAN devices can reach it via `http://<your-lan-ip>:3000`.
+By default, client API calls now go through `"/__relay_api"` (Next rewrite to `http://localhost:4000`) when no explicit non-loopback `NEXT_PUBLIC_API_URL` is configured, so phone login works without pointing the browser at its own `localhost`.
 
 ## What Works
 

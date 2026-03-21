@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from "./api-base-url";
+
 type ApiErrorPayload = {
   error?: string;
   details?: {
@@ -26,7 +28,7 @@ function formatApiError(payload: ApiErrorPayload | null, status: number) {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const baseUrl = getApiBaseUrl();
   const headers = new Headers(init?.headers);
   const hasBody = init?.body !== undefined && init?.body !== null;
 

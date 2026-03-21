@@ -9,6 +9,7 @@ import type {
   LibraryItemWithCategories,
 } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
+import { getApiBaseUrl } from "../../../lib/api-base-url";
 import { FALLBACK_COVER } from "../../../lib/fallback-cover";
 import { resolveMediaUrl } from "../../../lib/media";
 
@@ -41,7 +42,7 @@ async function streamCatalogSearch(
   signal: AbortSignal,
   onProgress: (completedProviders: number, totalProviders: number) => void,
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  const baseUrl = getApiBaseUrl();
   const response = await fetch(
     `${baseUrl}/catalog/search/stream?query=${encodeURIComponent(searchTerm)}&page=1&limit=24`,
     {
