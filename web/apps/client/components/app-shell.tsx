@@ -26,8 +26,14 @@ const MOBILE_NAV: NavItem[] = [
   { href: "/discover", label: "Discover", shortLabel: "D" },
   { href: "/library", label: "Library", shortLabel: "L" },
   { href: "/history", label: "History", shortLabel: "H" },
-  { href: "/settings", label: "Settings", shortLabel: "S" },
 ];
+
+const MOBILE_SIGNED_OUT_NAV_ITEM: NavItem = { href: "/login", label: "Login", shortLabel: "L" };
+const MOBILE_SIGNED_IN_NAV_ITEM: NavItem = {
+  href: "/settings",
+  label: "Settings",
+  shortLabel: "S",
+};
 
 type SessionUser = {
   user: {
@@ -72,6 +78,10 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
   const pathname = usePathname();
   const [session, setSession] = useState<SessionUser | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const mobileNavItems = [
+    ...MOBILE_NAV,
+    session ? MOBILE_SIGNED_IN_NAV_ITEM : MOBILE_SIGNED_OUT_NAV_ITEM,
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +160,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
       <main className="content">{children}</main>
 
       <nav aria-label="Primary navigation" className="mobile-nav">
-        {MOBILE_NAV.map((item) => {
+        {mobileNavItems.map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
             <Link

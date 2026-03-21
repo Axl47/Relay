@@ -96,6 +96,8 @@ npm run dev:client
 
 5. Open `http://localhost:3000/login` and use `Bootstrap` once to create the first admin account.
 
+The client dev server binds to `0.0.0.0`, so LAN devices can reach it via `http://<your-lan-ip>:3000`.
+
 ## What Works
 
 - account bootstrap and login

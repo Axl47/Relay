@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MeResponse, UpdateUserPreferencesInput, UserPreferences } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   const meQuery = useQuery({
     queryKey: ["me"],
     queryFn: () => apiFetch<MeResponse>("/me"),
+    retry: false,
   });
 
   const updatePreferencesMutation = useMutation({
@@ -50,6 +52,22 @@ export default function SettingsPage() {
 
   if (meQuery.isLoading) {
     return <div className="message">Loading settings...</div>;
+  }
+
+  const isUnauthenticated =
+    meQuery.error instanceof Error &&
+    meQuery.error.message.toLowerCase().includes("authentication required");
+
+  if (isUnauthenticated) {
+    return (
+      <div className="empty-panel">
+        <h2>Sign in required</h2>
+        <p>Settings are available after you log in or bootstrap the first account.</p>
+        <Link className="button" href="/login">
+          Open login
+        </Link>
+      </div>
+    );
   }
 
   if (meQuery.error || !meQuery.data) {

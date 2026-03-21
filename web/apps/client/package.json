@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev --hostname 0.0.0.0",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "node --eval \"console.log('Client tests are not wired yet')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
