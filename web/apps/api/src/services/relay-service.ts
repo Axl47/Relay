@@ -108,6 +108,7 @@ type StreamTarget = {
 };
 
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
+const ROOT_RELATIVE_UPSTREAM_PATH_PREFIX = "__root__/";
 const ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN = /~relay\.(?:mp4|ts|m3u8|m3u|vtt|srt|ass)$/i;
 
 type SubtitleTrack = PlaybackSession["subtitles"][number];
@@ -258,8 +259,15 @@ export class RelayService {
     });
   }
 
-  private getPlaybackSessionStreamUrl(sessionId: string, mimeType: string | null) {
-    const suffix = mimeType === "application/dash+xml" ? "/" : "";
+  private getPlaybackSessionStreamUrl(
+    sessionId: string,
+    mimeType: string | null,
+    upstreamUrl: string | null,
+  ) {
+    const normalizedMimeType = mimeType?.toLowerCase() ?? "";
+    const isDashManifestMime = normalizedMimeType.includes("dash+xml");
+    const isDashManifestUrl = upstreamUrl ? /\.mpd(?:\?|$)/i.test(upstreamUrl) : false;
+    const suffix = isDashManifestMime || isDashManifestUrl ? "/" : "";
     return `${appConfig.PUBLIC_API_URL}/stream/${sessionId}${suffix}`;
   }
 
@@ -267,6 +275,10 @@ export class RelayService {
     const encodedUrl = requestPath
       .slice(ABSOLUTE_UPSTREAM_PATH_PREFIX.length)
       .replace(ABSOLUTE_UPSTREAM_ALIAS_SUFFIX_PATTERN, "");
+    if (encodedUrl.startsWith("b64.")) {
+      return Buffer.from(encodedUrl.slice(4), "base64url").toString("utf8");
+    }
+
     return decodeURIComponent(encodedUrl);
   }
 
@@ -519,7 +531,7 @@ export class RelayService {
       proxyMode: row.proxyMode as PlaybackProxyMode,
       streamUrl:
         status === "ready" && row.upstreamUrl
-          ? this.getPlaybackSessionStreamUrl(row.id, row.mimeType ?? null)
+          ? this.getPlaybackSessionStreamUrl(row.id, row.mimeType ?? null, row.upstreamUrl)
           : null,
       mimeType: row.mimeType ?? null,
       subtitles: row.subtitles as PlaybackSession["subtitles"],
@@ -1961,6 +1973,11 @@ export class RelayService {
       requestPath && requestPath.length > 0
         ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
           ? this.decodeAbsoluteUpstreamRequestPath(requestPath)
+          : requestPath.startsWith(ROOT_RELATIVE_UPSTREAM_PATH_PREFIX)
+            ? new URL(
+                requestPath.slice(ROOT_RELATIVE_UPSTREAM_PATH_PREFIX.length),
+                `${new URL(updated.upstreamUrl).origin}/`,
+              ).toString()
           : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 
@@ -1993,6 +2010,11 @@ export class RelayService {
       requestPath && requestPath.length > 0
         ? requestPath.startsWith(ABSOLUTE_UPSTREAM_PATH_PREFIX)
           ? this.decodeAbsoluteUpstreamRequestPath(requestPath)
+          : requestPath.startsWith(ROOT_RELATIVE_UPSTREAM_PATH_PREFIX)
+            ? new URL(
+                requestPath.slice(ROOT_RELATIVE_UPSTREAM_PATH_PREFIX.length),
+                `${new URL(updated.upstreamUrl).origin}/`,
+              ).toString()
           : new URL(requestPath, updated.upstreamUrl).toString()
         : updated.upstreamUrl;
 

@@ -24,14 +24,6 @@ function isFirefoxUserAgent() {
   return navigator.userAgent.toLowerCase().includes("firefox");
 }
 
-function isAndroidUserAgent() {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-
-  return navigator.userAgent.toLowerCase().includes("android");
-}
-
 function isInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -50,9 +42,8 @@ function shouldUseCompatibilityMp4(session: PlaybackSession) {
     return false;
   }
 
-  // AnimePahe always starts in compatibility mode on Firefox, and Android Firefox
-  // uses compatibility mode for all HLS providers due to unreliable MSE playback.
-  return session.providerId === "animepahe" || isAndroidUserAgent();
+  // AnimePahe starts in compatibility mode on Firefox due to AAC profile issues.
+  return session.providerId === "animepahe";
 }
 
 export function VideoPlayer({
@@ -63,6 +54,11 @@ export function VideoPlayer({
   onPreviousEpisode,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fallbackStateRef = useRef({
+    sessionId: "",
+    primaryToCompatApplied: false,
+    compatToPrimaryApplied: false,
+  });
   const defaultSubtitleIndex =
     session.subtitles.findIndex((subtitle) => subtitle.isDefault) >= 0
       ? session.subtitles.findIndex((subtitle) => subtitle.isDefault)
@@ -77,18 +73,31 @@ export function VideoPlayer({
   const apiBaseUrl = getApiBaseUrl();
   const compatibilityMp4Url = `${apiBaseUrl}/playback/sessions/${session.id}/compat.mp4`;
   const resolvedSessionStreamUrl = resolveRelayApiUrlForClient(session.streamUrl);
+  const shouldStartInCompatibilityMode = shouldUseCompatibilityMp4(session);
+  const playbackSessionId = session.id;
+  const playbackProviderId = session.providerId;
+  const playbackMimeType = session.mimeType;
+  const playbackStartPosition = session.positionSeconds;
+
+  useEffect(() => {
+    fallbackStateRef.current = {
+      sessionId: playbackSessionId,
+      primaryToCompatApplied: false,
+      compatToPrimaryApplied: false,
+    };
+  }, [playbackSessionId]);
 
   useEffect(() => {
     setActiveSubtitleIndex(defaultSubtitleIndex);
   }, [defaultSubtitleIndex, session.id]);
 
   useEffect(() => {
-    setSourceMode(shouldUseCompatibilityMp4(session) ? "compatibility-mp4" : "primary");
-  }, [session.id, session.mimeType, session.providerId]);
+    setSourceMode(shouldStartInCompatibilityMode ? "compatibility-mp4" : "primary");
+  }, [playbackSessionId, playbackMimeType, playbackProviderId, shouldStartInCompatibilityMode]);
 
   useEffect(() => {
     const streamUrl = sourceMode === "compatibility-mp4" ? compatibilityMp4Url : resolvedSessionStreamUrl;
-    const mimeType = sourceMode === "compatibility-mp4" ? "video/mp4" : session.mimeType;
+    const mimeType = sourceMode === "compatibility-mp4" ? "video/mp4" : playbackMimeType;
 
     if (!streamUrl || mimeType === "text/html") {
       return;
@@ -107,17 +116,17 @@ export function VideoPlayer({
     let cancelled = false;
     let restoredStartPosition = false;
     const supportsCompatibilityFallback =
-      session.mimeType === "application/vnd.apple.mpegurl" && isFirefoxUserAgent();
+      playbackMimeType === "application/vnd.apple.mpegurl" && isFirefoxUserAgent();
 
     const restoreStartPosition = () => {
-      if (restoredStartPosition || session.positionSeconds <= 0) {
+      if (restoredStartPosition || playbackStartPosition <= 0) {
         return;
       }
 
       if (Number.isFinite(video.duration) && video.duration > 0) {
-        video.currentTime = Math.min(session.positionSeconds, Math.max(0, video.duration - 1));
+        video.currentTime = Math.min(playbackStartPosition, Math.max(0, video.duration - 1));
       } else {
-        video.currentTime = session.positionSeconds;
+        video.currentTime = playbackStartPosition;
       }
       restoredStartPosition = true;
     };
@@ -126,23 +135,46 @@ export function VideoPlayer({
       if (!supportsCompatibilityFallback || sourceMode === "compatibility-mp4") {
         return;
       }
+      if (fallbackStateRef.current.primaryToCompatApplied) {
+        return;
+      }
+      fallbackStateRef.current.primaryToCompatApplied = true;
 
       console.warn("Relay switching to compatibility MP4 playback", {
         reason,
-        providerId: session.providerId,
-        playbackSessionId: session.id,
+        providerId: playbackProviderId,
+        playbackSessionId,
         error: error instanceof Error ? error.message : String(error ?? ""),
       });
       setSourceMode("compatibility-mp4");
     };
 
+    const handlePrimaryFallback = (reason: string, error?: unknown) => {
+      if (sourceMode !== "compatibility-mp4") {
+        return;
+      }
+      if (fallbackStateRef.current.compatToPrimaryApplied) {
+        return;
+      }
+      fallbackStateRef.current.compatToPrimaryApplied = true;
+
+      console.warn("Relay switching back to primary playback source", {
+        reason,
+        providerId: playbackProviderId,
+        playbackSessionId,
+        error: error instanceof Error ? error.message : String(error ?? ""),
+      });
+      setSourceMode("primary");
+    };
+
+    let compatibilityStartupTimeout: number | null = null;
     const attachSource = async () => {
       if (mimeType === "application/vnd.apple.mpegurl" && Hls.isSupported()) {
         hls = new Hls();
         hls.on(Hls.Events.ERROR, (_event, data) => {
           console.error("Relay HLS playback error", {
-            providerId: session.providerId,
-            playbackSessionId: session.id,
+            providerId: playbackProviderId,
+            playbackSessionId,
             type: data?.type ?? "unknown",
             details: data?.details ?? "unknown",
             fatal: Boolean(data?.fatal),
@@ -176,6 +208,14 @@ export function VideoPlayer({
         return;
       }
 
+      if (sourceMode === "compatibility-mp4") {
+        compatibilityStartupTimeout = window.setTimeout(() => {
+          if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+            handlePrimaryFallback("compatibilityStartupTimeout");
+          }
+        }, 20_000);
+      }
+
       video.src = streamUrl;
     };
 
@@ -200,11 +240,16 @@ export function VideoPlayer({
     const handleVideoError = () => {
       const error = video.error;
       console.error("Relay video element error", {
-        providerId: session.providerId,
-        playbackSessionId: session.id,
+        providerId: playbackProviderId,
+        playbackSessionId,
         code: error?.code ?? null,
         message: error?.message ?? null,
       });
+
+      if (sourceMode === "compatibility-mp4") {
+        handlePrimaryFallback("compatibilityMediaError", error);
+        return;
+      }
 
       if (error?.message?.includes("AudioConverter AAC cookie") || error?.code === MediaError.MEDIA_ERR_DECODE) {
         handleCompatibilityFallback("audioDecoderCookieError", error);
@@ -219,6 +264,9 @@ export function VideoPlayer({
 
     return () => {
       cancelled = true;
+      if (compatibilityStartupTimeout) {
+        window.clearTimeout(compatibilityStartupTimeout);
+      }
       window.clearInterval(interval);
       video.removeEventListener("pause", sendProgress);
       video.removeEventListener("ended", handleEnded);
@@ -230,7 +278,17 @@ export function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [compatibilityMp4Url, onEnded, progressIntervalSeconds, resolvedSessionStreamUrl, session, sourceMode]);
+  }, [
+    compatibilityMp4Url,
+    onEnded,
+    playbackMimeType,
+    playbackProviderId,
+    playbackSessionId,
+    playbackStartPosition,
+    progressIntervalSeconds,
+    resolvedSessionStreamUrl,
+    sourceMode,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;

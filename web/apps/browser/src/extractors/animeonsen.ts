@@ -1115,9 +1115,16 @@ function parseStreams(payload: unknown): ResolvedStream[] {
       return;
     }
 
+    let pathname = url;
+    try {
+      pathname = new URL(url).pathname;
+    } catch {
+      pathname = url;
+    }
+
     const mimeType =
-      url.endsWith(".mpd") ? "application/dash+xml"
-      : url.endsWith(".m3u8") ? "application/vnd.apple.mpegurl"
+      pathname.endsWith(".mpd") ? "application/dash+xml"
+      : pathname.endsWith(".m3u8") ? "application/vnd.apple.mpegurl"
       : "video/mp4";
     candidates.push({
       url,

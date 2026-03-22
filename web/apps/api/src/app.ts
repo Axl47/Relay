@@ -32,6 +32,7 @@ import { RelayService } from "./services/relay-service";
 const DEFAULT_STREAM_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
+const ROOT_RELATIVE_UPSTREAM_PATH_PREFIX = "__root__/";
 const PROXY_UPSTREAM_ALIAS_SUFFIX = "~relay";
 const COMPATIBILITY_MP4_CACHE_DIR = path.join(os.tmpdir(), "relay-compat-mp4");
 const COMPATIBILITY_MP4_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -96,13 +97,53 @@ function getProxyUpstreamAlias(upstreamUrl: string) {
   return "";
 }
 
+function encodeUpstreamUrlForPath(upstreamUrl: string) {
+  return `b64.${Buffer.from(upstreamUrl, "utf8").toString("base64url")}`;
+}
+
 function buildProxyStreamPath(sessionId: string, upstreamUrl: string) {
-  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeURIComponent(upstreamUrl)}${getProxyUpstreamAlias(upstreamUrl)}`;
+  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeUpstreamUrlForPath(upstreamUrl)}${getProxyUpstreamAlias(upstreamUrl)}`;
 }
 
 function rewritePlaylistUri(value: string, baseUrl: string, sessionId: string) {
   const absoluteUrl = new URL(value, baseUrl).toString();
   return buildProxyStreamPath(sessionId, absoluteUrl);
+}
+
+function buildProxyRelativeStreamPath(sessionId: string, requestPath: string) {
+  return `/stream/${sessionId}/${requestPath}`;
+}
+
+function rewriteDashManifestUri(value: string, baseUrl: string, sessionId: string) {
+  const trimmed = value.trim();
+  if (!trimmed || /^(?:data:|urn:|#)/i.test(trimmed)) {
+    return value;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    if (!trimmed.includes("$")) {
+      return buildProxyStreamPath(sessionId, trimmed);
+    }
+
+    try {
+      const parsedUrl = new URL(trimmed);
+      return buildProxyRelativeStreamPath(
+        sessionId,
+        `${ROOT_RELATIVE_UPSTREAM_PATH_PREFIX}${parsedUrl.pathname.replace(/^\/+/, "")}${parsedUrl.search}${parsedUrl.hash}`,
+      );
+    } catch {
+      return value;
+    }
+  }
+
+  if (trimmed.startsWith("/")) {
+    return buildProxyRelativeStreamPath(
+      sessionId,
+      `${ROOT_RELATIVE_UPSTREAM_PATH_PREFIX}${trimmed.replace(/^\/+/, "")}`,
+    );
+  }
+
+  return buildProxyRelativeStreamPath(sessionId, trimmed);
 }
 
 function stripHlsSubtitleRenditions(body: string) {
@@ -152,6 +193,19 @@ function rewriteHlsPlaylist(
     .join("\n");
 }
 
+function rewriteDashManifest(body: string, baseUrl: string, sessionId: string) {
+  return body
+    .replace(/<BaseURL([^>]*)>([^<]+)<\/BaseURL>/g, (_match, attributes: string, uri: string) => {
+      const rewrittenUri = rewriteDashManifestUri(uri, baseUrl, sessionId);
+      return `<BaseURL${attributes}>${rewrittenUri}</BaseURL>`;
+    })
+    .replace(
+      /\b(initialization|media|sourceURL|href|xlink:href)="([^"]+)"/g,
+      (_match, attributeName: string, uri: string) =>
+        `${attributeName}="${rewriteDashManifestUri(uri, baseUrl, sessionId)}"`,
+    );
+}
+
 function shouldRewriteHlsBody(upstreamUrl: string, contentType: string) {
   if (!/mpegurl/i.test(contentType)) {
     return false;
@@ -162,6 +216,19 @@ function shouldRewriteHlsBody(upstreamUrl: string, contentType: string) {
     return pathname.endsWith(".m3u8") || pathname.endsWith(".m3u");
   } catch {
     return /\.m3u8?(?:\?|$)/i.test(upstreamUrl);
+  }
+}
+
+function shouldRewriteDashBody(upstreamUrl: string, contentType: string) {
+  if (/dash\+xml/i.test(contentType)) {
+    return true;
+  }
+
+  try {
+    const pathname = new URL(upstreamUrl).pathname.toLowerCase();
+    return pathname.endsWith(".mpd");
+  } catch {
+    return /\.mpd(?:\?|$)/i.test(upstreamUrl);
   }
 }
 
@@ -801,7 +868,9 @@ export async function buildApi() {
     const upstreamContentType = upstream.headers.get("content-type") ?? "";
     const responseContentType = normalizeStreamContentType(target.upstreamUrl, upstreamContentType);
     const willRewriteHls = shouldRewriteHlsBody(target.upstreamUrl, upstreamContentType);
-    const passthroughHeaders = willRewriteHls
+    const willRewriteDash = shouldRewriteDashBody(target.upstreamUrl, upstreamContentType);
+    const willRewriteManifest = willRewriteHls || willRewriteDash;
+    const passthroughHeaders = willRewriteManifest
       ? ["cache-control"]
       : ["content-length", "cache-control", "accept-ranges", "content-range"];
     for (const headerName of passthroughHeaders) {
@@ -821,6 +890,12 @@ export async function buildApi() {
             target.providerId === "hentaihaven" && playlist.includes("#EXT-X-STREAM-INF:"),
         }),
       );
+    }
+
+    if (willRewriteDash) {
+      const manifest = await upstream.text();
+      reply.type(responseContentType);
+      return reply.send(rewriteDashManifest(manifest, target.upstreamUrl, target.sessionId));
     }
 
     if (!upstream.body) {
