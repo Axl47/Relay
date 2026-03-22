@@ -406,6 +406,7 @@ button {
 
 .player-frame {
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   min-height: clamp(260px, 48vh, 640px);
   max-height: 78vh;
@@ -854,6 +855,7 @@ button {
 }
 
 .watch-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -872,6 +874,7 @@ button {
 }
 
 .watch-player-shell {
+  min-width: 0;
   position: relative;
 }
 
