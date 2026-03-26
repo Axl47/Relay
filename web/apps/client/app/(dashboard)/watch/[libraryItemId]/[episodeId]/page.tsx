@@ -3,29 +3,13 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { LibraryItemWithCategories, MeResponse, PlaybackSession, WatchPageContext } from "@relay/contracts";
 import { VideoPlayer } from "../../../../../components/video-player";
-import { apiFetch } from "../../../../../lib/api";
-
-type LibraryResponse = {
-  items: LibraryItemWithCategories[];
-};
-
-type PlaybackPayload = {
-  libraryItemId: string | null;
-  providerId: string;
-  externalAnimeId: string;
-  externalEpisodeId: string;
-};
-
-function decodeRouteParam(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
+import { useLibraryIndexQuery } from "../../../../../hooks/use-library-index-query";
+import { usePlaybackSessionQuery } from "../../../../../hooks/use-playback-session-query";
+import { useSessionQuery } from "../../../../../hooks/use-session-query";
+import { useWatchContextQuery } from "../../../../../hooks/use-watch-context-query";
+import type { WatchHrefInput } from "../../../../../lib/routes";
+import { buildAnimeHref, buildWatchHref, decodeRouteParam } from "../../../../../lib/routes";
 
 function isUuid(value: string | null | undefined): value is string {
   if (!value) {
@@ -35,17 +19,12 @@ function isUuid(value: string | null | undefined): value is string {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function buildWatchHref(payload: PlaybackPayload, nextEpisodeId: string) {
-  return `/watch/${encodeURIComponent(payload.libraryItemId ?? "direct")}/${encodeURIComponent(nextEpisodeId)}?providerId=${encodeURIComponent(payload.providerId)}&externalAnimeId=${encodeURIComponent(payload.externalAnimeId)}`;
-}
-
 export default function WatchPage() {
   const routeParams = useParams<{ libraryItemId: string; episodeId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [autoplayCountdown, setAutoplayCountdown] = useState<number | null>(null);
   const [autoplayActive, setAutoplayActive] = useState(false);
-  const [shouldPollSession, setShouldPollSession] = useState(false);
 
   const resolvedParams = useMemo(
     () => ({
@@ -55,119 +34,65 @@ export default function WatchPage() {
     [routeParams.episodeId, routeParams.libraryItemId],
   );
 
-  const libraryQuery = useQuery({
-    queryKey: ["library-index"],
-    queryFn: () => apiFetch<LibraryResponse>("/library"),
-    enabled:
-      !searchParams.get("providerId") ||
-      !searchParams.get("externalAnimeId") ||
-      !isUuid(resolvedParams.libraryItemId),
-  });
+  const providerId = searchParams.get("providerId");
+  const externalAnimeId = searchParams.get("externalAnimeId");
+  const resolvedLibraryItemId = isUuid(resolvedParams.libraryItemId)
+    ? resolvedParams.libraryItemId
+    : null;
 
-  const meQuery = useQuery({
-    queryKey: ["me"],
-    queryFn: () => apiFetch<MeResponse>("/me"),
-  });
+  const libraryQuery = useLibraryIndexQuery(
+    !providerId || !externalAnimeId || resolvedLibraryItemId === null,
+  );
+  const sessionQuery = useSessionQuery();
 
-  const payload = useMemo<PlaybackPayload | null>(() => {
-    const providerId = searchParams.get("providerId");
-    const externalAnimeId = searchParams.get("externalAnimeId");
-    const libraryItemId = isUuid(resolvedParams.libraryItemId) ? resolvedParams.libraryItemId : null;
-
+  const payload = useMemo<WatchHrefInput | null>(() => {
     if (providerId && externalAnimeId) {
       return {
-        libraryItemId,
+        libraryItemId: resolvedLibraryItemId,
         providerId,
         externalAnimeId,
         externalEpisodeId: resolvedParams.episodeId,
       };
     }
 
-    if (!libraryItemId) {
+    if (!resolvedLibraryItemId) {
       return null;
     }
 
-    const libraryItem = libraryQuery.data?.items.find((item) => item.id === libraryItemId);
+    const libraryItem = libraryQuery.data?.items.find((item) => item.id === resolvedLibraryItemId);
     if (!libraryItem) {
       return null;
     }
 
     return {
-      libraryItemId,
+      libraryItemId: resolvedLibraryItemId,
       providerId: libraryItem.providerId,
       externalAnimeId: libraryItem.externalAnimeId,
       externalEpisodeId: resolvedParams.episodeId,
     };
-  }, [libraryQuery.data?.items, resolvedParams, searchParams]);
+  }, [
+    externalAnimeId,
+    libraryQuery.data?.items,
+    providerId,
+    resolvedLibraryItemId,
+    resolvedParams.episodeId,
+  ]);
 
-  const contextQuery = useQuery({
-    queryKey: ["watch-context", payload],
-    queryFn: () =>
-      apiFetch<WatchPageContext>(
-        `/watch/context?providerId=${encodeURIComponent(payload!.providerId)}&externalAnimeId=${encodeURIComponent(payload!.externalAnimeId)}&externalEpisodeId=${encodeURIComponent(payload!.externalEpisodeId)}${payload!.libraryItemId ? `&libraryItemId=${encodeURIComponent(payload!.libraryItemId)}` : ""}`,
-      ),
-    enabled: payload !== null,
-  });
+  const contextQuery = useWatchContextQuery(payload);
+  const playbackQuery = usePlaybackSessionQuery(payload);
 
-  const sessionCreateQuery = useQuery({
-    queryKey: ["playback-session-create", payload],
-    queryFn: () =>
-      apiFetch<PlaybackSession>("/playback/sessions", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    enabled: payload !== null,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
-
-  const sessionPollQuery = useQuery({
-    queryKey: ["playback-session-poll", sessionCreateQuery.data?.id],
-    queryFn: () => apiFetch<PlaybackSession>(`/playback/sessions/${sessionCreateQuery.data!.id}`),
-    enabled: shouldPollSession && Boolean(sessionCreateQuery.data?.id),
-    refetchInterval: 2_000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
-
-  const session = sessionPollQuery.data ?? sessionCreateQuery.data ?? null;
+  const session = playbackQuery.session;
   const context = contextQuery.data ?? null;
   const canPlay = session?.status === "ready" && Boolean(session.streamUrl);
   const autoplaySeconds =
-    meQuery.data?.preferences.autoplayNextEpisode === false
+    sessionQuery.data?.preferences.autoplayNextEpisode === false
       ? 0
-      : meQuery.data?.preferences.autoplayCountdownSeconds ?? 15;
+      : sessionQuery.data?.preferences.autoplayCountdownSeconds ?? 15;
 
   useEffect(() => {
     setAutoplayActive(false);
     setAutoplayCountdown(null);
-    setShouldPollSession(false);
   }, [payload?.externalEpisodeId, payload?.externalAnimeId, payload?.libraryItemId, payload?.providerId]);
-
-  useEffect(() => {
-    if (sessionCreateQuery.data?.status === "resolving") {
-      setShouldPollSession(true);
-      return;
-    }
-
-    if (sessionCreateQuery.data) {
-      setShouldPollSession(false);
-    }
-  }, [sessionCreateQuery.data]);
-
-  useEffect(() => {
-    if (
-      sessionPollQuery.data?.status === "ready" ||
-      sessionPollQuery.data?.status === "failed" ||
-      sessionPollQuery.data?.status === "expired"
-    ) {
-      setShouldPollSession(false);
-    }
-  }, [sessionPollQuery.data]);
 
   useEffect(() => {
     if (!autoplayActive || autoplayCountdown === null) {
@@ -175,7 +100,12 @@ export default function WatchPage() {
     }
 
     if (autoplayCountdown <= 0 && context?.nextEpisode && payload) {
-      router.push(buildWatchHref(payload, context.nextEpisode.externalEpisodeId));
+      router.push(
+        buildWatchHref({
+          ...payload,
+          externalEpisodeId: context.nextEpisode.externalEpisodeId,
+        }),
+      );
       return;
     }
 
@@ -193,7 +123,12 @@ export default function WatchPage() {
       return;
     }
 
-    router.push(buildWatchHref(payload, nextEpisodeId));
+    router.push(
+      buildWatchHref({
+        ...payload,
+        externalEpisodeId: nextEpisodeId,
+      }),
+    );
   }
 
   function handlePlaybackEnded() {
@@ -213,7 +148,7 @@ export default function WatchPage() {
     return <div className="message">Missing provider context. Open this episode from Library or Detail.</div>;
   }
 
-  if (contextQuery.isLoading || sessionCreateQuery.isLoading) {
+  if (contextQuery.isLoading || playbackQuery.createQuery.isLoading) {
     return <div className="message">Preparing playback context...</div>;
   }
 
@@ -227,12 +162,11 @@ export default function WatchPage() {
     );
   }
 
-  if (sessionCreateQuery.error) {
+  if (playbackQuery.createQuery.error || playbackQuery.pollQuery.error) {
+    const error = playbackQuery.createQuery.error ?? playbackQuery.pollQuery.error;
     return (
       <div className="message">
-        {sessionCreateQuery.error instanceof Error
-          ? sessionCreateQuery.error.message
-          : "Unable to create playback session."}
+        {error instanceof Error ? error.message : "Unable to create playback session."}
       </div>
     );
   }
@@ -253,7 +187,7 @@ export default function WatchPage() {
           <div className="watch-topline">
             <Link
               className="watch-backlink"
-              href={`/anime/${encodeURIComponent(context.anime.providerId)}/${encodeURIComponent(context.anime.externalAnimeId)}`}
+              href={buildAnimeHref(context.anime.providerId, context.anime.externalAnimeId)}
             >
               &larr; {context.anime.title}
             </Link>
@@ -271,12 +205,14 @@ export default function WatchPage() {
               <VideoPlayer
                 onEnded={handlePlaybackEnded}
                 onNextEpisode={
-                  context.nextEpisode ? () => openNextEpisode(context.nextEpisode!.externalEpisodeId) : undefined
+                  context.nextEpisode
+                    ? () => openNextEpisode(context.nextEpisode!.externalEpisodeId)
+                    : undefined
                 }
                 onPreviousEpisode={
                   previousEpisode ? () => openNextEpisode(previousEpisode.externalEpisodeId) : undefined
                 }
-                progressIntervalSeconds={meQuery.data?.preferences.progressSaveIntervalSeconds}
+                progressIntervalSeconds={sessionQuery.data?.preferences.progressSaveIntervalSeconds}
                 session={session}
               />
             ) : session?.status === "resolving" ? (

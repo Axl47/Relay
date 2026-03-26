@@ -44,7 +44,13 @@ import {
   createProviderRequestContext,
 } from "@relay/provider-sdk";
 import type { ProviderRegistry, RelayProvider } from "@relay/provider-sdk";
-import { createProviderRegistry } from "@relay/providers";
+import {
+  createProviderRegistry,
+  getApiCatalogTimeoutMs,
+  getApiPlaybackCacheTtlMs,
+  getApiResolutionTimeoutMs,
+  getApiSearchTimeoutMs,
+} from "@relay/providers";
 import { db } from "../db/client";
 import { HttpBrowserBrokerClient } from "../modules/providers/browser-broker-client";
 import {
@@ -283,15 +289,16 @@ export class RelayService {
   }
 
   private getPlaybackCacheTtlMs(provider: RelayProvider) {
-    return provider.metadata.executionMode === "browser" ? 15 * 60 * 1000 : 30 * 60 * 1000;
+    return getApiPlaybackCacheTtlMs(provider.metadata.id, provider.metadata.executionMode);
   }
 
   private getProviderSearchTimeout(provider: RelayProvider) {
-    if (provider.metadata.id === "animetake") {
-      return ANIMETAKE_SEARCH_TIMEOUT_MS;
-    }
-
-    return SEARCH_TIMEOUT_MS[provider.metadata.executionMode];
+    return getApiSearchTimeoutMs(
+      provider.metadata.id,
+      provider.metadata.id === "animetake"
+        ? ANIMETAKE_SEARCH_TIMEOUT_MS
+        : SEARCH_TIMEOUT_MS[provider.metadata.executionMode],
+    );
   }
 
   private toAnimeDetailsFromCatalogRow(row: CatalogAnimeRow, provider: RelayProvider): AnimeDetails {
@@ -441,23 +448,18 @@ export class RelayService {
   }
 
   private getProviderResolutionTimeout(provider: RelayProvider) {
-    if (provider.metadata.id === "hanime") {
-      return HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS;
-    }
-
-    if (provider.metadata.id === "animetake") {
-      return ANIMETAKE_RESOLUTION_TIMEOUT_MS;
-    }
-
-    return PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode];
+    return getApiResolutionTimeoutMs(
+      provider.metadata.id,
+      provider.metadata.id === "hanime"
+        ? HANIME_PLAYBACK_RESOLUTION_TIMEOUT_MS
+        : provider.metadata.id === "animetake"
+          ? ANIMETAKE_RESOLUTION_TIMEOUT_MS
+          : PROVIDER_RESOLUTION_TIMEOUT_MS[provider.metadata.executionMode],
+    );
   }
 
   private getProviderCatalogTimeout(provider: RelayProvider) {
-    if (provider.metadata.id === "animetake") {
-      return ANIMETAKE_CATALOG_TIMEOUT_MS;
-    }
-
-    return null;
+    return getApiCatalogTimeoutMs(provider.metadata.id) ?? null;
   }
 
   private humanizeAnimeId(externalAnimeId: string) {

@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { SsrManifestProviderBase } from "../base/ssr-manifest-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   absoluteUrl,
   cleanText,
@@ -139,17 +140,7 @@ function rankAniwaveServerCandidate(label: string) {
 
 export class AniwaveProvider extends SsrManifestProviderBase {
   constructor() {
-    super({
-      id: "aniwave",
-      displayName: "Aniwave",
-      baseUrl: "https://aniwaves.ru",
-      contentClass: "anime",
-      executionMode: "http",
-      requiresAdultGate: false,
-      supportsSearch: true,
-      supportsTrackerSync: true,
-      defaultEnabled: true,
-    });
+    super(getProviderMetadata("aniwave")!);
   }
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {

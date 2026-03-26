@@ -1,5 +1,13 @@
 import { config as loadEnv } from "dotenv";
 import { QueueEvents, Worker } from "bullmq";
+import {
+  relayImportsQueueName,
+  relayPlaybackResolutionQueueName,
+  relayProviderRefreshQueueName,
+} from "@relay/contracts";
+import { handleImportsJob } from "./jobs/imports";
+import { handlePlaybackResolutionJob } from "./jobs/playback-resolution";
+import { handleProviderRefreshJob } from "./jobs/provider-refresh";
 
 loadEnv();
 
@@ -14,42 +22,17 @@ const connection = {
 };
 
 async function main() {
-  const importWorker = new Worker(
-    "relay-imports",
-    async (job) => {
-      console.log(`[worker] import job ${job.id}`, job.data);
-      return {
-        status: "completed",
-        imported: 0,
-        skipped: ["android_backup_parser_not_implemented"],
-      };
-    },
-    { connection },
-  );
-
-  const refreshWorker = new Worker(
-    "relay-provider-refresh",
-    async (job) => {
-      console.log(`[worker] refresh job ${job.id}`, job.data);
-      return {
-        refreshedAt: new Date().toISOString(),
-      };
-    },
-    { connection },
-  );
-
+  const importWorker = new Worker(relayImportsQueueName, handleImportsJob, { connection });
+  const refreshWorker = new Worker(relayProviderRefreshQueueName, handleProviderRefreshJob, {
+    connection,
+  });
   const playbackWorker = new Worker(
-    "relay-playback-resolution",
-    async (job) => {
-      console.log(`[worker] playback resolution job ${job.id}`, job.data);
-      return {
-        resolvedAt: new Date().toISOString(),
-      };
-    },
+    relayPlaybackResolutionQueueName,
+    handlePlaybackResolutionJob,
     { connection },
   );
 
-  const queueEvents = new QueueEvents("relay-imports", { connection });
+  const queueEvents = new QueueEvents(relayImportsQueueName, { connection });
   queueEvents.on("completed", ({ jobId }) => {
     console.log(`[worker] import job completed ${jobId}`);
   });

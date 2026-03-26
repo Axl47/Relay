@@ -6,16 +6,10 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AnimeDetailView, UpsertLibraryItemInput } from "@relay/contracts";
 import { apiFetch } from "../../../../../lib/api";
-import { FALLBACK_COVER } from "../../../../../lib/fallback-cover";
-import { resolveMediaUrl } from "../../../../../lib/media";
-
-function decodeRouteParam(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
+import { CoverImage } from "../../../../../components/cover-image";
+import { queryKeys } from "../../../../../lib/query-keys";
+import { buildOriginalAnimeUrl, decodeRouteParam } from "../../../../../lib/provider-links";
+import { buildCatalogAnimeViewPath, buildWatchHref } from "../../../../../lib/routes";
 
 function formatDuration(durationSeconds: number | null) {
   if (!durationSeconds) {
@@ -24,51 +18,6 @@ function formatDuration(durationSeconds: number | null) {
 
   const minutes = Math.round(durationSeconds / 60);
   return `${minutes} min`;
-}
-
-type OriginalAnimeUrlInput = {
-  providerId: string;
-  externalAnimeId: string;
-  firstEpisodeId?: string | null;
-};
-
-function encodeExternalIdPath(value: string) {
-  return value
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(decodeRouteParam(segment)))
-    .join("/");
-}
-
-function buildOriginalAnimeUrl(input: OriginalAnimeUrlInput) {
-  const encodedAnimeId = encodeExternalIdPath(input.externalAnimeId);
-
-  switch (input.providerId) {
-    case "aki-h":
-      return `https://aki-h.com/${encodedAnimeId}/`;
-    case "aniwave":
-      return `https://aniwaves.ru/watch/${encodedAnimeId}`;
-    case "animeonsen":
-      return `https://www.animeonsen.xyz/watch/${encodedAnimeId}?episode=1`;
-    case "animepahe":
-      return `https://animepahe.si/anime/${encodedAnimeId}`;
-    case "animetake":
-      return `https://animetake.com.co/anime/${encodedAnimeId}/`;
-    case "gogoanime":
-      return `https://gogoanime.by/series/${encodedAnimeId}/`;
-    case "hanime": {
-      const firstEpisodeId = input.firstEpisodeId ? encodeExternalIdPath(input.firstEpisodeId) : "";
-      return firstEpisodeId ? `https://hanime.tv/videos/hentai/${firstEpisodeId}` : null;
-    }
-    case "hentaihaven":
-      return `https://hentaihaven.xxx/watch/${encodedAnimeId}/`;
-    case "hstream":
-      return `https://hstream.moe/hentai/${encodedAnimeId}`;
-    case "javguru":
-      return `https://jav.guru/${encodedAnimeId}/`;
-    default:
-      return null;
-  }
 }
 
 export default function AnimeDetailPage() {
@@ -86,10 +35,10 @@ export default function AnimeDetailPage() {
   );
 
   const detailQuery = useQuery({
-    queryKey: ["anime-view", resolvedParams.providerId, resolvedParams.externalAnimeId],
+    queryKey: queryKeys.animeView(resolvedParams.providerId, resolvedParams.externalAnimeId),
     queryFn: () =>
       apiFetch<AnimeDetailView>(
-        `/catalog/${encodeURIComponent(resolvedParams.providerId)}/anime/${encodeURIComponent(resolvedParams.externalAnimeId)}/view`,
+        buildCatalogAnimeViewPath(resolvedParams.providerId, resolvedParams.externalAnimeId),
       ),
   });
 
@@ -101,9 +50,11 @@ export default function AnimeDetailPage() {
       }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["anime-view"] }),
-        queryClient.invalidateQueries({ queryKey: ["library-dashboard"] }),
-        queryClient.invalidateQueries({ queryKey: ["library-index"] }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.animeView(resolvedParams.providerId, resolvedParams.externalAnimeId),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryDashboard() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryIndex() }),
       ]);
     },
   });
@@ -115,9 +66,11 @@ export default function AnimeDetailPage() {
       }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["anime-view"] }),
-        queryClient.invalidateQueries({ queryKey: ["library-dashboard"] }),
-        queryClient.invalidateQueries({ queryKey: ["library-index"] }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.animeView(resolvedParams.providerId, resolvedParams.externalAnimeId),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryDashboard() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.libraryIndex() }),
       ]);
     },
   });
@@ -128,7 +81,12 @@ export default function AnimeDetailPage() {
   const hiddenTagCount = Math.max(0, (anime?.tags.length ?? 0) - visibleTags.length);
   const resumeHref =
     detail && detail.resumeEpisodeId
-      ? `/watch/${encodeURIComponent(detail.libraryItem?.id ?? "direct")}/${encodeURIComponent(detail.resumeEpisodeId)}?providerId=${encodeURIComponent(detail.anime.providerId)}&externalAnimeId=${encodeURIComponent(detail.anime.externalAnimeId)}`
+      ? buildWatchHref({
+          libraryItemId: detail.libraryItem?.id ?? "direct",
+          providerId: detail.anime.providerId,
+          externalAnimeId: detail.anime.externalAnimeId,
+          externalEpisodeId: detail.resumeEpisodeId,
+        })
       : null;
 
   if (detailQuery.isLoading) {
@@ -153,12 +111,7 @@ export default function AnimeDetailPage() {
     <div className="page-grid anime-detail-page">
       <section className="anime-hero">
         <div className="anime-hero-media">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            alt={anime.title}
-            className="anime-cover"
-            src={anime.coverImage ? resolveMediaUrl(anime.coverImage) : FALLBACK_COVER}
-          />
+          <CoverImage alt={anime.title} className="anime-cover" src={anime.coverImage} />
         </div>
 
         <div className="anime-hero-copy">
@@ -180,7 +133,12 @@ export default function AnimeDetailPage() {
               ) : (
                 <Link
                   className="button"
-                  href={`/watch/direct/${encodeURIComponent(detail.episodes[0]?.externalEpisodeId ?? "")}?providerId=${encodeURIComponent(anime.providerId)}&externalAnimeId=${encodeURIComponent(anime.externalAnimeId)}`}
+                  href={buildWatchHref({
+                    libraryItemId: "direct",
+                    providerId: anime.providerId,
+                    externalAnimeId: anime.externalAnimeId,
+                    externalEpisodeId: detail.episodes[0]?.externalEpisodeId ?? "",
+                  })}
                 >
                   Watch Ep 1
                 </Link>
@@ -274,7 +232,12 @@ export default function AnimeDetailPage() {
 
         <div className="episode-list">
           {detail.episodes.map((episode) => {
-            const watchHref = `/watch/${encodeURIComponent(detail.libraryItem?.id ?? "direct")}/${encodeURIComponent(episode.externalEpisodeId)}?providerId=${encodeURIComponent(anime.providerId)}&externalAnimeId=${encodeURIComponent(anime.externalAnimeId)}`;
+            const watchHref = buildWatchHref({
+              libraryItemId: detail.libraryItem?.id ?? "direct",
+              providerId: anime.providerId,
+              externalAnimeId: anime.externalAnimeId,
+              externalEpisodeId: episode.externalEpisodeId,
+            });
             return (
               <Link
                 className={`episode-row${episode.isCurrent ? " current" : ""}`}

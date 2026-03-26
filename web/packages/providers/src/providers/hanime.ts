@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { SsrManifestProviderBase } from "../base/ssr-manifest-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   cleanText,
   createAnimeDetails,
@@ -184,17 +185,7 @@ function findHanimeFranchise(franchises: Map<string, HanimeFranchise>, externalA
 
 export class HanimeProvider extends SsrManifestProviderBase {
   constructor() {
-    super({
-      id: "hanime",
-      displayName: "Hanime",
-      baseUrl: "https://hanime.tv",
-      contentClass: "hentai",
-      executionMode: "browser",
-      requiresAdultGate: true,
-      supportsSearch: true,
-      supportsTrackerSync: false,
-      defaultEnabled: false,
-    });
+    super(getProviderMetadata("hanime")!);
   }
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {

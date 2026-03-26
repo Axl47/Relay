@@ -8,7 +8,7 @@
     "db:push": "drizzle-kit push",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --eval \"console.log('API tests are not wired yet')\"",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -7,10 +7,11 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --eval \"console.log('Worker tests are not wired yet')\"",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@relay/contracts": "0.1.0",
     "@relay/providers": "0.1.0",
     "bullmq": "^5.41.5",
     "dotenv": "^16.4.7",

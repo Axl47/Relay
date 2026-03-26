@@ -10,6 +10,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { WordPressMirrorProviderBase } from "../base/wordpress-mirror-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   absoluteUrl,
   cleanText,
@@ -38,17 +39,7 @@ type GogoPlayerButton = {
 
 export class GogoanimeProvider extends WordPressMirrorProviderBase {
   constructor() {
-    super({
-      id: "gogoanime",
-      displayName: "Gogoanime",
-      baseUrl: "https://gogoanime.by",
-      contentClass: "anime",
-      executionMode: "http",
-      requiresAdultGate: false,
-      supportsSearch: true,
-      supportsTrackerSync: true,
-      defaultEnabled: true,
-    });
+    super(getProviderMetadata("gogoanime")!);
   }
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {

@@ -7,11 +7,12 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --eval \"console.log('Browser service tests are not wired yet')\"",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@relay/contracts": "0.1.0",
+    "@relay/providers": "0.1.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
     "ioredis": "^5.4.2",

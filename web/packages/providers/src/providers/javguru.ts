@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { WordPressMirrorProviderBase } from "../base/wordpress-mirror-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   DEFAULT_USER_AGENT,
   absoluteUrl,
@@ -122,17 +123,7 @@ export class JavGuruProvider extends WordPressMirrorProviderBase {
   }
 
   constructor() {
-    super({
-      id: "javguru",
-      displayName: "JavGuru",
-      baseUrl: "https://jav.guru",
-      contentClass: "jav",
-      executionMode: "http",
-      requiresAdultGate: true,
-      supportsSearch: true,
-      supportsTrackerSync: false,
-      defaultEnabled: false,
-    });
+    super(getProviderMetadata("javguru")!);
   }
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {

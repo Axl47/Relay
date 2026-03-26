@@ -2,27 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { LibraryDashboardResponse } from "@relay/contracts";
-import { apiFetch } from "../../../lib/api";
-import { FALLBACK_COVER } from "../../../lib/fallback-cover";
-import { resolveMediaUrl } from "../../../lib/media";
+import { CoverImage } from "../../../components/cover-image";
+import { useLibraryDashboardQuery } from "../../../hooks/use-library-dashboard-query";
+import { buildAnimeHref, buildWatchHref } from "../../../lib/routes";
 
 type LibraryViewMode = "grid" | "list";
 type LibrarySortMode = "title" | "recentlyWatched" | "recentlyAdded" | "year";
-
-function buildWatchHref(item: LibraryDashboardResponse["continueWatching"][number]) {
-  return `/watch/${encodeURIComponent(item.id)}/${encodeURIComponent(item.currentEpisodeId ?? "")}?providerId=${encodeURIComponent(item.providerId)}&externalAnimeId=${encodeURIComponent(item.externalAnimeId)}`;
-}
 
 export default function LibraryPage() {
   const [viewMode, setViewMode] = useState<LibraryViewMode>("grid");
   const [sortMode, setSortMode] = useState<LibrarySortMode>("recentlyWatched");
 
-  const dashboardQuery = useQuery({
-    queryKey: ["library-dashboard"],
-    queryFn: () => apiFetch<LibraryDashboardResponse>("/library/dashboard"),
-  });
+  const dashboardQuery = useLibraryDashboardQuery();
 
   const sortedItems = useMemo(() => {
     const items = [...(dashboardQuery.data?.allItems ?? [])];
@@ -95,14 +86,18 @@ export default function LibraryPage() {
 
           <div className="shelf-row">
             {dashboard.continueWatching.map((item) => (
-              <Link className="continue-card" href={buildWatchHref(item)} key={item.id}>
+              <Link
+                className="continue-card"
+                href={buildWatchHref({
+                  libraryItemId: item.id,
+                  providerId: item.providerId,
+                  externalAnimeId: item.externalAnimeId,
+                  externalEpisodeId: item.currentEpisodeId ?? "",
+                })}
+                key={item.id}
+              >
                 <div className="continue-card-media">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={item.title}
-                    className="card-image"
-                    src={item.coverImage ? resolveMediaUrl(item.coverImage) : FALLBACK_COVER}
-                  />
+                  <CoverImage alt={item.title} className="card-image" src={item.coverImage} />
                   {item.progress ? (
                     <div className="progress-strip">
                       <span style={{ width: `${item.progress.percentComplete}%` }} />
@@ -114,9 +109,7 @@ export default function LibraryPage() {
                 </div>
                 <div className="card-body">
                   <strong>{item.title}</strong>
-                  <p>
-                    {item.currentEpisodeTitle ?? "Continue where you left off"}
-                  </p>
+                  <p>{item.currentEpisodeTitle ?? "Continue where you left off"}</p>
                 </div>
               </Link>
             ))}
@@ -137,15 +130,10 @@ export default function LibraryPage() {
             {dashboard.recentlyAdded.map((item) => (
               <Link
                 className="mini-card"
-                href={`/anime/${encodeURIComponent(item.providerId)}/${encodeURIComponent(item.externalAnimeId)}`}
+                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt={item.title}
-                  className="card-image"
-                  src={item.coverImage ? resolveMediaUrl(item.coverImage) : FALLBACK_COVER}
-                />
+                <CoverImage alt={item.title} className="card-image" src={item.coverImage} />
                 <div className="card-body">
                   <strong>{item.title}</strong>
                 </div>
@@ -191,16 +179,11 @@ export default function LibraryPage() {
             {sortedItems.map((item) => (
               <Link
                 className="result-card"
-                href={`/anime/${encodeURIComponent(item.providerId)}/${encodeURIComponent(item.externalAnimeId)}`}
+                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
                 <div className="result-card-image-wrap">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={item.title}
-                    className="card-image"
-                    src={item.coverImage ? resolveMediaUrl(item.coverImage) : FALLBACK_COVER}
-                  />
+                  <CoverImage alt={item.title} className="card-image" src={item.coverImage} />
                   {item.progress ? (
                     <div className="progress-strip">
                       <span style={{ width: `${item.progress.percentComplete}%` }} />
@@ -223,7 +206,7 @@ export default function LibraryPage() {
             {sortedItems.map((item) => (
               <Link
                 className="list-item library-list-row"
-                href={`/anime/${encodeURIComponent(item.providerId)}/${encodeURIComponent(item.externalAnimeId)}`}
+                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
                 <div className="list-item-main">

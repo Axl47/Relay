@@ -1,4 +1,5 @@
 import { BrowserPool } from "./browser-pool";
+import { shouldUseEphemeralBrowserContext } from "@relay/providers";
 import type { CookieJarStore } from "../cookies/cookie-jar";
 import type { BrowserContext, BrowserCookie, BrowserPage } from "./playwright-runtime";
 
@@ -19,10 +20,6 @@ const DEFAULT_BROWSER_CONTEXT_OPTIONS = {
   locale: "en-US",
   timezoneId: "America/New_York",
 } as const;
-
-function shouldUseEphemeralContext(providerId: string) {
-  return providerId === "hentaihaven" || providerId === "animetake";
-}
 
 function makeContextKey(providerId: string, domain: string) {
   return `${providerId}:${domain}`;
@@ -54,7 +51,7 @@ export class ProviderContextManager {
     const browserIndex = stableIndex(providerId, domain, this.pool.size);
     const browser = await this.pool.getByIndex(browserIndex);
     const context = await browser.newContext(DEFAULT_BROWSER_CONTEXT_OPTIONS);
-    if (!shouldUseEphemeralContext(providerId)) {
+    if (!shouldUseEphemeralBrowserContext(providerId)) {
       const cookieKey = makeCookieKey(providerId, domain);
       const storedCookies = await this.cookieJar.get(cookieKey);
 
@@ -84,7 +81,7 @@ export class ProviderContextManager {
   }
 
   private async persistCookies(providerId: string, domain: string, context: BrowserContext) {
-    if (shouldUseEphemeralContext(providerId)) {
+    if (shouldUseEphemeralBrowserContext(providerId)) {
       return;
     }
 
@@ -97,7 +94,7 @@ export class ProviderContextManager {
     domain: string,
     task: (page: BrowserPage, context: BrowserContext) => Promise<T>,
   ): Promise<T> {
-    if (shouldUseEphemeralContext(providerId)) {
+    if (shouldUseEphemeralBrowserContext(providerId)) {
       const managedContext = await this.createContext(providerId, domain);
       const page = await managedContext.context.newPage();
 

@@ -1,21 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import type { GroupedHistoryResponse } from "@relay/contracts";
-import { apiFetch } from "../../../lib/api";
-import { FALLBACK_COVER } from "../../../lib/fallback-cover";
-import { resolveMediaUrl } from "../../../lib/media";
-
-function buildWatchHref(entry: GroupedHistoryResponse["groups"][number]["entries"][number]) {
-  return `/watch/${encodeURIComponent(entry.libraryItemId ?? "direct")}/${encodeURIComponent(entry.externalEpisodeId)}?providerId=${encodeURIComponent(entry.providerId)}&externalAnimeId=${encodeURIComponent(entry.externalAnimeId)}`;
-}
+import { CoverImage } from "../../../components/cover-image";
+import { useGroupedHistoryQuery } from "../../../hooks/use-grouped-history-query";
+import { buildWatchHref } from "../../../lib/routes";
 
 export default function HistoryPage() {
-  const historyQuery = useQuery({
-    queryKey: ["grouped-history"],
-    queryFn: () => apiFetch<GroupedHistoryResponse>("/history/grouped"),
-  });
+  const historyQuery = useGroupedHistoryQuery();
 
   if (historyQuery.isLoading) {
     return <div className="message">Loading history...</div>;
@@ -59,14 +50,18 @@ export default function HistoryPage() {
 
           <div className="list">
             {group.entries.map((entry) => (
-              <Link className="history-row" href={buildWatchHref(entry)} key={entry.id}>
+              <Link
+                className="history-row"
+                href={buildWatchHref({
+                  libraryItemId: entry.libraryItemId,
+                  providerId: entry.providerId,
+                  externalAnimeId: entry.externalAnimeId,
+                  externalEpisodeId: entry.externalEpisodeId,
+                })}
+                key={entry.id}
+              >
                 <div className="history-row-media">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={entry.animeTitle}
-                    className="history-thumb"
-                    src={entry.coverImage ? resolveMediaUrl(entry.coverImage) : FALLBACK_COVER}
-                  />
+                  <CoverImage alt={entry.animeTitle} className="history-thumb" src={entry.coverImage} />
                 </div>
                 <div className="list-item-main">
                   <strong>{entry.animeTitle}</strong>

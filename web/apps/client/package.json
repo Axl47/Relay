@@ -7,7 +7,7 @@
     "build": "next build",
     "dev": "next dev --hostname 0.0.0.0",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --eval \"console.log('Client tests are not wired yet')\"",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

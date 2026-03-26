@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { apiFetch } from "../lib/api";
+import { useSessionQuery } from "../hooks/use-session-query";
 
 type NavItem = {
   href: string;
@@ -33,12 +32,6 @@ const MOBILE_SIGNED_IN_NAV_ITEM: NavItem = {
   href: "/settings",
   label: "Settings",
   shortLabel: "S",
-};
-
-type SessionUser = {
-  user: {
-    displayName: string;
-  };
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -76,37 +69,12 @@ function SidebarNavItem({
 
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
-  const [session, setSession] = useState<SessionUser | null>(null);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const sessionQuery = useSessionQuery();
+  const session = sessionQuery.data ?? null;
   const mobileNavItems = [
     ...MOBILE_NAV,
     session ? MOBILE_SIGNED_IN_NAV_ITEM : MOBILE_SIGNED_OUT_NAV_ITEM,
   ];
-
-  useEffect(() => {
-    let cancelled = false;
-
-    apiFetch<SessionUser>("/me")
-      .then((response) => {
-        if (!cancelled) {
-          setSession(response);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSession(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoadingSession(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <div className="app-shell">
@@ -140,7 +108,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
         </nav>
 
         <div className="sidebar-footer">
-          {isLoadingSession ? (
+          {sessionQuery.isLoading ? (
             <div className="user-chip user-chip-loading">Loading...</div>
           ) : session ? (
             <div className="user-chip">

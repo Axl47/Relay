@@ -3,120 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type {
-  CatalogSearchLastResponse,
-  CatalogSearchResponse,
-  LibraryItemWithCategories,
-} from "@relay/contracts";
+import type { CatalogSearchLastResponse, CatalogSearchResponse } from "@relay/contracts";
 import { apiFetch } from "../../../lib/api";
-import { getApiBaseUrl } from "../../../lib/api-base-url";
-import { FALLBACK_COVER } from "../../../lib/fallback-cover";
-import { resolveMediaUrl } from "../../../lib/media";
-
-type LibraryResponse = {
-  items: LibraryItemWithCategories[];
-};
-
-type CatalogSearchStreamEvent =
-  | {
-      type: "start";
-      completedProviders: number;
-      totalProviders: number;
-    }
-  | {
-      type: "progress";
-      completedProviders: number;
-      totalProviders: number;
-    }
-  | {
-      type: "done";
-      response: CatalogSearchResponse;
-    }
-  | {
-      type: "error";
-      message: string;
-    };
-
-async function streamCatalogSearch(
-  searchTerm: string,
-  signal: AbortSignal,
-  onProgress: (completedProviders: number, totalProviders: number) => void,
-) {
-  const baseUrl = getApiBaseUrl();
-  const response = await fetch(
-    `${baseUrl}/catalog/search/stream?query=${encodeURIComponent(searchTerm)}&page=1&limit=24`,
-    {
-      cache: "no-store",
-      credentials: "include",
-      signal,
-    },
-  );
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error ?? `Search failed with status ${response.status}`);
-  }
-
-  if (!response.body) {
-    throw new Error("Search stream did not return a readable response body.");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffered = "";
-  let finalResponse: CatalogSearchResponse | null = null;
-
-  const processLine = (line: string) => {
-    const event = JSON.parse(line) as CatalogSearchStreamEvent;
-    if (event.type === "start" || event.type === "progress") {
-      onProgress(event.completedProviders, event.totalProviders);
-      return;
-    }
-
-    if (event.type === "done") {
-      finalResponse = event.response;
-      return;
-    }
-
-    if (event.type === "error") {
-      throw new Error(event.message || "Unable to search providers.");
-    }
-  };
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    buffered += decoder.decode(value, { stream: true });
-
-    while (true) {
-      const lineBreakIndex = buffered.indexOf("\n");
-      if (lineBreakIndex < 0) {
-        break;
-      }
-
-      const line = buffered.slice(0, lineBreakIndex).trim();
-      buffered = buffered.slice(lineBreakIndex + 1);
-      if (line.length === 0) {
-        continue;
-      }
-      processLine(line);
-    }
-  }
-
-  const trailing = buffered.trim();
-  if (trailing.length > 0) {
-    processLine(trailing);
-  }
-
-  if (finalResponse) {
-    return finalResponse;
-  }
-
-  throw new Error("Search stream ended before completion.");
-}
+import { CoverImage } from "../../../components/cover-image";
+import { useLibraryIndexQuery } from "../../../hooks/use-library-index-query";
+import { queryKeys } from "../../../lib/query-keys";
+import { buildAnimeHref } from "../../../lib/routes";
+import { streamCatalogSearch } from "../../../lib/search-stream";
 
 function buildResultKey(item: CatalogSearchResponse["items"][number]) {
   return `${item.providerId}:${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
@@ -141,7 +34,7 @@ export default function DiscoverPage() {
   } | null>(null);
 
   const searchQuery = useQuery<CatalogSearchResponse, Error>({
-    queryKey: ["catalog-search", submittedQuery],
+    queryKey: queryKeys.catalogSearch(submittedQuery),
     queryFn: ({ signal }) =>
       streamCatalogSearch(submittedQuery, signal, (completedProviders, totalProviders) => {
         setProviderProgress({
@@ -154,14 +47,11 @@ export default function DiscoverPage() {
   });
 
   const lastSearchQuery = useQuery<CatalogSearchLastResponse>({
-    queryKey: ["catalog-search-last"],
+    queryKey: queryKeys.catalogSearchLast(),
     queryFn: () => apiFetch<CatalogSearchLastResponse>("/catalog/search/last"),
   });
 
-  const libraryQuery = useQuery({
-    queryKey: ["library-index"],
-    queryFn: () => apiFetch<LibraryResponse>("/library"),
-  });
+  const libraryQuery = useLibraryIndexQuery();
 
   const restoredSearchResponse = submittedQuery.trim().length > 0
     ? null
@@ -349,20 +239,11 @@ export default function DiscoverPage() {
           {groupedResults.map((group) => (
             <Link
               className="result-card"
-              href={`/anime/${encodeURIComponent(group.primary.providerId)}/${encodeURIComponent(group.primary.externalAnimeId)}`}
+              href={buildAnimeHref(group.primary.providerId, group.primary.externalAnimeId)}
               key={`${group.primary.providerId}-${group.primary.externalAnimeId}`}
             >
               <div className="result-card-image-wrap">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt={group.primary.title}
-                  className="card-image"
-                  src={
-                    group.primary.coverImage
-                      ? resolveMediaUrl(group.primary.coverImage)
-                      : FALLBACK_COVER
-                  }
-                />
+                <CoverImage alt={group.primary.title} className="card-image" src={group.primary.coverImage} />
                 <div className="result-card-badges">
                   <span className="badge badge-strong">{group.primary.providerDisplayName}</span>
                   {group.sources.length > 1 ? (

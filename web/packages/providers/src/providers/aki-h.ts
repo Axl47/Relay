@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { RelayProviderBase } from "../base/relay-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   absoluteUrl,
   cleanText,
@@ -30,17 +31,7 @@ type AkiHEpisodeCandidate = {
 
 export class AkiHProvider extends RelayProviderBase {
   constructor() {
-    super({
-      id: "aki-h",
-      displayName: "Aki-H",
-      baseUrl: "https://aki-h.com",
-      contentClass: "hentai",
-      executionMode: "browser",
-      requiresAdultGate: true,
-      supportsSearch: true,
-      supportsTrackerSync: false,
-      defaultEnabled: false,
-    });
+    super(getProviderMetadata("aki-h")!);
   }
 
   private createSearchUrl(input: SearchInput) {

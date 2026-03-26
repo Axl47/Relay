@@ -1,7 +1,5 @@
-import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { access, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import os from "node:os";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import cookie from "@fastify/cookie";
@@ -13,8 +11,12 @@ import {
   assignCategoriesInputSchema,
   authBootstrapInputSchema,
   authLoginInputSchema,
+  catalogAnimeQuerySchema,
+  catalogAnimeViewQuerySchema,
+  catalogEpisodesQuerySchema,
   createCategoryInputSchema,
   createPlaybackSessionInputSchema,
+  mediaProxyQuerySchema,
   searchInputSchema,
   updateCategoryInputSchema,
   updateLibraryItemInputSchema,
@@ -22,441 +24,30 @@ import {
   updateProviderConfigInputSchema,
   updateUserPreferencesInputSchema,
   upsertLibraryItemInputSchema,
+  watchContextQuerySchema,
 } from "@relay/contracts";
-import { z } from "zod";
 import { appConfig } from "./config";
 import { parseBody, setSessionCookie } from "./lib/http";
 import { convertSubtitleToVtt } from "./lib/subtitles";
 import { RelayService } from "./services/relay-service";
-
-const DEFAULT_STREAM_USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
-const ABSOLUTE_UPSTREAM_PATH_PREFIX = "__upstream__/";
-const ROOT_RELATIVE_UPSTREAM_PATH_PREFIX = "__root__/";
-const PROXY_UPSTREAM_ALIAS_SUFFIX = "~relay";
-const COMPATIBILITY_MP4_CACHE_DIR = path.join(os.tmpdir(), "relay-compat-mp4");
-const COMPATIBILITY_MP4_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-
-function getMediaProxyHeaders(url: URL) {
-  const headers: Record<string, string> = {
-    "user-agent": DEFAULT_STREAM_USER_AGENT,
-    accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-  };
-
-  if (url.hostname === "hanime-cdn.com" || url.hostname.endsWith(".hanime-cdn.com")) {
-    headers.referer = "https://hanime.tv/";
-    headers.origin = "https://hanime.tv";
-  }
-
-  if (url.hostname === "animetake.com.co" || url.hostname.endsWith(".animetake.com.co")) {
-    headers.referer = "https://animetake.com.co/";
-    headers.origin = "https://animetake.com.co";
-  }
-
-  return headers;
-}
-
-function getSubtitleProxyHeaders(url: URL) {
-  const headers: Record<string, string> = {
-    "user-agent": DEFAULT_STREAM_USER_AGENT,
-    "accept-language": "en-US,en;q=0.9",
-  };
-
-  if (url.hostname === "api.animeonsen.xyz" || url.hostname.endsWith(".animeonsen.xyz")) {
-    headers.referer = "https://www.animeonsen.xyz/";
-    headers.origin = "https://www.animeonsen.xyz";
-  }
-
-  return headers;
-}
-
-function getProxyUpstreamAlias(upstreamUrl: string) {
-  try {
-    const parsedUrl = new URL(upstreamUrl);
-    const hostname = parsedUrl.hostname.toLowerCase();
-    const pathname = parsedUrl.pathname.toLowerCase();
-
-    if (
-      hostname === "fdc.anpustream.com" &&
-      (/\/snd\/(?:i\.mp4|snd\d+\.jpg)$/i.test(pathname) ||
-        /\/(?:i\.mp4|ha\d+\.jpg)$/i.test(pathname))
-    ) {
-      return `${PROXY_UPSTREAM_ALIAS_SUFFIX}.mp4`;
-    }
-
-    if (
-      hostname.endsWith(".owocdn.top") &&
-      /\/segment-\d+-v\d+-a\d+\.jpg$/i.test(pathname)
-    ) {
-      return `${PROXY_UPSTREAM_ALIAS_SUFFIX}.ts`;
-    }
-  } catch {
-    return "";
-  }
-
-  return "";
-}
-
-function encodeUpstreamUrlForPath(upstreamUrl: string) {
-  return `b64.${Buffer.from(upstreamUrl, "utf8").toString("base64url")}`;
-}
-
-function buildProxyStreamPath(sessionId: string, upstreamUrl: string) {
-  return `/stream/${sessionId}/${ABSOLUTE_UPSTREAM_PATH_PREFIX}${encodeUpstreamUrlForPath(upstreamUrl)}${getProxyUpstreamAlias(upstreamUrl)}`;
-}
-
-function rewritePlaylistUri(value: string, baseUrl: string, sessionId: string) {
-  const absoluteUrl = new URL(value, baseUrl).toString();
-  return buildProxyStreamPath(sessionId, absoluteUrl);
-}
-
-function buildProxyRelativeStreamPath(sessionId: string, requestPath: string) {
-  return `/stream/${sessionId}/${requestPath}`;
-}
-
-function rewriteDashManifestUri(value: string, baseUrl: string, sessionId: string) {
-  const trimmed = value.trim();
-  if (!trimmed || /^(?:data:|urn:|#)/i.test(trimmed)) {
-    return value;
-  }
-
-  if (/^https?:\/\//i.test(trimmed)) {
-    if (!trimmed.includes("$")) {
-      return buildProxyStreamPath(sessionId, trimmed);
-    }
-
-    try {
-      const parsedUrl = new URL(trimmed);
-      return buildProxyRelativeStreamPath(
-        sessionId,
-        `${ROOT_RELATIVE_UPSTREAM_PATH_PREFIX}${parsedUrl.pathname.replace(/^\/+/, "")}${parsedUrl.search}${parsedUrl.hash}`,
-      );
-    } catch {
-      return value;
-    }
-  }
-
-  if (trimmed.startsWith("/")) {
-    return buildProxyRelativeStreamPath(
-      sessionId,
-      `${ROOT_RELATIVE_UPSTREAM_PATH_PREFIX}${trimmed.replace(/^\/+/, "")}`,
-    );
-  }
-
-  return buildProxyRelativeStreamPath(sessionId, trimmed);
-}
-
-function stripHlsSubtitleRenditions(body: string) {
-  return body
-    .split("\n")
-    .filter((line) => !/^#EXT-X-MEDIA:.*TYPE=SUBTITLES/i.test(line.trim()))
-    .map((line) => {
-      if (!line.startsWith("#EXT-X-STREAM-INF:")) {
-        return line;
-      }
-
-      return line
-        .replace(/,SUBTITLES="[^"]*"/g, "")
-        .replace(/SUBTITLES="[^"]*",/g, "");
-    })
-    .join("\n");
-}
-
-function rewriteHlsPlaylist(
-  body: string,
-  baseUrl: string,
-  sessionId: string,
-  options?: { stripSubtitleRenditions?: boolean },
-) {
-  const normalizedBody = options?.stripSubtitleRenditions ? stripHlsSubtitleRenditions(body) : body;
-
-  return normalizedBody
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        return line;
-      }
-
-      if (!trimmed.startsWith("#")) {
-        return rewritePlaylistUri(trimmed, baseUrl, sessionId);
-      }
-
-      if (!trimmed.includes('URI="')) {
-        return line;
-      }
-
-      return line.replace(/URI="([^"]+)"/g, (_match, uri: string) =>
-        `URI="${rewritePlaylistUri(uri, baseUrl, sessionId)}"`,
-      );
-    })
-    .join("\n");
-}
-
-function rewriteDashManifest(body: string, baseUrl: string, sessionId: string) {
-  return body
-    .replace(/<BaseURL([^>]*)>([^<]+)<\/BaseURL>/g, (_match, attributes: string, uri: string) => {
-      const rewrittenUri = rewriteDashManifestUri(uri, baseUrl, sessionId);
-      return `<BaseURL${attributes}>${rewrittenUri}</BaseURL>`;
-    })
-    .replace(
-      /\b(initialization|media|sourceURL|href|xlink:href)="([^"]+)"/g,
-      (_match, attributeName: string, uri: string) =>
-        `${attributeName}="${rewriteDashManifestUri(uri, baseUrl, sessionId)}"`,
-    );
-}
-
-function shouldRewriteHlsBody(upstreamUrl: string, contentType: string) {
-  if (!/mpegurl/i.test(contentType)) {
-    return false;
-  }
-
-  try {
-    const pathname = new URL(upstreamUrl).pathname.toLowerCase();
-    return pathname.endsWith(".m3u8") || pathname.endsWith(".m3u");
-  } catch {
-    return /\.m3u8?(?:\?|$)/i.test(upstreamUrl);
-  }
-}
-
-function shouldRewriteDashBody(upstreamUrl: string, contentType: string) {
-  if (/dash\+xml/i.test(contentType)) {
-    return true;
-  }
-
-  try {
-    const pathname = new URL(upstreamUrl).pathname.toLowerCase();
-    return pathname.endsWith(".mpd");
-  } catch {
-    return /\.mpd(?:\?|$)/i.test(upstreamUrl);
-  }
-}
-
-function normalizeStreamContentType(upstreamUrl: string, contentType: string) {
-  const normalizedContentType = contentType.trim();
-
-  try {
-    const parsedUrl = new URL(upstreamUrl);
-    const hostname = parsedUrl.hostname.toLowerCase();
-    const pathname = parsedUrl.pathname.toLowerCase();
-
-    if (hostname === "fdc.anpustream.com") {
-      if (/\/snd\/(?:i\.mp4|snd\d+\.jpg)$/i.test(pathname)) {
-        return "audio/mp4";
-      }
-
-      if (/\/(?:i\.mp4|ha\d+\.jpg)$/i.test(pathname)) {
-        return "video/mp4";
-      }
-    }
-
-    if (
-      hostname.endsWith(".owocdn.top") &&
-      /\/segment-\d+-v\d+-a\d+\.jpg$/i.test(pathname)
-    ) {
-      return "video/mp2t";
-    }
-
-    if (/mpegurl/i.test(normalizedContentType) && pathname.endsWith(".mp4")) {
-      return "video/mp4";
-    }
-  } catch {
-    if (/mpegurl/i.test(normalizedContentType) && /\.mp4(?:\?|$)/i.test(upstreamUrl)) {
-      return "video/mp4";
-    }
-  }
-
-  return normalizedContentType || "application/octet-stream";
-}
-
-function buildPlaybackRequestHeaders(
-  target: {
-    headers: Record<string, string>;
-    cookies: Record<string, string>;
-  },
-  options?: {
-    range?: string | null;
-  },
-) {
-  const cookieHeader = Object.entries(target.cookies)
-    .map(([key, value]) => `${key}=${value}`)
-    .join("; ");
-
-  return {
-    "user-agent": target.headers["user-agent"] ?? DEFAULT_STREAM_USER_AGENT,
-    "accept-language": target.headers["accept-language"] ?? "en-US,en;q=0.9",
-    ...target.headers,
-    ...(options?.range ? { range: options.range } : {}),
-    ...(cookieHeader ? { cookie: cookieHeader } : {}),
-  };
-}
-
-function buildFfmpegHeaderString(headers: Record<string, string>) {
-  return Object.entries(headers)
-    .map(([name, value]) => `${name}: ${value}\r\n`)
-    .join("");
-}
-
-async function fileExists(filePath: string) {
-  try {
-    await access(filePath);
-    const details = await stat(filePath);
-    return details.isFile() && details.size > 0;
-  } catch {
-    return false;
-  }
-}
-
-async function cleanupCompatibilityMp4Cache() {
-  try {
-    const entries = await readdir(COMPATIBILITY_MP4_CACHE_DIR, { withFileTypes: true });
-    const expirationCutoff = Date.now() - COMPATIBILITY_MP4_CACHE_TTL_MS;
-
-    await Promise.all(
-      entries
-        .filter((entry) => entry.isFile())
-        .map(async (entry) => {
-          const filePath = path.join(COMPATIBILITY_MP4_CACHE_DIR, entry.name);
-          const details = await stat(filePath).catch(() => null);
-          if (!details || details.mtimeMs >= expirationCutoff) {
-            return;
-          }
-
-          await rm(filePath, { force: true }).catch(() => undefined);
-        }),
-    );
-  } catch {
-    // Best-effort cache cleanup; playback should not fail because cleanup could not run.
-  }
-}
-
-function createCompatibilityMp4TranscodeJob(
-  target: {
-    providerId: string;
-    upstreamUrl: string;
-    headers: Record<string, string>;
-    cookies: Record<string, string>;
-  },
-  outputPath: string,
-  onLog: (message: string) => void,
-) {
-  const ffmpegHeaders = buildFfmpegHeaderString(buildPlaybackRequestHeaders(target));
-  const tempOutputPath = `${outputPath}.tmp.mp4`;
-  const ffmpeg = spawn(
-    "ffmpeg",
-    [
-      "-y",
-      "-v",
-      "error",
-      "-nostdin",
-      "-allowed_extensions",
-      "ALL",
-      "-extension_picky",
-      "0",
-      "-headers",
-      ffmpegHeaders,
-      "-i",
-      target.upstreamUrl,
-      "-map",
-      "0:v:0",
-      "-map",
-      "0:a:0?",
-      "-dn",
-      "-c:v",
-      "copy",
-      "-c:a",
-      "aac",
-      "-profile:a",
-      "aac_low",
-      "-movflags",
-      "+faststart",
-      "-f",
-      "mp4",
-      tempOutputPath,
-    ],
-    {
-      stdio: ["ignore", "ignore", "pipe"],
-    },
-  );
-
-  let stderr = "";
-  ffmpeg.stderr.on("data", (chunk) => {
-    stderr = `${stderr}${chunk.toString()}`.slice(-8_000);
-  });
-
-  return new Promise<string>((resolve, reject) => {
-    ffmpeg.on("error", async (error) => {
-      await rm(tempOutputPath, { force: true }).catch(() => undefined);
-      reject(error);
-    });
-
-    ffmpeg.on("close", async (code) => {
-      if (code === 0) {
-        await rename(tempOutputPath, outputPath);
-        resolve(outputPath);
-        return;
-      }
-
-      onLog(
-        `FFmpeg compatibility transcode failed for provider "${target.providerId}" with code ${code}. ${stderr.trim()}`.trim(),
-      );
-      await rm(tempOutputPath, { force: true }).catch(() => undefined);
-      reject(new Error("Compatibility transcode failed."));
-    });
-  });
-}
-
-function parseByteRange(rangeHeader: string, fileSize: number) {
-  const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
-  if (!match) {
-    return null;
-  }
-
-  const [, rawStart, rawEnd] = match;
-  if (!rawStart && !rawEnd) {
-    return null;
-  }
-
-  if (!rawStart) {
-    const suffixLength = Number.parseInt(rawEnd, 10);
-    if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
-      return null;
-    }
-
-    const start = Math.max(0, fileSize - suffixLength);
-    return { start, end: fileSize - 1 };
-  }
-
-  const start = Number.parseInt(rawStart, 10);
-  const requestedEnd = rawEnd ? Number.parseInt(rawEnd, 10) : fileSize - 1;
-  if (!Number.isFinite(start) || !Number.isFinite(requestedEnd)) {
-    return null;
-  }
-
-  if (start < 0 || start >= fileSize || requestedEnd < start) {
-    return null;
-  }
-
-  return {
-    start,
-    end: Math.min(requestedEnd, fileSize - 1),
-  };
-}
-
-const catalogAnimeQuerySchema = z.object({
-  externalAnimeId: z.string().min(1),
-});
-
-const mediaProxyQuerySchema = z.object({
-  url: z.string().url(),
-});
-
-const watchContextQuerySchema = z.object({
-  libraryItemId: z.string().uuid().optional(),
-  providerId: z.string().min(1),
-  externalAnimeId: z.string().min(1),
-  externalEpisodeId: z.string().min(1),
-});
+import {
+  compatibilityMp4CacheDir,
+  createCompatibilityMp4TranscodeJob,
+  ensureCompatibilityMp4CacheDir,
+  fileExists,
+  parseByteRange,
+} from "./streaming/compatibility-mp4";
+import {
+  buildPlaybackRequestHeaders,
+  buildProxyStreamPath,
+  getMediaProxyHeaders,
+  getSubtitleProxyHeaders,
+  normalizeStreamContentType,
+  rewriteDashManifest,
+  rewriteHlsPlaylist,
+  shouldRewriteDashBody,
+  shouldRewriteHlsBody,
+} from "./streaming/proxy";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -652,6 +243,24 @@ export async function buildApi() {
   // Compatibility path for older client builds that still call `/stream?query=...`.
   app.get("/stream", streamCatalogSearchResponse);
 
+  app.get("/catalog/anime", async (request) => {
+    const user = await requireUser(request);
+    const { providerId, externalAnimeId } = catalogAnimeQuerySchema.parse(request.query);
+    return relay.getAnime(user.id, providerId, externalAnimeId);
+  });
+
+  app.get("/catalog/anime/view", async (request) => {
+    const user = await requireUser(request);
+    const { providerId, externalAnimeId } = catalogAnimeViewQuerySchema.parse(request.query);
+    return relay.getAnimeDetailView(user.id, providerId, externalAnimeId);
+  });
+
+  app.get("/catalog/episodes", async (request) => {
+    const user = await requireUser(request);
+    const { providerId, externalAnimeId } = catalogEpisodesQuerySchema.parse(request.query);
+    return relay.getEpisodes(user.id, providerId, externalAnimeId);
+  });
+
   app.get("/catalog/:providerId/anime/:externalAnimeId", async (request) => {
     const user = await requireUser(request);
     const { providerId, externalAnimeId } = request.params as {
@@ -664,7 +273,10 @@ export async function buildApi() {
   app.get("/catalog/:providerId/anime", async (request) => {
     const user = await requireUser(request);
     const providerId = (request.params as { providerId: string }).providerId;
-    const { externalAnimeId } = catalogAnimeQuerySchema.parse(request.query);
+    const { externalAnimeId } = catalogAnimeQuerySchema.parse({
+      providerId,
+      ...(request.query as Record<string, unknown>),
+    });
     return relay.getAnime(user.id, providerId, externalAnimeId);
   });
 
@@ -689,7 +301,10 @@ export async function buildApi() {
   app.get("/catalog/:providerId/episodes", async (request) => {
     const user = await requireUser(request);
     const providerId = (request.params as { providerId: string }).providerId;
-    const { externalAnimeId } = catalogAnimeQuerySchema.parse(request.query);
+    const { externalAnimeId } = catalogEpisodesQuerySchema.parse({
+      providerId,
+      ...(request.query as Record<string, unknown>),
+    });
     return relay.getEpisodes(user.id, providerId, externalAnimeId);
   });
 
@@ -920,10 +535,9 @@ export async function buildApi() {
       });
     }
 
-    await mkdir(COMPATIBILITY_MP4_CACHE_DIR, { recursive: true });
-    void cleanupCompatibilityMp4Cache();
+    await ensureCompatibilityMp4CacheDir();
 
-    const outputPath = path.join(COMPATIBILITY_MP4_CACHE_DIR, `${params.id}.mp4`);
+    const outputPath = path.join(compatibilityMp4CacheDir, `${params.id}.mp4`);
     if (!(await fileExists(outputPath))) {
       const existingJob = compatibilityMp4Jobs.get(params.id);
       const generationJob =

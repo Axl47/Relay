@@ -9,6 +9,7 @@ import type {
 } from "@relay/contracts";
 import type { ProviderRequestContext } from "@relay/provider-sdk";
 import { SsrManifestProviderBase } from "../base/ssr-manifest-provider-base";
+import { getProviderMetadata } from "../provider-definitions";
 import {
   absoluteUrl,
   cleanText,
@@ -40,17 +41,7 @@ function normalizeHstreamSeriesId(id: string) {
 
 export class HstreamProvider extends SsrManifestProviderBase {
   constructor() {
-    super({
-      id: "hstream",
-      displayName: "Hstream",
-      baseUrl: "https://hstream.moe",
-      contentClass: "hentai",
-      executionMode: "http",
-      requiresAdultGate: true,
-      supportsSearch: true,
-      supportsTrackerSync: false,
-      defaultEnabled: false,
-    });
+    super(getProviderMetadata("hstream")!);
   }
 
   async search(input: SearchInput, ctx: ProviderRequestContext): Promise<SearchPage> {

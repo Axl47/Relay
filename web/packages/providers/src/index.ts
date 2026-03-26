@@ -1,5 +1,6 @@
 import { assertProviderContract, createProviderRequestContext, ProviderRegistry } from "@relay/provider-sdk";
 import type { ProviderRequestContextInput } from "@relay/provider-sdk";
+export * from "./provider-definitions";
 import { AniwaveProvider } from "./providers/aniwave";
 import { AkiHProvider } from "./providers/aki-h";
 import { AnimeOnsenProvider } from "./providers/animeonsen";

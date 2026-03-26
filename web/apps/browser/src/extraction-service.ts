@@ -10,84 +10,15 @@ import type {
 import { ProviderContextManager } from "./browser/context-manager";
 import type { BrowserPage } from "./browser/playwright-runtime";
 import { BrowserExtractionError, isChallengeFailure } from "./errors";
+import {
+  getExtractionRetryAttempts,
+  getExtractionTimeoutMs,
+  resolveProviderDomainOrThrow,
+  shouldResetContextAfterExtraction,
+  withExtractionTimeout,
+} from "./extraction-policy";
 import { ProviderExtractorRegistry } from "./extractors/registry";
 import type { BrowserProviderExtractor, ExtractionRuntime } from "./extractors/types";
-
-const providerBaseUrlMap: Record<string, string> = {
-  "aki-h": "https://aki-h.com",
-  animepahe: "https://animepahe.si",
-  animeonsen: "https://www.animeonsen.xyz",
-  javguru: "https://jav.guru",
-  gogoanime: "https://gogoanime.by",
-  hstream: "https://hstream.moe",
-  animetake: "https://animetake.com.co",
-  aniwave: "https://aniwaves.ru",
-  hanime: "https://hanime.tv",
-  hentaihaven: "https://hentaihaven.xxx",
-};
-
-const ANIMETAKE_TIMEOUT_MS = {
-  search: 45_000,
-  anime: 45_000,
-  episodes: 45_000,
-  playback: 45_000,
-} as const;
-
-function resolveDomain(providerId: string, baseUrl?: string) {
-  const targetUrl = baseUrl ?? providerBaseUrlMap[providerId];
-  if (!targetUrl) {
-    throw new BrowserExtractionError(
-      "invalid_request",
-      `Missing domain metadata for provider "${providerId}". Supply baseUrl in request.`,
-      { statusCode: 400 },
-    );
-  }
-
-  try {
-    return new URL(targetUrl).hostname;
-  } catch (error) {
-    throw new BrowserExtractionError("invalid_request", `Invalid baseUrl "${targetUrl}".`, {
-      statusCode: 400,
-      cause: error,
-    });
-  }
-}
-
-async function withTimeout<T>(
-  timeoutMs: number,
-  task: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const taskPromise = task(controller.signal);
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new BrowserExtractionError(
-        "timeout",
-        `Extraction exceeded timeout after ${timeoutMs}ms.`,
-        { statusCode: 504 },
-      ));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([taskPromise, timeoutPromise]);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new BrowserExtractionError(
-        "timeout",
-        `Extraction exceeded timeout after ${timeoutMs}ms.`,
-        { statusCode: 504, cause: error },
-      );
-    }
-    throw error;
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
-}
 
 export class BrowserExtractionService {
   constructor(
@@ -115,32 +46,9 @@ export class BrowserExtractionService {
     domain: string,
     operationName: "search" | "anime" | "episodes" | "playback",
   ) {
-    if (providerId === "hentaihaven" && operationName === "playback") {
+    if (shouldResetContextAfterExtraction(providerId, operationName)) {
       await this.contexts.resetContext(providerId, domain);
     }
-  }
-
-  private getTimeoutMs(
-    providerId: string,
-    operation: "search" | "anime" | "episodes" | "playback",
-  ) {
-    if (providerId === "animepahe" && operation === "playback") {
-      return Math.max(this.timeoutMs, 45_000);
-    }
-
-    if (providerId === "hanime" && operation === "playback") {
-      return Math.max(this.timeoutMs, 45_000);
-    }
-
-    if (providerId === "hentaihaven") {
-      return Math.max(this.timeoutMs, 45_000);
-    }
-
-    if (providerId === "animetake") {
-      return Math.max(this.timeoutMs, ANIMETAKE_TIMEOUT_MS[operation]);
-    }
-
-    return this.timeoutMs;
   }
 
   private async runWithRetry<T>(
@@ -151,19 +59,20 @@ export class BrowserExtractionService {
   ): Promise<T> {
     const extractor = this.extractors.get(providerId);
     let attempts = 0;
-    const timeoutMs = this.getTimeoutMs(providerId, operationName);
+    const timeoutMs = getExtractionTimeoutMs(providerId, operationName, this.timeoutMs);
+    const maxAttempts = getExtractionRetryAttempts(providerId);
 
-    while (attempts < 2) {
+    while (attempts < maxAttempts) {
       attempts += 1;
       try {
-        const result = await withTimeout(timeoutMs, async (signal) =>
+        const result = await withExtractionTimeout(timeoutMs, async (signal) =>
           operation(extractor, this.createRuntime(providerId, domain, signal)),
         );
         await this.maybeResetContextAfterOperation(providerId, domain, operationName);
         return result;
       } catch (error) {
         await this.maybeResetContextAfterOperation(providerId, domain, operationName);
-        if (attempts < 2 && isChallengeFailure(error)) {
+        if (attempts < maxAttempts && isChallengeFailure(error)) {
           await this.contexts.resetContext(providerId, domain);
           continue;
         }
@@ -177,7 +86,7 @@ export class BrowserExtractionService {
   }
 
   async search(providerId: string, input: SearchInput, baseUrl?: string): Promise<SearchPage> {
-    const domain = resolveDomain(providerId, baseUrl);
+    const domain = resolveProviderDomainOrThrow(providerId, baseUrl);
     return this.runWithRetry(providerId, domain, "search", (extractor, runtime) =>
       extractor.search(input, runtime),
     );
@@ -188,7 +97,7 @@ export class BrowserExtractionService {
     input: ProviderAnimeRef,
     baseUrl?: string,
   ): Promise<AnimeDetails> {
-    const domain = resolveDomain(providerId, baseUrl);
+    const domain = resolveProviderDomainOrThrow(providerId, baseUrl);
     return this.runWithRetry(providerId, domain, "anime", (extractor, runtime) =>
       extractor.getAnime(input, runtime),
     );
@@ -199,7 +108,7 @@ export class BrowserExtractionService {
     input: ProviderAnimeRef,
     baseUrl?: string,
   ): Promise<EpisodeList> {
-    const domain = resolveDomain(providerId, baseUrl);
+    const domain = resolveProviderDomainOrThrow(providerId, baseUrl);
     return this.runWithRetry(providerId, domain, "episodes", (extractor, runtime) =>
       extractor.getEpisodes(input, runtime),
     );
@@ -210,7 +119,7 @@ export class BrowserExtractionService {
     input: ProviderEpisodeRef,
     baseUrl?: string,
   ): Promise<PlaybackResolution> {
-    const domain = resolveDomain(providerId, baseUrl);
+    const domain = resolveProviderDomainOrThrow(providerId, baseUrl);
     return this.runWithRetry(providerId, domain, "playback", (extractor, runtime) =>
       extractor.resolvePlayback(input, runtime),
     );
