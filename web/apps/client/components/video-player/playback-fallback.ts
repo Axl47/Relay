@@ -1,6 +1,8 @@
 import type { PlaybackSession } from "@relay/contracts";
 
 export type SourceMode = "primary" | "compatibility-mp4";
+const DEFAULT_COMPATIBILITY_STARTUP_TIMEOUT_MS = 20_000;
+const ANIMEPAHE_COMPATIBILITY_STARTUP_TIMEOUT_MS = 90_000;
 
 export type PlaybackFallbackState = {
   sessionId: string;
@@ -42,6 +44,21 @@ export function supportsCompatibilityPlaybackFallback(
   userAgent?: string,
 ) {
   return session.mimeType === "application/vnd.apple.mpegurl" && isFirefoxUserAgent(userAgent);
+}
+
+export function getCompatibilityPlaybackStartupTimeoutMs(
+  session: Pick<PlaybackSession, "mimeType" | "providerId">,
+  userAgent?: string,
+) {
+  if (!supportsCompatibilityPlaybackFallback(session, userAgent)) {
+    return DEFAULT_COMPATIBILITY_STARTUP_TIMEOUT_MS;
+  }
+
+  if (session.providerId === "animepahe") {
+    return ANIMEPAHE_COMPATIBILITY_STARTUP_TIMEOUT_MS;
+  }
+
+  return DEFAULT_COMPATIBILITY_STARTUP_TIMEOUT_MS;
 }
 
 export function applyPrimaryToCompatibilityFallback(

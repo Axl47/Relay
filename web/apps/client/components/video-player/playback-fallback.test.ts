@@ -3,6 +3,7 @@ import {
   applyCompatibilityToPrimaryFallback,
   applyPrimaryToCompatibilityFallback,
   createPlaybackFallbackState,
+  getCompatibilityPlaybackStartupTimeoutMs,
   shouldStartPlaybackInCompatibilityMode,
   supportsCompatibilityPlaybackFallback,
 } from "./playback-fallback";
@@ -72,5 +73,35 @@ describe("playback fallback state", () => {
         firefoxUserAgent,
       ),
     ).toBe(false);
+  });
+
+  it("gives animepahe compatibility playback a longer startup window on firefox", () => {
+    expect(
+      getCompatibilityPlaybackStartupTimeoutMs(
+        {
+          mimeType: "application/vnd.apple.mpegurl",
+          providerId: "animepahe",
+        },
+        firefoxUserAgent,
+      ),
+    ).toBe(90_000);
+    expect(
+      getCompatibilityPlaybackStartupTimeoutMs(
+        {
+          mimeType: "application/vnd.apple.mpegurl",
+          providerId: "animetake",
+        },
+        firefoxUserAgent,
+      ),
+    ).toBe(20_000);
+    expect(
+      getCompatibilityPlaybackStartupTimeoutMs(
+        {
+          mimeType: "video/mp4",
+          providerId: "animepahe",
+        },
+        firefoxUserAgent,
+      ),
+    ).toBe(20_000);
   });
 });

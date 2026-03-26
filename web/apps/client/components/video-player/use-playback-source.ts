@@ -8,6 +8,7 @@ import {
   applyCompatibilityToPrimaryFallback,
   applyPrimaryToCompatibilityFallback,
   createPlaybackFallbackState,
+  getCompatibilityPlaybackStartupTimeoutMs,
   supportsCompatibilityPlaybackFallback,
   type SourceMode,
 } from "./playback-fallback";
@@ -158,7 +159,7 @@ export function usePlaybackSource({
           if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
             handlePrimaryFallback("compatibilityStartupTimeout");
           }
-        }, 20_000);
+        }, getCompatibilityPlaybackStartupTimeoutMs(session));
       }
 
       video.src = resolvedStreamUrl;
