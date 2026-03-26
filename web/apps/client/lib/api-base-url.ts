@@ -49,3 +49,29 @@ export function resolveRelayApiUrlForClient(url?: string | null) {
     return url;
   }
 }
+
+export function resolvePlaybackSessionUrlForClient(
+  streamUrl: string | null | undefined,
+  sessionId: string,
+  pathname: string,
+) {
+  const normalizedPathname = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const resolvedStreamUrl = resolveRelayApiUrlForClient(streamUrl);
+
+  if (resolvedStreamUrl) {
+    try {
+      const parsedUrl = new URL(
+        resolvedStreamUrl,
+        typeof window === "undefined" ? "http://localhost" : window.location.href,
+      );
+      const basePath = parsedUrl.pathname.startsWith(`${RELAY_API_PROXY_PREFIX}/`)
+        ? RELAY_API_PROXY_PREFIX
+        : "";
+      return `${parsedUrl.origin}${basePath}/playback/sessions/${sessionId}${normalizedPathname}`;
+    } catch {
+      // Fall back to the configured API base when the stream URL is not parseable.
+    }
+  }
+
+  return `${getApiBaseUrl()}/playback/sessions/${sessionId}${normalizedPathname}`;
+}

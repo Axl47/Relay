@@ -3,7 +3,10 @@
 import Hls from "hls.js";
 import { useEffect, useRef } from "react";
 import type { PlaybackSession } from "@relay/contracts";
-import { getApiBaseUrl, resolveRelayApiUrlForClient } from "../../lib/api-base-url";
+import {
+  resolvePlaybackSessionUrlForClient,
+  resolveRelayApiUrlForClient,
+} from "../../lib/api-base-url";
 import {
   applyCompatibilityToPrimaryFallback,
   applyPrimaryToCompatibilityFallback,
@@ -33,12 +36,16 @@ export function usePlaybackSource({
   }, [session.id]);
 
   useEffect(() => {
-    const apiBaseUrl = getApiBaseUrl();
-    const compatibilityMp4Url = `${apiBaseUrl}/playback/sessions/${session.id}/compat.mp4`;
+    const resolvedPrimaryStreamUrl = resolveRelayApiUrlForClient(session.streamUrl);
+    const compatibilityMp4Url = resolvePlaybackSessionUrlForClient(
+      session.streamUrl,
+      session.id,
+      "/compat.mp4",
+    );
     const resolvedStreamUrl =
       sourceMode === "compatibility-mp4"
         ? compatibilityMp4Url
-        : resolveRelayApiUrlForClient(session.streamUrl);
+        : resolvedPrimaryStreamUrl;
     const mimeType = sourceMode === "compatibility-mp4" ? "video/mp4" : session.mimeType;
 
     if (!resolvedStreamUrl || mimeType === "text/html") {
