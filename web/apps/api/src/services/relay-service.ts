@@ -1956,6 +1956,18 @@ export class RelayService {
     return this.toPlaybackSession(updated);
   }
 
+  async getPlaybackSessionBySessionId(playbackSessionId: string): Promise<PlaybackSession | null> {
+    const row = await this.getPlaybackSessionRowById(playbackSessionId);
+    if (!row) return null;
+
+    const updated = await this.maybeFinalizePlaybackSessionState(row);
+    if (updated.status === "resolving") {
+      void this.ensurePlaybackResolution(updated.id);
+    }
+
+    return this.toPlaybackSession(updated);
+  }
+
   async getPlaybackStreamTarget(
     userId: string,
     playbackSessionId: string,

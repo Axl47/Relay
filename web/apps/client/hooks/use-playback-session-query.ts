@@ -7,6 +7,24 @@ import { apiFetch } from "../lib/api";
 import { queryKeys } from "../lib/query-keys";
 import type { WatchHrefInput } from "../lib/routes";
 
+const PLAYBACK_SESSION_REFRESH_GRACE_MS = 1_000;
+
+export function getPlaybackSessionRefreshDelayMs(
+  expiresAt: string | null | undefined,
+  nowMs = Date.now(),
+) {
+  if (!expiresAt) {
+    return null;
+  }
+
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return null;
+  }
+
+  return Math.max(PLAYBACK_SESSION_REFRESH_GRACE_MS, expiresAtMs - nowMs + PLAYBACK_SESSION_REFRESH_GRACE_MS);
+}
+
 export function usePlaybackSessionQuery(payload: WatchHrefInput | null) {
   const [shouldPollSession, setShouldPollSession] = useState(false);
 
@@ -65,9 +83,30 @@ export function usePlaybackSessionQuery(payload: WatchHrefInput | null) {
     }
   }, [pollQuery.data]);
 
+  const session = pollQuery.data ?? createQuery.data ?? null;
+
+  useEffect(() => {
+    if (!payload || !session || session.status === "failed") {
+      return;
+    }
+
+    const refreshDelayMs = getPlaybackSessionRefreshDelayMs(session.expiresAt);
+    if (refreshDelayMs === null) {
+      return;
+    }
+
+    const refreshTimer = window.setTimeout(() => {
+      void createQuery.refetch();
+    }, refreshDelayMs);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+    };
+  }, [createQuery, payload, session]);
+
   return {
     createQuery,
     pollQuery,
-    session: pollQuery.data ?? createQuery.data ?? null,
+    session,
   };
 }

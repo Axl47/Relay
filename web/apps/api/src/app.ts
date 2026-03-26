@@ -525,20 +525,30 @@ export async function buildApi() {
 
   app.get("/playback/sessions/:id/compat.mp4", async (request, reply) => {
     const params = request.params as { id: string };
-    const target = request.sessionUser
-      ? await relay.getPlaybackStreamTarget(request.sessionUser.id, params.id, null)
-      : await relay.getPlaybackStreamTargetBySessionId(params.id, null);
+    const outputPath = path.join(compatibilityMp4CacheDir, `${params.id}.mp4`);
+    const session = request.sessionUser
+      ? await relay.getPlaybackSession(request.sessionUser.id, params.id)
+      : await relay.getPlaybackSessionBySessionId(params.id);
 
-    if (target.mimeType !== "application/vnd.apple.mpegurl") {
+    if (!session) {
+      throw Object.assign(new Error("Playback session not found"), { statusCode: 404 });
+    }
+
+    if (session.mimeType !== "application/vnd.apple.mpegurl") {
       throw Object.assign(new Error("Compatibility MP4 fallback requires an HLS playback session."), {
         statusCode: 409,
       });
     }
 
     await ensureCompatibilityMp4CacheDir();
-
-    const outputPath = path.join(compatibilityMp4CacheDir, `${params.id}.mp4`);
     if (!(await fileExists(outputPath))) {
+      if (session.status !== "ready") {
+        throw Object.assign(new Error("Playback session is not ready"), { statusCode: 409 });
+      }
+
+      const target = request.sessionUser
+        ? await relay.getPlaybackStreamTarget(request.sessionUser.id, params.id, null)
+        : await relay.getPlaybackStreamTargetBySessionId(params.id, null);
       const existingJob = compatibilityMp4Jobs.get(params.id);
       const generationJob =
         existingJob ??
