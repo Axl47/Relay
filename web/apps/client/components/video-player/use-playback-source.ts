@@ -166,7 +166,7 @@ export function usePlaybackSource({
           if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
             handlePrimaryFallback("compatibilityStartupTimeout");
           }
-        }, getCompatibilityPlaybackStartupTimeoutMs(session));
+        }, getCompatibilityPlaybackStartupTimeoutMs(session, fallbackStateRef.current));
       }
 
       video.src = resolvedStreamUrl;

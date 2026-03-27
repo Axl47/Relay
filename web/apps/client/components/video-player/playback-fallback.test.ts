@@ -82,15 +82,29 @@ describe("playback fallback state", () => {
           mimeType: "application/vnd.apple.mpegurl",
           providerId: "animepahe",
         },
+        createPlaybackFallbackState("session-1"),
         firefoxUserAgent,
       ),
-    ).toBe(90_000);
+    ).toBe(20_000);
+    expect(
+      getCompatibilityPlaybackStartupTimeoutMs(
+        {
+          mimeType: "application/vnd.apple.mpegurl",
+          providerId: "animepahe",
+        },
+        {
+          compatToPrimaryApplied: true,
+        },
+        firefoxUserAgent,
+      ),
+    ).toBe(60_000);
     expect(
       getCompatibilityPlaybackStartupTimeoutMs(
         {
           mimeType: "application/vnd.apple.mpegurl",
           providerId: "animetake",
         },
+        createPlaybackFallbackState("session-1"),
         firefoxUserAgent,
       ),
     ).toBe(20_000);
@@ -100,6 +114,7 @@ describe("playback fallback state", () => {
           mimeType: "video/mp4",
           providerId: "animepahe",
         },
+        createPlaybackFallbackState("session-1"),
         firefoxUserAgent,
       ),
     ).toBe(20_000);

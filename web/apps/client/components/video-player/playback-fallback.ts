@@ -2,7 +2,8 @@ import type { PlaybackSession } from "@relay/contracts";
 
 export type SourceMode = "primary" | "compatibility-mp4";
 const DEFAULT_COMPATIBILITY_STARTUP_TIMEOUT_MS = 20_000;
-const ANIMEPAHE_COMPATIBILITY_STARTUP_TIMEOUT_MS = 90_000;
+const ANIMEPAHE_INITIAL_COMPATIBILITY_STARTUP_TIMEOUT_MS = 20_000;
+const ANIMEPAHE_RETRY_COMPATIBILITY_STARTUP_TIMEOUT_MS = 60_000;
 
 export type PlaybackFallbackState = {
   sessionId: string;
@@ -48,6 +49,7 @@ export function supportsCompatibilityPlaybackFallback(
 
 export function getCompatibilityPlaybackStartupTimeoutMs(
   session: Pick<PlaybackSession, "mimeType" | "providerId">,
+  state?: Pick<PlaybackFallbackState, "compatToPrimaryApplied">,
   userAgent?: string,
 ) {
   if (!supportsCompatibilityPlaybackFallback(session, userAgent)) {
@@ -55,7 +57,9 @@ export function getCompatibilityPlaybackStartupTimeoutMs(
   }
 
   if (session.providerId === "animepahe") {
-    return ANIMEPAHE_COMPATIBILITY_STARTUP_TIMEOUT_MS;
+    return state?.compatToPrimaryApplied
+      ? ANIMEPAHE_RETRY_COMPATIBILITY_STARTUP_TIMEOUT_MS
+      : ANIMEPAHE_INITIAL_COMPATIBILITY_STARTUP_TIMEOUT_MS;
   }
 
   return DEFAULT_COMPATIBILITY_STARTUP_TIMEOUT_MS;
