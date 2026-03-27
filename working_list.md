@@ -1,27 +1,27 @@
 ---
-created_at: 2026-02-22T04:37
-updated_at: 2026-03-25T23:28
+created_at: 2026-03-27T00:00
+updated_at: 2026-03-27T00:00
 ---
 # Working List
 
-## Current Task: Relay Web Maintainability And Stability Refactor
+## Current Task: Relay API + Browser Monolith Decomposition
 
 ## Pending
-- [ ] Further split the large browser extractor modules under `web/apps/browser/src/extractors/`
+- [ ] Add API service container and route registration modules
+- [ ] Remove legacy catalog/search alias routes
+- [ ] Split `relay-service.ts` into domain services and repositories
+- [ ] Delete `relay-service.ts` and keep `app.ts` as thin bootstrap only
+- [ ] Split `animetake` into provider folder modules
+- [ ] Split `hentaihaven` into provider folder modules
+- [ ] Split `animeonsen` into provider folder modules
+- [ ] Split `animepahe` into provider folder modules
+- [ ] Update browser registry and shared extractor utilities
+- [ ] Add or update API and browser tests for the new module boundaries
+- [ ] Run workspace typecheck and tests
+- [ ] Update `AGENTS.md` with any new maintainability hotspots
 
 ## In Progress
-- [~] Decompose browser extraction coordination and stage the remaining provider extractor splits
+- [~] Refresh the checklist and establish the API route/service migration seam
 
 ## Done
-- [x] Inspect the current `web/` workspace layout, hotspots, and verification baseline
-- [x] Confirm `rtk` wrapper behavior and note the correct verification command pattern
-- [x] Produce the implementation plan for the maintainability/stability refactor
-- [x] Write the maintainability/stability ExecPlan to `.docs/exec/`
-- [x] Add real test runners and safety-net suites across `web/`
-- [x] Split `@relay/contracts` into focused modules with a barrel export
-- [x] Introduce shared provider definitions and reuse them across browser/API/providers
-- [x] Refactor client route/query helpers and shared settings/provider UI
-- [x] Refactor client playback component into focused hooks/state helpers
-- [x] Extract API streaming/proxy helpers out of `web/apps/api/src/app.ts`
-- [x] Run workspace typecheck and tests
-- [x] Update `AGENTS.md` with the new maintainability hotspots and guidance
+- [x] Re-ground the current API and browser monolith sizes, route surface, and legacy route usage
