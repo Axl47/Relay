@@ -39,11 +39,11 @@ services:
     environment:
       PORT: "4000"
       HOST: "0.0.0.0"
-      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?POSTGRES_DB is required}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-relay_session}
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
       PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
-      BROWSER_SERVICE_URL: http://browser:4100
+      BROWSER_SERVICE_URL: http://${BROWSER_HOST:-browser}:${BROWSER_PORT:-4100}
     healthcheck:
       test:
         [
@@ -57,6 +57,8 @@ services:
       retries: 3
       start_period: 30s
     init: true
+    networks:
+      relay-web:
     ports:
       - "4000"
     restart: unless-stopped
@@ -72,7 +74,7 @@ services:
       PORT: "4100"
       HOST: "0.0.0.0"
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      REDIS_URL: redis://redis:6380
+      REDIS_URL: redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6380}
       BROWSER_POOL_SIZE: "${BROWSER_POOL_SIZE:-3}"
       EXTRACTION_TIMEOUT_MS: "${EXTRACTION_TIMEOUT_MS:-25000}"
       COOKIE_JAR_TTL_SECONDS: "${COOKIE_JAR_TTL_SECONDS:-21600}"
@@ -89,6 +91,11 @@ services:
       retries: 3
       start_period: 30s
     init: true
+    hostname: browser
+    networks:
+      relay-web:
+        aliases:
+          - browser
     restart: unless-stopped
 
   worker:
@@ -99,8 +106,10 @@ services:
       redis:
         condition: service_healthy
     environment:
-      REDIS_URL: redis://redis:6380
+      REDIS_URL: redis://${REDIS_HOST:-redis}:${REDIS_PORT:-6380}
     init: true
+    networks:
+      relay-web:
     restart: unless-stopped
 
   postgres:
@@ -120,6 +129,11 @@ services:
       retries: 5
       start_period: 10s
     init: true
+    hostname: postgres
+    networks:
+      relay-web:
+        aliases:
+          - postgres
     restart: unless-stopped
     volumes:
       - relay-web-postgres:/var/lib/postgresql/data
@@ -134,9 +148,17 @@ services:
       retries: 5
       start_period: 10s
     init: true
+    hostname: redis
+    networks:
+      relay-web:
+        aliases:
+          - redis
     restart: unless-stopped
     volumes:
       - relay-web-redis:/data
+
+networks:
+  relay-web:
 
 volumes:
   relay-web-postgres:
