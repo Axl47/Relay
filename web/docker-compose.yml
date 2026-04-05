@@ -44,6 +44,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
       PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
       BROWSER_SERVICE_URL: http://${BROWSER_HOST:-browser}:${BROWSER_PORT:-4100}
+      TMDB_API_KEY: ${TMDB_API_KEY:?TMDB_API_KEY is required}
     healthcheck:
       test:
         [
