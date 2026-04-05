@@ -47,14 +47,6 @@ async function handleStreamRequest(
       )
     : await services.playback.getPlaybackStreamTargetBySessionId(params.sessionId, params["*"] ?? null);
 
-  if (
-    target.proxyMode === "redirect" &&
-    Object.keys(target.headers).length === 0 &&
-    Object.keys(target.cookies).length === 0
-  ) {
-    return reply.redirect(target.upstreamUrl);
-  }
-
   const upstream = await fetch(target.upstreamUrl, {
     headers: buildPlaybackRequestHeaders(target, {
       range: typeof request.headers.range === "string" ? request.headers.range : null,
