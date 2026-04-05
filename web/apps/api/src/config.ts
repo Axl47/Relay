@@ -22,5 +22,6 @@ export const appConfig = {
   ...parsedConfig,
   corsOrigins: parsedConfig.CORS_ORIGIN.split(",")
     .map((value) => value.trim())
+    .map((value) => value.replace(/\/+$/, ""))
     .filter(Boolean),
 };

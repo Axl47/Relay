@@ -28,7 +28,15 @@ export async function buildApi(input?: { services?: ApiServiceContainer }) {
   const compatibilityMp4Jobs = new Map<string, Promise<string>>();
 
   await app.register(cors, {
-    origin: appConfig.corsOrigins,
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+      callback(null, appConfig.corsOrigins.includes(normalizedOrigin));
+    },
     credentials: true,
   });
   await app.register(cookie);
