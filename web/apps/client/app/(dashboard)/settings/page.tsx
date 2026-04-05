@@ -284,8 +284,8 @@ export default function SettingsPage() {
                   updatePreferences({
                     adultContentVisible: event.target.checked,
                     allowedContentClasses: event.target.checked
-                      ? ["anime", "hentai", "jav"]
-                      : ["anime"],
+                      ? ["anime", "general", "hentai", "jav"]
+                      : ["anime", "general"],
                   })
                 }
                 type="checkbox"

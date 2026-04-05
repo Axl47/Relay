@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildAnimeHref,
+  buildTitleHref,
   buildCatalogAnimeViewPath,
   buildWatchContextPath,
   buildWatchHref,
@@ -13,7 +14,8 @@ describe("client route helpers", () => {
   });
 
   it("builds slash-safe anime and watch URLs", () => {
-    expect(buildAnimeHref("javguru", "123/slug")).toBe("/anime/javguru/123%2Fslug");
+    expect(buildAnimeHref("javguru", "123/slug")).toBe("/title/javguru/123%2Fslug");
+    expect(buildTitleHref("xtream", "95557")).toBe("/title/xtream/95557");
     expect(
       buildWatchHref({
         libraryItemId: null,

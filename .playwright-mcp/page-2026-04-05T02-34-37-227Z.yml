@@ -1,0 +1,669 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "Xtream Logo" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Xtream Logo" [ref=e8]
+        - generic [ref=e9]:
+          - link "Home" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=e11]
+            - text: Home
+          - link "Movies" [ref=e14] [cursor=pointer]:
+            - /url: /movies
+            - img [ref=e15]
+            - text: Movies
+          - link "TV" [ref=e17] [cursor=pointer]:
+            - /url: /tv
+            - img [ref=e18]
+            - text: TV
+          - link "Trending" [ref=e21] [cursor=pointer]:
+            - /url: /trending
+            - img [ref=e22]
+            - text: Trending
+          - link "About" [ref=e25] [cursor=pointer]:
+            - /url: /about
+            - img [ref=e26]
+            - text: About
+        - generic [ref=e28]:
+          - generic [ref=e31]:
+            - textbox "Search movies & TV..." [ref=e32]
+            - img [ref=e33]
+          - link "Sign In" [ref=e36] [cursor=pointer]:
+            - /url: /auth
+            - button "Sign In" [ref=e37]
+    - main [ref=e38]:
+      - generic [ref=e1039]:
+        - link "Back to details" [ref=e1040] [cursor=pointer]:
+          - /url: /movie/687163
+          - img [ref=e1041]
+          - text: Back to details
+        - generic [ref=e1043]:
+          - generic [ref=e1044]: "Source:"
+          - generic [ref=e1045]:
+            - button "VidSrc" [ref=e1046] [cursor=pointer]
+            - button "Videasy" [ref=e1047] [cursor=pointer]
+            - button "VidRock" [ref=e1048] [cursor=pointer]
+            - button "Vidzee" [ref=e1049] [cursor=pointer]
+            - button "VidFast" [ref=e1050] [cursor=pointer]
+        - generic [ref=e1052]:
+          - paragraph [ref=e1056]: Loading player...
+          - iframe [ref=e1057]:
+            - generic [ref=f1e3]: FETCHING, ONE MOMENT...
+        - generic [ref=e1058]:
+          - img "Project Hail Mary" [ref=e1059]
+          - generic [ref=e1060]:
+            - heading "Project Hail Mary" [level=1] [ref=e1061]
+            - generic [ref=e1062]:
+              - generic [ref=e1063]:
+                - img [ref=e1064]
+                - text: "8.2"
+              - generic [ref=e1066]:
+                - img [ref=e1067]
+                - text: 2h 37m
+              - generic [ref=e1070]:
+                - img [ref=e1071]
+                - text: "2026"
+            - generic [ref=e1073]:
+              - generic [ref=e1074]: Science Fiction
+              - generic [ref=e1075]: Adventure
+            - paragraph [ref=e1076]: "Science teacher Ryland Grace wakes up on a spaceship light years from home with no recollection of who he is or how he got there. As his memory returns, he begins to uncover his mission: solve the riddle of the mysterious substance causing the sun to die out. He must call on his scientific knowledge and unorthodox ideas to save everything on Earth from extinction… but an unexpected friendship means he may not have to do it alone."
+        - generic [ref=e1077]:
+          - heading "You May Also Like" [level=2] [ref=e1079]
+          - generic [ref=e1080]:
+            - button [ref=e1081] [cursor=pointer]:
+              - img [ref=e1082]
+            - button [ref=e1084] [cursor=pointer]:
+              - img [ref=e1085]
+            - generic [ref=e1087]:
+              - generic [ref=e1089]:
+                - link "Man of Steel Add to history Man of Steel 2013 6.6 6.6" [ref=e1090] [cursor=pointer]:
+                  - /url: /movie/49521
+                  - generic [ref=e1091]:
+                    - img "Man of Steel" [ref=e1092]
+                    - generic [ref=e1094]:
+                      - img [ref=e1098]
+                      - button "Add to history" [ref=e1100]:
+                        - img [ref=e1101]
+                        - generic [ref=e1105]: Add to history
+                    - generic [ref=e1107]:
+                      - generic [ref=e1108]:
+                        - heading "Man of Steel" [level=3] [ref=e1109]
+                        - generic [ref=e1111]: "2013"
+                      - generic [ref=e1112]:
+                        - img [ref=e1113]
+                        - generic [ref=e1115]: "6.6"
+                    - generic [ref=e1116]:
+                      - img [ref=e1117]
+                      - generic [ref=e1119]: "6.6"
+                - generic [ref=e1122]:
+                  - heading "Man of Steel" [level=3] [ref=e1123]
+                  - generic [ref=e1124]:
+                    - paragraph [ref=e1125]: "2013"
+                    - generic [ref=e1126]:
+                      - img [ref=e1127]
+                      - generic [ref=e1129]: "6.6"
+              - generic [ref=e1131]:
+                - link "The 5th Wave Add to history The 5th Wave 2016 5.9 5.9" [ref=e1132] [cursor=pointer]:
+                  - /url: /movie/299687
+                  - generic [ref=e1133]:
+                    - img "The 5th Wave" [ref=e1134]
+                    - generic [ref=e1136]:
+                      - img [ref=e1140]
+                      - button "Add to history" [ref=e1142]:
+                        - img [ref=e1143]
+                        - generic [ref=e1147]: Add to history
+                    - generic [ref=e1149]:
+                      - generic [ref=e1150]:
+                        - heading "The 5th Wave" [level=3] [ref=e1151]
+                        - generic [ref=e1153]: "2016"
+                      - generic [ref=e1154]:
+                        - img [ref=e1155]
+                        - generic [ref=e1157]: "5.9"
+                    - generic [ref=e1158]:
+                      - img [ref=e1159]
+                      - generic [ref=e1161]: "5.9"
+                - generic [ref=e1164]:
+                  - heading "The 5th Wave" [level=3] [ref=e1165]
+                  - generic [ref=e1166]:
+                    - paragraph [ref=e1167]: "2016"
+                    - generic [ref=e1168]:
+                      - img [ref=e1169]
+                      - generic [ref=e1171]: "5.9"
+              - generic [ref=e1173]:
+                - link "The Martian Add to history The Martian 2015 7.7 7.7" [ref=e1174] [cursor=pointer]:
+                  - /url: /movie/286217
+                  - generic [ref=e1175]:
+                    - img "The Martian" [ref=e1176]
+                    - generic [ref=e1178]:
+                      - img [ref=e1182]
+                      - button "Add to history" [ref=e1184]:
+                        - img [ref=e1185]
+                        - generic [ref=e1189]: Add to history
+                    - generic [ref=e1191]:
+                      - generic [ref=e1192]:
+                        - heading "The Martian" [level=3] [ref=e1193]
+                        - generic [ref=e1195]: "2015"
+                      - generic [ref=e1196]:
+                        - img [ref=e1197]
+                        - generic [ref=e1199]: "7.7"
+                    - generic [ref=e1200]:
+                      - img [ref=e1201]
+                      - generic [ref=e1203]: "7.7"
+                - generic [ref=e1206]:
+                  - heading "The Martian" [level=3] [ref=e1207]
+                  - generic [ref=e1208]:
+                    - paragraph [ref=e1209]: "2015"
+                    - generic [ref=e1210]:
+                      - img [ref=e1211]
+                      - generic [ref=e1213]: "7.7"
+              - generic [ref=e1215]:
+                - link "John Carter Add to history John Carter 2012 6.4 6.4" [ref=e1216] [cursor=pointer]:
+                  - /url: /movie/49529
+                  - generic [ref=e1217]:
+                    - img "John Carter" [ref=e1218]
+                    - generic [ref=e1220]:
+                      - img [ref=e1224]
+                      - button "Add to history" [ref=e1226]:
+                        - img [ref=e1227]
+                        - generic [ref=e1231]: Add to history
+                    - generic [ref=e1233]:
+                      - generic [ref=e1234]:
+                        - heading "John Carter" [level=3] [ref=e1235]
+                        - generic [ref=e1237]: "2012"
+                      - generic [ref=e1238]:
+                        - img [ref=e1239]
+                        - generic [ref=e1241]: "6.4"
+                    - generic [ref=e1242]:
+                      - img [ref=e1243]
+                      - generic [ref=e1245]: "6.4"
+                - generic [ref=e1248]:
+                  - heading "John Carter" [level=3] [ref=e1249]
+                  - generic [ref=e1250]:
+                    - paragraph [ref=e1251]: "2012"
+                    - generic [ref=e1252]:
+                      - img [ref=e1253]
+                      - generic [ref=e1255]: "6.4"
+              - generic [ref=e1257]:
+                - link "Guardians of the Galaxy Add to history Guardians of the Galaxy 2014 7.9 7.9" [ref=e1258] [cursor=pointer]:
+                  - /url: /movie/118340
+                  - generic [ref=e1259]:
+                    - img "Guardians of the Galaxy" [ref=e1260]
+                    - generic [ref=e1262]:
+                      - img [ref=e1266]
+                      - button "Add to history" [ref=e1268]:
+                        - img [ref=e1269]
+                        - generic [ref=e1273]: Add to history
+                    - generic [ref=e1275]:
+                      - generic [ref=e1276]:
+                        - heading "Guardians of the Galaxy" [level=3] [ref=e1277]
+                        - generic [ref=e1279]: "2014"
+                      - generic [ref=e1280]:
+                        - img [ref=e1281]
+                        - generic [ref=e1283]: "7.9"
+                    - generic [ref=e1284]:
+                      - img [ref=e1285]
+                      - generic [ref=e1287]: "7.9"
+                - generic [ref=e1290]:
+                  - heading "Guardians of the Galaxy" [level=3] [ref=e1291]
+                  - generic [ref=e1292]:
+                    - paragraph [ref=e1293]: "2014"
+                    - generic [ref=e1294]:
+                      - img [ref=e1295]
+                      - generic [ref=e1297]: "7.9"
+              - generic [ref=e1299]:
+                - link "Ender's Game Add to history Ender's Game 2013 6.6 6.6" [ref=e1300] [cursor=pointer]:
+                  - /url: /movie/80274
+                  - generic [ref=e1301]:
+                    - img "Ender's Game" [ref=e1302]
+                    - generic [ref=e1304]:
+                      - img [ref=e1308]
+                      - button "Add to history" [ref=e1310]:
+                        - img [ref=e1311]
+                        - generic [ref=e1315]: Add to history
+                    - generic [ref=e1317]:
+                      - generic [ref=e1318]:
+                        - heading "Ender's Game" [level=3] [ref=e1319]
+                        - generic [ref=e1321]: "2013"
+                      - generic [ref=e1322]:
+                        - img [ref=e1323]
+                        - generic [ref=e1325]: "6.6"
+                    - generic [ref=e1326]:
+                      - img [ref=e1327]
+                      - generic [ref=e1329]: "6.6"
+                - generic [ref=e1332]:
+                  - heading "Ender's Game" [level=3] [ref=e1333]
+                  - generic [ref=e1334]:
+                    - paragraph [ref=e1335]: "2013"
+                    - generic [ref=e1336]:
+                      - img [ref=e1337]
+                      - generic [ref=e1339]: "6.6"
+              - generic [ref=e1341]:
+                - link "Star Trek Add to history Star Trek 2009 7.4 7.4" [ref=e1342] [cursor=pointer]:
+                  - /url: /movie/13475
+                  - generic [ref=e1343]:
+                    - img "Star Trek" [ref=e1344]
+                    - generic [ref=e1346]:
+                      - img [ref=e1350]
+                      - button "Add to history" [ref=e1352]:
+                        - img [ref=e1353]
+                        - generic [ref=e1357]: Add to history
+                    - generic [ref=e1359]:
+                      - generic [ref=e1360]:
+                        - heading "Star Trek" [level=3] [ref=e1361]
+                        - generic [ref=e1363]: "2009"
+                      - generic [ref=e1364]:
+                        - img [ref=e1365]
+                        - generic [ref=e1367]: "7.4"
+                    - generic [ref=e1368]:
+                      - img [ref=e1369]
+                      - generic [ref=e1371]: "7.4"
+                - generic [ref=e1374]:
+                  - heading "Star Trek" [level=3] [ref=e1375]
+                  - generic [ref=e1376]:
+                    - paragraph [ref=e1377]: "2009"
+                    - generic [ref=e1378]:
+                      - img [ref=e1379]
+                      - generic [ref=e1381]: "7.4"
+              - generic [ref=e1383]:
+                - 'link "Star Trek: Insurrection Add to history Star Trek: Insurrection 1998 6.4 6.4" [ref=e1384] [cursor=pointer]':
+                  - /url: /movie/200
+                  - generic [ref=e1385]:
+                    - 'img "Star Trek: Insurrection" [ref=e1386]'
+                    - generic [ref=e1388]:
+                      - img [ref=e1392]
+                      - button "Add to history" [ref=e1394]:
+                        - img [ref=e1395]
+                        - generic [ref=e1399]: Add to history
+                    - generic [ref=e1401]:
+                      - generic [ref=e1402]:
+                        - 'heading "Star Trek: Insurrection" [level=3] [ref=e1403]'
+                        - generic [ref=e1405]: "1998"
+                      - generic [ref=e1406]:
+                        - img [ref=e1407]
+                        - generic [ref=e1409]: "6.4"
+                    - generic [ref=e1410]:
+                      - img [ref=e1411]
+                      - generic [ref=e1413]: "6.4"
+                - generic [ref=e1416]:
+                  - 'heading "Star Trek: Insurrection" [level=3] [ref=e1417]'
+                  - generic [ref=e1418]:
+                    - paragraph [ref=e1419]: "1998"
+                    - generic [ref=e1420]:
+                      - img [ref=e1421]
+                      - generic [ref=e1423]: "6.4"
+              - generic [ref=e1425]:
+                - link "Chaos Walking Add to history Chaos Walking 2021 6.6 6.6" [ref=e1426] [cursor=pointer]:
+                  - /url: /movie/412656
+                  - generic [ref=e1427]:
+                    - img "Chaos Walking" [ref=e1428]
+                    - generic [ref=e1430]:
+                      - img [ref=e1434]
+                      - button "Add to history" [ref=e1436]:
+                        - img [ref=e1437]
+                        - generic [ref=e1441]: Add to history
+                    - generic [ref=e1443]:
+                      - generic [ref=e1444]:
+                        - heading "Chaos Walking" [level=3] [ref=e1445]
+                        - generic [ref=e1447]: "2021"
+                      - generic [ref=e1448]:
+                        - img [ref=e1449]
+                        - generic [ref=e1451]: "6.6"
+                    - generic [ref=e1452]:
+                      - img [ref=e1453]
+                      - generic [ref=e1455]: "6.6"
+                - generic [ref=e1458]:
+                  - heading "Chaos Walking" [level=3] [ref=e1459]
+                  - generic [ref=e1460]:
+                    - paragraph [ref=e1461]: "2021"
+                    - generic [ref=e1462]:
+                      - img [ref=e1463]
+                      - generic [ref=e1465]: "6.6"
+              - generic [ref=e1467]:
+                - link "Timescape Add to history Timescape 1992 6.5 6.5" [ref=e1468] [cursor=pointer]:
+                  - /url: /movie/37420
+                  - generic [ref=e1469]:
+                    - img "Timescape" [ref=e1470]
+                    - generic [ref=e1472]:
+                      - img [ref=e1476]
+                      - button "Add to history" [ref=e1478]:
+                        - img [ref=e1479]
+                        - generic [ref=e1483]: Add to history
+                    - generic [ref=e1485]:
+                      - generic [ref=e1486]:
+                        - heading "Timescape" [level=3] [ref=e1487]
+                        - generic [ref=e1489]: "1992"
+                      - generic [ref=e1490]:
+                        - img [ref=e1491]
+                        - generic [ref=e1493]: "6.5"
+                    - generic [ref=e1494]:
+                      - img [ref=e1495]
+                      - generic [ref=e1497]: "6.5"
+                - generic [ref=e1500]:
+                  - heading "Timescape" [level=3] [ref=e1501]
+                  - generic [ref=e1502]:
+                    - paragraph [ref=e1503]: "1992"
+                    - generic [ref=e1504]:
+                      - img [ref=e1505]
+                      - generic [ref=e1507]: "6.5"
+              - generic [ref=e1509]:
+                - 'link "Star Trek: The Motion Picture Add to history Star Trek: The Motion Picture 1979 6.5 6.5" [ref=e1510] [cursor=pointer]':
+                  - /url: /movie/152
+                  - generic [ref=e1511]:
+                    - 'img "Star Trek: The Motion Picture" [ref=e1512]'
+                    - generic [ref=e1514]:
+                      - img [ref=e1518]
+                      - button "Add to history" [ref=e1520]:
+                        - img [ref=e1521]
+                        - generic [ref=e1525]: Add to history
+                    - generic [ref=e1527]:
+                      - generic [ref=e1528]:
+                        - 'heading "Star Trek: The Motion Picture" [level=3] [ref=e1529]'
+                        - generic [ref=e1531]: "1979"
+                      - generic [ref=e1532]:
+                        - img [ref=e1533]
+                        - generic [ref=e1535]: "6.5"
+                    - generic [ref=e1536]:
+                      - img [ref=e1537]
+                      - generic [ref=e1539]: "6.5"
+                - generic [ref=e1542]:
+                  - 'heading "Star Trek: The Motion Picture" [level=3] [ref=e1543]'
+                  - generic [ref=e1544]:
+                    - paragraph [ref=e1545]: "1979"
+                    - generic [ref=e1546]:
+                      - img [ref=e1547]
+                      - generic [ref=e1549]: "6.5"
+              - generic [ref=e1551]:
+                - link "I Am Number Four Add to history I Am Number Four 2011 6.2 6.2" [ref=e1552] [cursor=pointer]:
+                  - /url: /movie/46529
+                  - generic [ref=e1553]:
+                    - img "I Am Number Four" [ref=e1554]
+                    - generic [ref=e1556]:
+                      - img [ref=e1560]
+                      - button "Add to history" [ref=e1562]:
+                        - img [ref=e1563]
+                        - generic [ref=e1567]: Add to history
+                    - generic [ref=e1569]:
+                      - generic [ref=e1570]:
+                        - heading "I Am Number Four" [level=3] [ref=e1571]
+                        - generic [ref=e1573]: "2011"
+                      - generic [ref=e1574]:
+                        - img [ref=e1575]
+                        - generic [ref=e1577]: "6.2"
+                    - generic [ref=e1578]:
+                      - img [ref=e1579]
+                      - generic [ref=e1581]: "6.2"
+                - generic [ref=e1584]:
+                  - heading "I Am Number Four" [level=3] [ref=e1585]
+                  - generic [ref=e1586]:
+                    - paragraph [ref=e1587]: "2011"
+                    - generic [ref=e1588]:
+                      - img [ref=e1589]
+                      - generic [ref=e1591]: "6.2"
+              - generic [ref=e1593]:
+                - 'link "Rebel Moon - Part Two: The Scargiver Add to history Rebel Moon - Part Two: The Scargiver 2024 6.1 6.1" [ref=e1594] [cursor=pointer]':
+                  - /url: /movie/934632
+                  - generic [ref=e1595]:
+                    - 'img "Rebel Moon - Part Two: The Scargiver" [ref=e1596]'
+                    - generic [ref=e1598]:
+                      - img [ref=e1602]
+                      - button "Add to history" [ref=e1604]:
+                        - img [ref=e1605]
+                        - generic [ref=e1609]: Add to history
+                    - generic [ref=e1611]:
+                      - generic [ref=e1612]:
+                        - 'heading "Rebel Moon - Part Two: The Scargiver" [level=3] [ref=e1613]'
+                        - generic [ref=e1615]: "2024"
+                      - generic [ref=e1616]:
+                        - img [ref=e1617]
+                        - generic [ref=e1619]: "6.1"
+                    - generic [ref=e1620]:
+                      - img [ref=e1621]
+                      - generic [ref=e1623]: "6.1"
+                - generic [ref=e1626]:
+                  - 'heading "Rebel Moon - Part Two: The Scargiver" [level=3] [ref=e1627]'
+                  - generic [ref=e1628]:
+                    - paragraph [ref=e1629]: "2024"
+                    - generic [ref=e1630]:
+                      - img [ref=e1631]
+                      - generic [ref=e1633]: "6.1"
+              - generic [ref=e1635]:
+                - link "65 Add to history 65 2023 6.0 6.0" [ref=e1636] [cursor=pointer]:
+                  - /url: /movie/700391
+                  - generic [ref=e1637]:
+                    - img "65" [ref=e1638]
+                    - generic [ref=e1640]:
+                      - img [ref=e1644]
+                      - button "Add to history" [ref=e1646]:
+                        - img [ref=e1647]
+                        - generic [ref=e1651]: Add to history
+                    - generic [ref=e1653]:
+                      - generic [ref=e1654]:
+                        - heading "65" [level=3] [ref=e1655]
+                        - generic [ref=e1657]: "2023"
+                      - generic [ref=e1658]:
+                        - img [ref=e1659]
+                        - generic [ref=e1661]: "6.0"
+                    - generic [ref=e1662]:
+                      - img [ref=e1663]
+                      - generic [ref=e1665]: "6.0"
+                - generic [ref=e1668]:
+                  - heading "65" [level=3] [ref=e1669]
+                  - generic [ref=e1670]:
+                    - paragraph [ref=e1671]: "2023"
+                    - generic [ref=e1672]:
+                      - img [ref=e1673]
+                      - generic [ref=e1675]: "6.0"
+              - generic [ref=e1677]:
+                - link "Explorers Add to history Explorers 1985 6.3 6.3" [ref=e1678] [cursor=pointer]:
+                  - /url: /movie/9872
+                  - generic [ref=e1679]:
+                    - img "Explorers" [ref=e1680]
+                    - generic [ref=e1682]:
+                      - img [ref=e1686]
+                      - button "Add to history" [ref=e1688]:
+                        - img [ref=e1689]
+                        - generic [ref=e1693]: Add to history
+                    - generic [ref=e1695]:
+                      - generic [ref=e1696]:
+                        - heading "Explorers" [level=3] [ref=e1697]
+                        - generic [ref=e1699]: "1985"
+                      - generic [ref=e1700]:
+                        - img [ref=e1701]
+                        - generic [ref=e1703]: "6.3"
+                    - generic [ref=e1704]:
+                      - img [ref=e1705]
+                      - generic [ref=e1707]: "6.3"
+                - generic [ref=e1710]:
+                  - heading "Explorers" [level=3] [ref=e1711]
+                  - generic [ref=e1712]:
+                    - paragraph [ref=e1713]: "1985"
+                    - generic [ref=e1714]:
+                      - img [ref=e1715]
+                      - generic [ref=e1717]: "6.3"
+              - generic [ref=e1719]:
+                - link "War of the Worlds Add to history War of the Worlds 2005 6.5 6.5" [ref=e1720] [cursor=pointer]:
+                  - /url: /movie/74
+                  - generic [ref=e1721]:
+                    - img "War of the Worlds" [ref=e1722]
+                    - generic [ref=e1724]:
+                      - img [ref=e1728]
+                      - button "Add to history" [ref=e1730]:
+                        - img [ref=e1731]
+                        - generic [ref=e1735]: Add to history
+                    - generic [ref=e1737]:
+                      - generic [ref=e1738]:
+                        - heading "War of the Worlds" [level=3] [ref=e1739]
+                        - generic [ref=e1741]: "2005"
+                      - generic [ref=e1742]:
+                        - img [ref=e1743]
+                        - generic [ref=e1745]: "6.5"
+                    - generic [ref=e1746]:
+                      - img [ref=e1747]
+                      - generic [ref=e1749]: "6.5"
+                - generic [ref=e1752]:
+                  - heading "War of the Worlds" [level=3] [ref=e1753]
+                  - generic [ref=e1754]:
+                    - paragraph [ref=e1755]: "2005"
+                    - generic [ref=e1756]:
+                      - img [ref=e1757]
+                      - generic [ref=e1759]: "6.5"
+              - generic [ref=e1761]:
+                - link "Geostorm Add to history Geostorm 2017 6.1 6.1" [ref=e1762] [cursor=pointer]:
+                  - /url: /movie/274855
+                  - generic [ref=e1763]:
+                    - img "Geostorm" [ref=e1764]
+                    - generic [ref=e1766]:
+                      - img [ref=e1770]
+                      - button "Add to history" [ref=e1772]:
+                        - img [ref=e1773]
+                        - generic [ref=e1777]: Add to history
+                    - generic [ref=e1779]:
+                      - generic [ref=e1780]:
+                        - heading "Geostorm" [level=3] [ref=e1781]
+                        - generic [ref=e1783]: "2017"
+                      - generic [ref=e1784]:
+                        - img [ref=e1785]
+                        - generic [ref=e1787]: "6.1"
+                    - generic [ref=e1788]:
+                      - img [ref=e1789]
+                      - generic [ref=e1791]: "6.1"
+                - generic [ref=e1794]:
+                  - heading "Geostorm" [level=3] [ref=e1795]
+                  - generic [ref=e1796]:
+                    - paragraph [ref=e1797]: "2017"
+                    - generic [ref=e1798]:
+                      - img [ref=e1799]
+                      - generic [ref=e1801]: "6.1"
+              - generic [ref=e1803]:
+                - link "Cosmos Add to history Cosmos 2019 6.0 6.0" [ref=e1804] [cursor=pointer]:
+                  - /url: /movie/639771
+                  - generic [ref=e1805]:
+                    - img "Cosmos" [ref=e1806]
+                    - generic [ref=e1808]:
+                      - img [ref=e1812]
+                      - button "Add to history" [ref=e1814]:
+                        - img [ref=e1815]
+                        - generic [ref=e1819]: Add to history
+                    - generic [ref=e1821]:
+                      - generic [ref=e1822]:
+                        - heading "Cosmos" [level=3] [ref=e1823]
+                        - generic [ref=e1825]: "2019"
+                      - generic [ref=e1826]:
+                        - img [ref=e1827]
+                        - generic [ref=e1829]: "6.0"
+                    - generic [ref=e1830]:
+                      - img [ref=e1831]
+                      - generic [ref=e1833]: "6.0"
+                - generic [ref=e1836]:
+                  - heading "Cosmos" [level=3] [ref=e1837]
+                  - generic [ref=e1838]:
+                    - paragraph [ref=e1839]: "2019"
+                    - generic [ref=e1840]:
+                      - img [ref=e1841]
+                      - generic [ref=e1843]: "6.0"
+              - generic [ref=e1845]:
+                - 'link "Zenon: Girl of the 21st Century Add to history Zenon: Girl of the 21st Century 1999 6.1 6.1" [ref=e1846] [cursor=pointer]':
+                  - /url: /movie/34766
+                  - generic [ref=e1847]:
+                    - 'img "Zenon: Girl of the 21st Century" [ref=e1848]'
+                    - generic [ref=e1850]:
+                      - img [ref=e1854]
+                      - button "Add to history" [ref=e1856]:
+                        - img [ref=e1857]
+                        - generic [ref=e1861]: Add to history
+                    - generic [ref=e1863]:
+                      - generic [ref=e1864]:
+                        - 'heading "Zenon: Girl of the 21st Century" [level=3] [ref=e1865]'
+                        - generic [ref=e1867]: "1999"
+                      - generic [ref=e1868]:
+                        - img [ref=e1869]
+                        - generic [ref=e1871]: "6.1"
+                    - generic [ref=e1872]:
+                      - img [ref=e1873]
+                      - generic [ref=e1875]: "6.1"
+                - generic [ref=e1878]:
+                  - 'heading "Zenon: Girl of the 21st Century" [level=3] [ref=e1879]'
+                  - generic [ref=e1880]:
+                    - paragraph [ref=e1881]: "1999"
+                    - generic [ref=e1882]:
+                      - img [ref=e1883]
+                      - generic [ref=e1885]: "6.1"
+              - generic [ref=e1887]:
+                - link "Superman Add to history Superman 1978 7.2 7.2" [ref=e1888] [cursor=pointer]:
+                  - /url: /movie/1924
+                  - generic [ref=e1889]:
+                    - img "Superman" [ref=e1890]
+                    - generic [ref=e1892]:
+                      - img [ref=e1896]
+                      - button "Add to history" [ref=e1898]:
+                        - img [ref=e1899]
+                        - generic [ref=e1903]: Add to history
+                    - generic [ref=e1905]:
+                      - generic [ref=e1906]:
+                        - heading "Superman" [level=3] [ref=e1907]
+                        - generic [ref=e1909]: "1978"
+                      - generic [ref=e1910]:
+                        - img [ref=e1911]
+                        - generic [ref=e1913]: "7.2"
+                    - generic [ref=e1914]:
+                      - img [ref=e1915]
+                      - generic [ref=e1917]: "7.2"
+                - generic [ref=e1920]:
+                  - heading "Superman" [level=3] [ref=e1921]
+                  - generic [ref=e1922]:
+                    - paragraph [ref=e1923]: "1978"
+                    - generic [ref=e1924]:
+                      - img [ref=e1925]
+                      - generic [ref=e1927]: "7.2"
+    - contentinfo [ref=e1001]:
+      - generic [ref=e1002]:
+        - generic [ref=e1003]:
+          - generic [ref=e1004]:
+            - link "Xtream Logo" [ref=e1005] [cursor=pointer]:
+              - /url: /
+              - img "Xtream Logo" [ref=e1006]
+            - paragraph [ref=e1007]: Your ultimate destination for streaming movies and TV shows. Discover, watch, and enjoy unlimited entertainment.
+          - generic [ref=e1008]:
+            - heading "Browse" [level=3] [ref=e1009]
+            - list [ref=e1010]:
+              - listitem [ref=e1011]:
+                - link "Movies" [ref=e1012] [cursor=pointer]:
+                  - /url: /movies
+              - listitem [ref=e1013]:
+                - link "TV Shows" [ref=e1014] [cursor=pointer]:
+                  - /url: /tv
+              - listitem [ref=e1015]:
+                - link "Trending" [ref=e1016] [cursor=pointer]:
+                  - /url: /trending
+          - generic [ref=e1017]:
+            - heading "Account" [level=3] [ref=e1018]
+            - list [ref=e1019]:
+              - listitem [ref=e1020]:
+                - link "Sign In" [ref=e1021] [cursor=pointer]:
+                  - /url: /auth
+              - listitem [ref=e1022]:
+                - link "Watch History" [ref=e1023] [cursor=pointer]:
+                  - /url: /history
+              - listitem [ref=e1024]:
+                - link "Favorites" [ref=e1025] [cursor=pointer]:
+                  - /url: /favorites
+          - generic [ref=e1026]:
+            - heading "Information" [level=3] [ref=e1027]
+            - list [ref=e1028]:
+              - listitem [ref=e1029]:
+                - link "About Us" [ref=e1030] [cursor=pointer]:
+                  - /url: /about
+              - listitem [ref=e1031]:
+                - link "Contact" [ref=e1032] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=e1033]:
+                - link "Privacy Policy" [ref=e1034] [cursor=pointer]:
+                  - /url: "#"
+        - generic [ref=e1035]:
+          - paragraph [ref=e1036]: © 2026 Xtream. All rights reserved.
+          - paragraph [ref=e1037]: This site does not store any files on its server. All contents are provided by non-affiliated third parties.

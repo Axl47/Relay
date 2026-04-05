@@ -38,6 +38,8 @@ export function parseEpisodesApiPayload(
         number,
         title,
         synopsis: null,
+        seasonNumber: null,
+        episodeNumber: number,
         thumbnail: buildAnimeOnsenImageUrl(externalAnimeId, "640x360"),
         durationSeconds: null,
         releasedAt: null,
@@ -53,6 +55,8 @@ export function parseEpisodesApiPayload(
         number: number;
         title: string;
         synopsis: null;
+        seasonNumber: null;
+        episodeNumber: number;
         thumbnail: string;
         durationSeconds: null;
         releasedAt: null;

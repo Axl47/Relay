@@ -7,4 +7,4 @@ COPY . /app
 RUN npm ci
 RUN npm run build -w @relay/worker
 
-CMD ["node", "apps/worker/dist/apps/worker/src/index.js"]
+CMD ["npx", "tsx", "apps/worker/src/index.ts"]

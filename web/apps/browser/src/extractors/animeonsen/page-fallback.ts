@@ -267,6 +267,7 @@ export async function getAnimeOnsenAnime(
       status: "unknown",
       year: snapshot.year,
       tags: snapshot.tags,
+      kind: "tv",
       language: "en",
       totalEpisodes: snapshot.totalEpisodes ?? episodesFromApi?.episodes.length ?? null,
       contentClass: "anime",

@@ -35,6 +35,7 @@ export async function registerLibraryRoutes(
       ...payload,
       status: payload.status ?? "watching",
       coverImage: payload.coverImage ?? null,
+      kind: payload.kind ?? "unknown",
     });
   });
 

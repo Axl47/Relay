@@ -68,9 +68,14 @@ export class ProviderService {
 
   async getAllowedProviderIdsForUser(userId: string) {
     const preferences = await this.getPreferences(userId);
-    const rows = await this.providerRepository.listProviders();
+    const [rows, registry] = await Promise.all([
+      this.providerRepository.listProviders(),
+      this.runtime.registry(),
+    ]);
+    const availableProviderIds = new Set(registry.list().map((provider) => provider.metadata.id));
 
     return rows
+      .filter((providerRow) => availableProviderIds.has(providerRow.id))
       .filter((providerRow) => isContentClassAllowed(preferences, providerRow.contentClass as ProviderSummary["contentClass"]))
       .map((providerRow) => providerRow.id);
   }
@@ -144,8 +149,10 @@ export class ProviderService {
 
     const configByProvider = new Map(configRows.map((row) => [row.providerId, row]));
     const orderByProvider = new Map(registry.list().map((provider, index) => [provider.metadata.id, index]));
+    const availableProviderIds = new Set(registry.list().map((provider) => provider.metadata.id));
 
     return providerRows
+      .filter((providerRow) => availableProviderIds.has(providerRow.id))
       .filter((providerRow) =>
         isContentClassAllowed(preferences, providerRow.contentClass as ProviderSummary["contentClass"]),
       )

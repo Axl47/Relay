@@ -1,0 +1,216 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "Xtream Logo" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Xtream Logo" [ref=e8]
+        - generic [ref=e9]:
+          - link "Home" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=e11]
+            - text: Home
+          - link "Movies" [ref=e14] [cursor=pointer]:
+            - /url: /movies
+            - img [ref=e15]
+            - text: Movies
+          - link "TV" [ref=e17] [cursor=pointer]:
+            - /url: /tv
+            - img [ref=e18]
+            - text: TV
+          - link "Trending" [ref=e21] [cursor=pointer]:
+            - /url: /trending
+            - img [ref=e22]
+            - text: Trending
+          - link "About" [ref=e25] [cursor=pointer]:
+            - /url: /about
+            - img [ref=e26]
+            - text: About
+        - generic [ref=e28]:
+          - generic [ref=e31]:
+            - textbox "Search movies & TV..." [active] [ref=e32]
+            - img [ref=e33]
+          - link "Sign In" [ref=e36] [cursor=pointer]:
+            - /url: /auth
+            - button "Sign In" [ref=e37]
+    - main [ref=e38]:
+      - generic [ref=e5863]:
+        - heading "Search Results" [level=1] [ref=e5864]
+        - paragraph [ref=e5865]: Results for "Mario Movie"
+        - generic [ref=e5867]:
+          - heading "Movies" [level=2] [ref=e5868]
+          - generic [ref=e5869]:
+            - generic [ref=e5871]:
+              - link "The Super Mario Galaxy Movie Add to history The Super Mario Galaxy Movie 2026 6.9 6.9" [ref=e5872] [cursor=pointer]:
+                - /url: /movie/1226863
+                - generic [ref=e5873]:
+                  - img "The Super Mario Galaxy Movie" [ref=e5874]
+                  - generic [ref=e5876]:
+                    - img [ref=e5880]
+                    - button "Add to history" [ref=e5882]:
+                      - img [ref=e5883]
+                      - generic [ref=e5887]: Add to history
+                  - generic [ref=e5889]:
+                    - generic [ref=e5890]:
+                      - heading "The Super Mario Galaxy Movie" [level=3] [ref=e5891]
+                      - generic [ref=e5893]: "2026"
+                    - generic [ref=e5894]:
+                      - img [ref=e5895]
+                      - generic [ref=e5897]: "6.9"
+                  - generic [ref=e5898]:
+                    - img [ref=e5899]
+                    - generic [ref=e5901]: "6.9"
+              - generic [ref=e5904]:
+                - heading "The Super Mario Galaxy Movie" [level=3] [ref=e5905]
+                - generic [ref=e5906]:
+                  - paragraph [ref=e5907]: "2026"
+                  - generic [ref=e5908]:
+                    - img [ref=e5909]
+                    - generic [ref=e5911]: "6.9"
+            - generic [ref=e5913]:
+              - link "The Super Mario Bros. Movie Add to history The Super Mario Bros. Movie 2023 7.6 7.6" [ref=e5914] [cursor=pointer]:
+                - /url: /movie/502356
+                - generic [ref=e5915]:
+                  - img "The Super Mario Bros. Movie" [ref=e5916]
+                  - generic [ref=e5918]:
+                    - img [ref=e5922]
+                    - button "Add to history" [ref=e5924]:
+                      - img [ref=e5925]
+                      - generic [ref=e5929]: Add to history
+                  - generic [ref=e5931]:
+                    - generic [ref=e5932]:
+                      - heading "The Super Mario Bros. Movie" [level=3] [ref=e5933]
+                      - generic [ref=e5935]: "2023"
+                    - generic [ref=e5936]:
+                      - img [ref=e5937]
+                      - generic [ref=e5939]: "7.6"
+                  - generic [ref=e5940]:
+                    - img [ref=e5941]
+                    - generic [ref=e5943]: "7.6"
+              - generic [ref=e5946]:
+                - heading "The Super Mario Bros. Movie" [level=3] [ref=e5947]
+                - generic [ref=e5948]:
+                  - paragraph [ref=e5949]: "2023"
+                  - generic [ref=e5950]:
+                    - img [ref=e5951]
+                    - generic [ref=e5953]: "7.6"
+            - generic [ref=e5955]:
+              - link "Super Mario Movie Add to history Super Mario Movie 2005 4.8 4.8" [ref=e5956] [cursor=pointer]:
+                - /url: /movie/267552
+                - generic [ref=e5957]:
+                  - img "Super Mario Movie" [ref=e5958]
+                  - generic [ref=e5960]:
+                    - img [ref=e5964]
+                    - button "Add to history" [ref=e5966]:
+                      - img [ref=e5967]
+                      - generic [ref=e5971]: Add to history
+                  - generic [ref=e5973]:
+                    - generic [ref=e5974]:
+                      - heading "Super Mario Movie" [level=3] [ref=e5975]
+                      - generic [ref=e5977]: "2005"
+                    - generic [ref=e5978]:
+                      - img [ref=e5979]
+                      - generic [ref=e5981]: "4.8"
+                  - generic [ref=e5982]:
+                    - img [ref=e5983]
+                    - generic [ref=e5985]: "4.8"
+              - generic [ref=e5988]:
+                - heading "Super Mario Movie" [level=3] [ref=e5989]
+                - generic [ref=e5990]:
+                  - paragraph [ref=e5991]: "2005"
+                  - generic [ref=e5992]:
+                    - img [ref=e5993]
+                    - generic [ref=e5995]: "4.8"
+            - generic [ref=e5997]:
+              - link "Mario Makes a Movie Add to history Mario Makes a Movie 2004" [ref=e5998] [cursor=pointer]:
+                - /url: /movie/758598
+                - generic [ref=e5999]:
+                  - img "Mario Makes a Movie" [ref=e6000]
+                  - generic [ref=e6002]:
+                    - img [ref=e6006]
+                    - button "Add to history" [ref=e6008]:
+                      - img [ref=e6009]
+                      - generic [ref=e6013]: Add to history
+                  - generic [ref=e6016]:
+                    - heading "Mario Makes a Movie" [level=3] [ref=e6017]
+                    - generic [ref=e6019]: "2004"
+              - generic [ref=e6022]:
+                - heading "Mario Makes a Movie" [level=3] [ref=e6023]
+                - paragraph [ref=e6025]: "2004"
+            - generic [ref=e6027]:
+              - link "Super Mario Bros. Add to history Super Mario Bros. 1993 4.5 4.5" [ref=e6028] [cursor=pointer]:
+                - /url: /movie/9607
+                - generic [ref=e6029]:
+                  - img "Super Mario Bros." [ref=e6030]
+                  - generic [ref=e6032]:
+                    - img [ref=e6036]
+                    - button "Add to history" [ref=e6038]:
+                      - img [ref=e6039]
+                      - generic [ref=e6043]: Add to history
+                  - generic [ref=e6045]:
+                    - generic [ref=e6046]:
+                      - heading "Super Mario Bros." [level=3] [ref=e6047]
+                      - generic [ref=e6049]: "1993"
+                    - generic [ref=e6050]:
+                      - img [ref=e6051]
+                      - generic [ref=e6053]: "4.5"
+                  - generic [ref=e6054]:
+                    - img [ref=e6055]
+                    - generic [ref=e6057]: "4.5"
+              - generic [ref=e6060]:
+                - heading "Super Mario Bros." [level=3] [ref=e6061]
+                - generic [ref=e6062]:
+                  - paragraph [ref=e6063]: "1993"
+                  - generic [ref=e6064]:
+                    - img [ref=e6065]
+                    - generic [ref=e6067]: "4.5"
+    - contentinfo [ref=e5815]:
+      - generic [ref=e5816]:
+        - generic [ref=e5817]:
+          - generic [ref=e5818]:
+            - link "Xtream Logo" [ref=e5819] [cursor=pointer]:
+              - /url: /
+              - img "Xtream Logo" [ref=e5820]
+            - paragraph [ref=e5821]: Your ultimate destination for streaming movies and TV shows. Discover, watch, and enjoy unlimited entertainment.
+          - generic [ref=e5822]:
+            - heading "Browse" [level=3] [ref=e5823]
+            - list [ref=e5824]:
+              - listitem [ref=e5825]:
+                - link "Movies" [ref=e5826] [cursor=pointer]:
+                  - /url: /movies
+              - listitem [ref=e5827]:
+                - link "TV Shows" [ref=e5828] [cursor=pointer]:
+                  - /url: /tv
+              - listitem [ref=e5829]:
+                - link "Trending" [ref=e5830] [cursor=pointer]:
+                  - /url: /trending
+          - generic [ref=e5831]:
+            - heading "Account" [level=3] [ref=e5832]
+            - list [ref=e5833]:
+              - listitem [ref=e5834]:
+                - link "Sign In" [ref=e5835] [cursor=pointer]:
+                  - /url: /auth
+              - listitem [ref=e5836]:
+                - link "Watch History" [ref=e5837] [cursor=pointer]:
+                  - /url: /history
+              - listitem [ref=e5838]:
+                - link "Favorites" [ref=e5839] [cursor=pointer]:
+                  - /url: /favorites
+          - generic [ref=e5840]:
+            - heading "Information" [level=3] [ref=e5841]
+            - list [ref=e5842]:
+              - listitem [ref=e5843]:
+                - link "About Us" [ref=e5844] [cursor=pointer]:
+                  - /url: /about
+              - listitem [ref=e5845]:
+                - link "Contact" [ref=e5846] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=e5847]:
+                - link "Privacy Policy" [ref=e5848] [cursor=pointer]:
+                  - /url: "#"
+        - generic [ref=e5849]:
+          - paragraph [ref=e5850]: © 2026 Xtream. All rights reserved.
+          - paragraph [ref=e5851]: This site does not store any files on its server. All contents are provided by non-affiliated third parties.

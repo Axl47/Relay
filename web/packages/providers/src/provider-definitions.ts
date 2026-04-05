@@ -85,6 +85,19 @@ export const providerDefinitions = {
       },
     },
   },
+  xtream: {
+    metadata: {
+      id: "xtream",
+      displayName: "Xtream",
+      baseUrl: "https://xtream.rip",
+      contentClass: "general",
+      executionMode: "http",
+      requiresAdultGate: false,
+      supportsSearch: true,
+      supportsTrackerSync: false,
+      defaultEnabled: true,
+    },
+  },
   animetake: {
     metadata: {
       id: "animetake",

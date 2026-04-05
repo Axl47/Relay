@@ -1,0 +1,727 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e6]:
+        - link "Xtream Logo" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Xtream Logo" [ref=e8]
+        - generic [ref=e9]:
+          - link "Home" [ref=e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=e11]
+            - text: Home
+          - link "Movies" [ref=e14] [cursor=pointer]:
+            - /url: /movies
+            - img [ref=e15]
+            - text: Movies
+          - link "TV" [ref=e17] [cursor=pointer]:
+            - /url: /tv
+            - img [ref=e18]
+            - text: TV
+          - link "Trending" [ref=e21] [cursor=pointer]:
+            - /url: /trending
+            - img [ref=e22]
+            - text: Trending
+          - link "About" [ref=e25] [cursor=pointer]:
+            - /url: /about
+            - img [ref=e26]
+            - text: About
+        - generic [ref=e28]:
+          - generic [ref=e31]:
+            - textbox "Search movies & TV..." [ref=e32]
+            - img [ref=e33]
+          - link "Sign In" [ref=e36] [cursor=pointer]:
+            - /url: /auth
+            - button "Sign In" [ref=e37]
+    - main [ref=e38]:
+      - generic [ref=e1020]:
+        - link "Back to details" [ref=e1021] [cursor=pointer]:
+          - /url: /tv/95557
+          - img [ref=e1022]
+          - text: Back to details
+        - generic [ref=e1024]:
+          - generic [ref=e1025]: "Source:"
+          - generic [ref=e1026]:
+            - button "VidSrc" [ref=e1027] [cursor=pointer]
+            - button "Videasy" [ref=e1028] [cursor=pointer]
+            - button "VidRock" [ref=e1029] [cursor=pointer]
+            - button "Vidzee" [ref=e1030] [cursor=pointer]
+            - button "VidFast" [ref=e1031] [cursor=pointer]
+        - generic [ref=e1032]:
+          - combobox [ref=e1033] [cursor=pointer]:
+            - generic: Season 1
+            - img [ref=e1034]
+          - combobox [ref=e1036] [cursor=pointer]:
+            - generic: "Ep 2: HERE GOES NOTHING"
+            - img [ref=e1037]
+        - iframe [ref=e1968]:
+          - generic [active] [ref=f3e1]:
+            - region "Video Player - Invincible - S1E2" [ref=f3e4]:
+              - generic [ref=f3e7]:
+                - generic:
+                  - generic:
+                    - img
+            - generic [ref=f3e8]: FETCHING, ONE MOMENT...
+        - generic [ref=e1042]:
+          - img "HERE GOES NOTHING" [ref=e1969]
+          - generic [ref=e1044]:
+            - generic [ref=e1045]:
+              - generic [ref=e1046]: S1 E2
+              - generic [ref=e1047]: • 48 min
+              - generic [ref=e1048]:
+                - img [ref=e1049]
+                - text: "7.9"
+            - heading "HERE GOES NOTHING" [level=2] [ref=e1970]
+            - paragraph [ref=e1052]: With his father out of action, Mark struggles to defend the city against an interdimensional invasion, joining forces with a team of teenage superheroes.
+        - generic [ref=e1054]:
+          - heading "Invincible" [level=1] [ref=e1055]
+          - generic [ref=e1056]:
+            - generic [ref=e1057]:
+              - img [ref=e1058]
+              - text: "8.6"
+            - generic [ref=e1060]:
+              - img [ref=e1061]
+              - text: 5 Seasons
+            - generic [ref=e1064]:
+              - img [ref=e1065]
+              - text: "2021"
+          - generic [ref=e1067]:
+            - generic [ref=e1068]: Animation
+            - generic [ref=e1069]: Drama
+            - generic [ref=e1070]: Sci-Fi & Fantasy
+            - generic [ref=e1071]: Action & Adventure
+        - generic [ref=e1072]:
+          - heading "All Episodes - Season 1" [level=2] [ref=e1073]
+          - generic [ref=e1074]:
+            - button "IT'S ABOUT TIME Episode 1 IT'S ABOUT TIME" [ref=e1971] [cursor=pointer]:
+              - img "IT'S ABOUT TIME" [ref=e1077]
+              - paragraph [ref=e1080]: Episode 1
+              - paragraph [ref=e1081]: IT'S ABOUT TIME
+            - button "HERE GOES NOTHING Now Playing Episode 2 HERE GOES NOTHING" [active] [ref=e1972] [cursor=pointer]:
+              - generic [ref=e1083]:
+                - img "HERE GOES NOTHING" [ref=e1084]
+                - generic [ref=e1974]: Now Playing
+              - paragraph [ref=e1085]: Episode 2
+              - paragraph [ref=e1086]: HERE GOES NOTHING
+            - button "WHO YOU CALLING UGLY? Episode 3 WHO YOU CALLING UGLY?" [ref=e1087] [cursor=pointer]:
+              - img "WHO YOU CALLING UGLY?" [ref=e1089]
+              - paragraph [ref=e1090]: Episode 3
+              - paragraph [ref=e1091]: WHO YOU CALLING UGLY?
+            - button "NEIL ARMSTRONG, EAT YOUR HEART OUT Episode 4 NEIL ARMSTRONG, EAT YOUR HEART OUT" [ref=e1092] [cursor=pointer]:
+              - img "NEIL ARMSTRONG, EAT YOUR HEART OUT" [ref=e1094]
+              - paragraph [ref=e1095]: Episode 4
+              - paragraph [ref=e1096]: NEIL ARMSTRONG, EAT YOUR HEART OUT
+            - button "THAT ACTUALLY HURT Episode 5 THAT ACTUALLY HURT" [ref=e1097] [cursor=pointer]:
+              - img "THAT ACTUALLY HURT" [ref=e1099]
+              - paragraph [ref=e1100]: Episode 5
+              - paragraph [ref=e1101]: THAT ACTUALLY HURT
+            - button "YOU LOOK KINDA DEAD Episode 6 YOU LOOK KINDA DEAD" [ref=e1102] [cursor=pointer]:
+              - img "YOU LOOK KINDA DEAD" [ref=e1104]
+              - paragraph [ref=e1105]: Episode 6
+              - paragraph [ref=e1106]: YOU LOOK KINDA DEAD
+            - button "WE NEED TO TALK Episode 7 WE NEED TO TALK" [ref=e1107] [cursor=pointer]:
+              - img "WE NEED TO TALK" [ref=e1109]
+              - paragraph [ref=e1110]: Episode 7
+              - paragraph [ref=e1111]: WE NEED TO TALK
+            - button "WHERE I REALLY COME FROM Episode 8 WHERE I REALLY COME FROM" [ref=e1112] [cursor=pointer]:
+              - img "WHERE I REALLY COME FROM" [ref=e1114]
+              - paragraph [ref=e1115]: Episode 8
+              - paragraph [ref=e1116]: WHERE I REALLY COME FROM
+        - generic [ref=e1117]:
+          - heading "You May Also Like" [level=2] [ref=e1119]
+          - generic [ref=e1120]:
+            - button [ref=e1121] [cursor=pointer]:
+              - img [ref=e1122]
+            - button [ref=e1124] [cursor=pointer]:
+              - img [ref=e1125]
+            - generic [ref=e1127]:
+              - generic [ref=e1129]:
+                - link "Young Justice Add to history Young Justice 2010 8.4 8.4" [ref=e1130] [cursor=pointer]:
+                  - /url: /tv/33217
+                  - generic [ref=e1131]:
+                    - img "Young Justice" [ref=e1132]
+                    - generic [ref=e1134]:
+                      - img [ref=e1138]
+                      - button "Add to history" [ref=e1140]:
+                        - img [ref=e1141]
+                        - generic [ref=e1145]: Add to history
+                    - generic [ref=e1147]:
+                      - generic [ref=e1148]:
+                        - heading "Young Justice" [level=3] [ref=e1149]
+                        - generic [ref=e1151]: "2010"
+                      - generic [ref=e1152]:
+                        - img [ref=e1153]
+                        - generic [ref=e1155]: "8.4"
+                    - generic [ref=e1156]:
+                      - img [ref=e1157]
+                      - generic [ref=e1159]: "8.4"
+                - generic [ref=e1162]:
+                  - heading "Young Justice" [level=3] [ref=e1163]
+                  - generic [ref=e1164]:
+                    - paragraph [ref=e1165]: "2010"
+                    - generic [ref=e1166]:
+                      - img [ref=e1167]
+                      - generic [ref=e1169]: "8.4"
+              - generic [ref=e1171]:
+                - link "Smallville Add to history Smallville 2001 8.2 8.2" [ref=e1172] [cursor=pointer]:
+                  - /url: /tv/4604
+                  - generic [ref=e1173]:
+                    - img "Smallville" [ref=e1174]
+                    - generic [ref=e1176]:
+                      - img [ref=e1180]
+                      - button "Add to history" [ref=e1182]:
+                        - img [ref=e1183]
+                        - generic [ref=e1187]: Add to history
+                    - generic [ref=e1189]:
+                      - generic [ref=e1190]:
+                        - heading "Smallville" [level=3] [ref=e1191]
+                        - generic [ref=e1193]: "2001"
+                      - generic [ref=e1194]:
+                        - img [ref=e1195]
+                        - generic [ref=e1197]: "8.2"
+                    - generic [ref=e1198]:
+                      - img [ref=e1199]
+                      - generic [ref=e1201]: "8.2"
+                - generic [ref=e1204]:
+                  - heading "Smallville" [level=3] [ref=e1205]
+                  - generic [ref=e1206]:
+                    - paragraph [ref=e1207]: "2001"
+                    - generic [ref=e1208]:
+                      - img [ref=e1209]
+                      - generic [ref=e1211]: "8.2"
+              - generic [ref=e1213]:
+                - link "Marvel's M.O.D.O.K. Add to history Marvel's M.O.D.O.K. 2021 6.6 6.6" [ref=e1214] [cursor=pointer]:
+                  - /url: /tv/111312
+                  - generic [ref=e1215]:
+                    - img "Marvel's M.O.D.O.K." [ref=e1216]
+                    - generic [ref=e1218]:
+                      - img [ref=e1222]
+                      - button "Add to history" [ref=e1224]:
+                        - img [ref=e1225]
+                        - generic [ref=e1229]: Add to history
+                    - generic [ref=e1231]:
+                      - generic [ref=e1232]:
+                        - heading "Marvel's M.O.D.O.K." [level=3] [ref=e1233]
+                        - generic [ref=e1235]: "2021"
+                      - generic [ref=e1236]:
+                        - img [ref=e1237]
+                        - generic [ref=e1239]: "6.6"
+                    - generic [ref=e1240]:
+                      - img [ref=e1241]
+                      - generic [ref=e1243]: "6.6"
+                - generic [ref=e1246]:
+                  - heading "Marvel's M.O.D.O.K." [level=3] [ref=e1247]
+                  - generic [ref=e1248]:
+                    - paragraph [ref=e1249]: "2021"
+                    - generic [ref=e1250]:
+                      - img [ref=e1251]
+                      - generic [ref=e1253]: "6.6"
+              - generic [ref=e1255]:
+                - link "Happy Tree Friends Add to history Happy Tree Friends 1999 7.8 7.8" [ref=e1256] [cursor=pointer]:
+                  - /url: /tv/1126
+                  - generic [ref=e1257]:
+                    - img "Happy Tree Friends" [ref=e1258]
+                    - generic [ref=e1260]:
+                      - img [ref=e1264]
+                      - button "Add to history" [ref=e1266]:
+                        - img [ref=e1267]
+                        - generic [ref=e1271]: Add to history
+                    - generic [ref=e1273]:
+                      - generic [ref=e1274]:
+                        - heading "Happy Tree Friends" [level=3] [ref=e1275]
+                        - generic [ref=e1277]: "1999"
+                      - generic [ref=e1278]:
+                        - img [ref=e1279]
+                        - generic [ref=e1281]: "7.8"
+                    - generic [ref=e1282]:
+                      - img [ref=e1283]
+                      - generic [ref=e1285]: "7.8"
+                - generic [ref=e1288]:
+                  - heading "Happy Tree Friends" [level=3] [ref=e1289]
+                  - generic [ref=e1290]:
+                    - paragraph [ref=e1291]: "1999"
+                    - generic [ref=e1292]:
+                      - img [ref=e1293]
+                      - generic [ref=e1295]: "7.8"
+              - generic [ref=e1297]:
+                - link "Black Lightning Add to history Black Lightning 2018 6.9 6.9" [ref=e1298] [cursor=pointer]:
+                  - /url: /tv/71663
+                  - generic [ref=e1299]:
+                    - img "Black Lightning" [ref=e1300]
+                    - generic [ref=e1302]:
+                      - img [ref=e1306]
+                      - button "Add to history" [ref=e1308]:
+                        - img [ref=e1309]
+                        - generic [ref=e1313]: Add to history
+                    - generic [ref=e1315]:
+                      - generic [ref=e1316]:
+                        - heading "Black Lightning" [level=3] [ref=e1317]
+                        - generic [ref=e1319]: "2018"
+                      - generic [ref=e1320]:
+                        - img [ref=e1321]
+                        - generic [ref=e1323]: "6.9"
+                    - generic [ref=e1324]:
+                      - img [ref=e1325]
+                      - generic [ref=e1327]: "6.9"
+                - generic [ref=e1330]:
+                  - heading "Black Lightning" [level=3] [ref=e1331]
+                  - generic [ref=e1332]:
+                    - paragraph [ref=e1333]: "2018"
+                    - generic [ref=e1334]:
+                      - img [ref=e1335]
+                      - generic [ref=e1337]: "6.9"
+              - generic [ref=e1339]:
+                - link "Marvel's Cloak & Dagger Add to history Marvel's Cloak & Dagger 2018 7.1 7.1" [ref=e1340] [cursor=pointer]:
+                  - /url: /tv/66190
+                  - generic [ref=e1341]:
+                    - img "Marvel's Cloak & Dagger" [ref=e1342]
+                    - generic [ref=e1344]:
+                      - img [ref=e1348]
+                      - button "Add to history" [ref=e1350]:
+                        - img [ref=e1351]
+                        - generic [ref=e1355]: Add to history
+                    - generic [ref=e1357]:
+                      - generic [ref=e1358]:
+                        - heading "Marvel's Cloak & Dagger" [level=3] [ref=e1359]
+                        - generic [ref=e1361]: "2018"
+                      - generic [ref=e1362]:
+                        - img [ref=e1363]
+                        - generic [ref=e1365]: "7.1"
+                    - generic [ref=e1366]:
+                      - img [ref=e1367]
+                      - generic [ref=e1369]: "7.1"
+                - generic [ref=e1372]:
+                  - heading "Marvel's Cloak & Dagger" [level=3] [ref=e1373]
+                  - generic [ref=e1374]:
+                    - paragraph [ref=e1375]: "2018"
+                    - generic [ref=e1376]:
+                      - img [ref=e1377]
+                      - generic [ref=e1379]: "7.1"
+              - generic [ref=e1381]:
+                - link "Naomi Add to history Naomi 2022 5.9 5.9" [ref=e1382] [cursor=pointer]:
+                  - /url: /tv/125474
+                  - generic [ref=e1383]:
+                    - img "Naomi" [ref=e1384]
+                    - generic [ref=e1386]:
+                      - img [ref=e1390]
+                      - button "Add to history" [ref=e1392]:
+                        - img [ref=e1393]
+                        - generic [ref=e1397]: Add to history
+                    - generic [ref=e1399]:
+                      - generic [ref=e1400]:
+                        - heading "Naomi" [level=3] [ref=e1401]
+                        - generic [ref=e1403]: "2022"
+                      - generic [ref=e1404]:
+                        - img [ref=e1405]
+                        - generic [ref=e1407]: "5.9"
+                    - generic [ref=e1408]:
+                      - img [ref=e1409]
+                      - generic [ref=e1411]: "5.9"
+                - generic [ref=e1414]:
+                  - heading "Naomi" [level=3] [ref=e1415]
+                  - generic [ref=e1416]:
+                    - paragraph [ref=e1417]: "2022"
+                    - generic [ref=e1418]:
+                      - img [ref=e1419]
+                      - generic [ref=e1421]: "5.9"
+              - generic [ref=e1423]:
+                - link "Titans Add to history Titans 2018 7.9 7.9" [ref=e1424] [cursor=pointer]:
+                  - /url: /tv/75450
+                  - generic [ref=e1425]:
+                    - img "Titans" [ref=e1426]
+                    - generic [ref=e1428]:
+                      - img [ref=e1432]
+                      - button "Add to history" [ref=e1434]:
+                        - img [ref=e1435]
+                        - generic [ref=e1439]: Add to history
+                    - generic [ref=e1441]:
+                      - generic [ref=e1442]:
+                        - heading "Titans" [level=3] [ref=e1443]
+                        - generic [ref=e1445]: "2018"
+                      - generic [ref=e1446]:
+                        - img [ref=e1447]
+                        - generic [ref=e1449]: "7.9"
+                    - generic [ref=e1450]:
+                      - img [ref=e1451]
+                      - generic [ref=e1453]: "7.9"
+                - generic [ref=e1456]:
+                  - heading "Titans" [level=3] [ref=e1457]
+                  - generic [ref=e1458]:
+                    - paragraph [ref=e1459]: "2018"
+                    - generic [ref=e1460]:
+                      - img [ref=e1461]
+                      - generic [ref=e1463]: "7.9"
+              - generic [ref=e1465]:
+                - link "Suicide Squad Isekai Add to history Suicide Squad Isekai 2024 7.3 7.3" [ref=e1466] [cursor=pointer]:
+                  - /url: /tv/229926
+                  - generic [ref=e1467]:
+                    - img "Suicide Squad Isekai" [ref=e1468]
+                    - generic [ref=e1470]:
+                      - img [ref=e1474]
+                      - button "Add to history" [ref=e1476]:
+                        - img [ref=e1477]
+                        - generic [ref=e1481]: Add to history
+                    - generic [ref=e1483]:
+                      - generic [ref=e1484]:
+                        - heading "Suicide Squad Isekai" [level=3] [ref=e1485]
+                        - generic [ref=e1487]: "2024"
+                      - generic [ref=e1488]:
+                        - img [ref=e1489]
+                        - generic [ref=e1491]: "7.3"
+                    - generic [ref=e1492]:
+                      - img [ref=e1493]
+                      - generic [ref=e1495]: "7.3"
+                - generic [ref=e1498]:
+                  - heading "Suicide Squad Isekai" [level=3] [ref=e1499]
+                  - generic [ref=e1500]:
+                    - paragraph [ref=e1501]: "2024"
+                    - generic [ref=e1502]:
+                      - img [ref=e1503]
+                      - generic [ref=e1505]: "7.3"
+              - generic [ref=e1507]:
+                - link "DC's Stargirl Add to history DC's Stargirl 2020 7.7 7.7" [ref=e1508] [cursor=pointer]:
+                  - /url: /tv/80986
+                  - generic [ref=e1509]:
+                    - img "DC's Stargirl" [ref=e1510]
+                    - generic [ref=e1512]:
+                      - img [ref=e1516]
+                      - button "Add to history" [ref=e1518]:
+                        - img [ref=e1519]
+                        - generic [ref=e1523]: Add to history
+                    - generic [ref=e1525]:
+                      - generic [ref=e1526]:
+                        - heading "DC's Stargirl" [level=3] [ref=e1527]
+                        - generic [ref=e1529]: "2020"
+                      - generic [ref=e1530]:
+                        - img [ref=e1531]
+                        - generic [ref=e1533]: "7.7"
+                    - generic [ref=e1534]:
+                      - img [ref=e1535]
+                      - generic [ref=e1537]: "7.7"
+                - generic [ref=e1540]:
+                  - heading "DC's Stargirl" [level=3] [ref=e1541]
+                  - generic [ref=e1542]:
+                    - paragraph [ref=e1543]: "2020"
+                    - generic [ref=e1544]:
+                      - img [ref=e1545]
+                      - generic [ref=e1547]: "7.7"
+              - generic [ref=e1549]:
+                - link "Creature Commandos Add to history Creature Commandos 2024 7.7 7.7" [ref=e1550] [cursor=pointer]:
+                  - /url: /tv/219543
+                  - generic [ref=e1551]:
+                    - img "Creature Commandos" [ref=e1552]
+                    - generic [ref=e1554]:
+                      - img [ref=e1558]
+                      - button "Add to history" [ref=e1560]:
+                        - img [ref=e1561]
+                        - generic [ref=e1565]: Add to history
+                    - generic [ref=e1567]:
+                      - generic [ref=e1568]:
+                        - heading "Creature Commandos" [level=3] [ref=e1569]
+                        - generic [ref=e1571]: "2024"
+                      - generic [ref=e1572]:
+                        - img [ref=e1573]
+                        - generic [ref=e1575]: "7.7"
+                    - generic [ref=e1576]:
+                      - img [ref=e1577]
+                      - generic [ref=e1579]: "7.7"
+                - generic [ref=e1582]:
+                  - heading "Creature Commandos" [level=3] [ref=e1583]
+                  - generic [ref=e1584]:
+                    - paragraph [ref=e1585]: "2024"
+                    - generic [ref=e1586]:
+                      - img [ref=e1587]
+                      - generic [ref=e1589]: "7.7"
+              - generic [ref=e1591]:
+                - link "Devil May Cry Add to history Devil May Cry 2025 7.9 7.9" [ref=e1592] [cursor=pointer]:
+                  - /url: /tv/235930
+                  - generic [ref=e1593]:
+                    - img "Devil May Cry" [ref=e1594]
+                    - generic [ref=e1596]:
+                      - img [ref=e1600]
+                      - button "Add to history" [ref=e1602]:
+                        - img [ref=e1603]
+                        - generic [ref=e1607]: Add to history
+                    - generic [ref=e1609]:
+                      - generic [ref=e1610]:
+                        - heading "Devil May Cry" [level=3] [ref=e1611]
+                        - generic [ref=e1613]: "2025"
+                      - generic [ref=e1614]:
+                        - img [ref=e1615]
+                        - generic [ref=e1617]: "7.9"
+                    - generic [ref=e1618]:
+                      - img [ref=e1619]
+                      - generic [ref=e1621]: "7.9"
+                - generic [ref=e1624]:
+                  - heading "Devil May Cry" [level=3] [ref=e1625]
+                  - generic [ref=e1626]:
+                    - paragraph [ref=e1627]: "2025"
+                    - generic [ref=e1628]:
+                      - img [ref=e1629]
+                      - generic [ref=e1631]: "7.9"
+              - generic [ref=e1633]:
+                - link "Solar Opposites Add to history Solar Opposites 2020 7.8 7.8" [ref=e1634] [cursor=pointer]:
+                  - /url: /tv/97645
+                  - generic [ref=e1635]:
+                    - img "Solar Opposites" [ref=e1636]
+                    - generic [ref=e1638]:
+                      - img [ref=e1642]
+                      - button "Add to history" [ref=e1644]:
+                        - img [ref=e1645]
+                        - generic [ref=e1649]: Add to history
+                    - generic [ref=e1651]:
+                      - generic [ref=e1652]:
+                        - heading "Solar Opposites" [level=3] [ref=e1653]
+                        - generic [ref=e1655]: "2020"
+                      - generic [ref=e1656]:
+                        - img [ref=e1657]
+                        - generic [ref=e1659]: "7.8"
+                    - generic [ref=e1660]:
+                      - img [ref=e1661]
+                      - generic [ref=e1663]: "7.8"
+                - generic [ref=e1666]:
+                  - heading "Solar Opposites" [level=3] [ref=e1667]
+                  - generic [ref=e1668]:
+                    - paragraph [ref=e1669]: "2020"
+                    - generic [ref=e1670]:
+                      - img [ref=e1671]
+                      - generic [ref=e1673]: "7.8"
+              - generic [ref=e1675]:
+                - link "Peacemaker Add to history Peacemaker 2022 8.2 8.2" [ref=e1676] [cursor=pointer]:
+                  - /url: /tv/110492
+                  - generic [ref=e1677]:
+                    - img "Peacemaker" [ref=e1678]
+                    - generic [ref=e1680]:
+                      - img [ref=e1684]
+                      - button "Add to history" [ref=e1686]:
+                        - img [ref=e1687]
+                        - generic [ref=e1691]: Add to history
+                    - generic [ref=e1693]:
+                      - generic [ref=e1694]:
+                        - heading "Peacemaker" [level=3] [ref=e1695]
+                        - generic [ref=e1697]: "2022"
+                      - generic [ref=e1698]:
+                        - img [ref=e1699]
+                        - generic [ref=e1701]: "8.2"
+                    - generic [ref=e1702]:
+                      - img [ref=e1703]
+                      - generic [ref=e1705]: "8.2"
+                - generic [ref=e1708]:
+                  - heading "Peacemaker" [level=3] [ref=e1709]
+                  - generic [ref=e1710]:
+                    - paragraph [ref=e1711]: "2022"
+                    - generic [ref=e1712]:
+                      - img [ref=e1713]
+                      - generic [ref=e1715]: "8.2"
+              - generic [ref=e1717]:
+                - link "Supergirl Add to history Supergirl 2015 7.3 7.3" [ref=e1718] [cursor=pointer]:
+                  - /url: /tv/62688
+                  - generic [ref=e1719]:
+                    - img "Supergirl" [ref=e1720]
+                    - generic [ref=e1722]:
+                      - img [ref=e1726]
+                      - button "Add to history" [ref=e1728]:
+                        - img [ref=e1729]
+                        - generic [ref=e1733]: Add to history
+                    - generic [ref=e1735]:
+                      - generic [ref=e1736]:
+                        - heading "Supergirl" [level=3] [ref=e1737]
+                        - generic [ref=e1739]: "2015"
+                      - generic [ref=e1740]:
+                        - img [ref=e1741]
+                        - generic [ref=e1743]: "7.3"
+                    - generic [ref=e1744]:
+                      - img [ref=e1745]
+                      - generic [ref=e1747]: "7.3"
+                - generic [ref=e1750]:
+                  - heading "Supergirl" [level=3] [ref=e1751]
+                  - generic [ref=e1752]:
+                    - paragraph [ref=e1753]: "2015"
+                    - generic [ref=e1754]:
+                      - img [ref=e1755]
+                      - generic [ref=e1757]: "7.3"
+              - generic [ref=e1759]:
+                - link "Marvel's Agents of S.H.I.E.L.D. Add to history Marvel's Agents of S.H.I.E.L.D. 2013 7.5 7.5" [ref=e1760] [cursor=pointer]:
+                  - /url: /tv/1403
+                  - generic [ref=e1761]:
+                    - img "Marvel's Agents of S.H.I.E.L.D." [ref=e1762]
+                    - generic [ref=e1764]:
+                      - img [ref=e1768]
+                      - button "Add to history" [ref=e1770]:
+                        - img [ref=e1771]
+                        - generic [ref=e1775]: Add to history
+                    - generic [ref=e1777]:
+                      - generic [ref=e1778]:
+                        - heading "Marvel's Agents of S.H.I.E.L.D." [level=3] [ref=e1779]
+                        - generic [ref=e1781]: "2013"
+                      - generic [ref=e1782]:
+                        - img [ref=e1783]
+                        - generic [ref=e1785]: "7.5"
+                    - generic [ref=e1786]:
+                      - img [ref=e1787]
+                      - generic [ref=e1789]: "7.5"
+                - generic [ref=e1792]:
+                  - heading "Marvel's Agents of S.H.I.E.L.D." [level=3] [ref=e1793]
+                  - generic [ref=e1794]:
+                    - paragraph [ref=e1795]: "2013"
+                    - generic [ref=e1796]:
+                      - img [ref=e1797]
+                      - generic [ref=e1799]: "7.5"
+              - generic [ref=e1801]:
+                - 'link "Sausage Party: Foodtopia Add to history Sausage Party: Foodtopia 2024 6.8 6.8" [ref=e1802] [cursor=pointer]':
+                  - /url: /tv/213249
+                  - generic [ref=e1803]:
+                    - 'img "Sausage Party: Foodtopia" [ref=e1804]'
+                    - generic [ref=e1806]:
+                      - img [ref=e1810]
+                      - button "Add to history" [ref=e1812]:
+                        - img [ref=e1813]
+                        - generic [ref=e1817]: Add to history
+                    - generic [ref=e1819]:
+                      - generic [ref=e1820]:
+                        - 'heading "Sausage Party: Foodtopia" [level=3] [ref=e1821]'
+                        - generic [ref=e1823]: "2024"
+                      - generic [ref=e1824]:
+                        - img [ref=e1825]
+                        - generic [ref=e1827]: "6.8"
+                    - generic [ref=e1828]:
+                      - img [ref=e1829]
+                      - generic [ref=e1831]: "6.8"
+                - generic [ref=e1834]:
+                  - 'heading "Sausage Party: Foodtopia" [level=3] [ref=e1835]'
+                  - generic [ref=e1836]:
+                    - paragraph [ref=e1837]: "2024"
+                    - generic [ref=e1838]:
+                      - img [ref=e1839]
+                      - generic [ref=e1841]: "6.8"
+              - generic [ref=e1843]:
+                - link "Batwoman Add to history Batwoman 2019 6.9 6.9" [ref=e1844] [cursor=pointer]:
+                  - /url: /tv/89247
+                  - generic [ref=e1845]:
+                    - img "Batwoman" [ref=e1846]
+                    - generic [ref=e1848]:
+                      - img [ref=e1852]
+                      - button "Add to history" [ref=e1854]:
+                        - img [ref=e1855]
+                        - generic [ref=e1859]: Add to history
+                    - generic [ref=e1861]:
+                      - generic [ref=e1862]:
+                        - heading "Batwoman" [level=3] [ref=e1863]
+                        - generic [ref=e1865]: "2019"
+                      - generic [ref=e1866]:
+                        - img [ref=e1867]
+                        - generic [ref=e1869]: "6.9"
+                    - generic [ref=e1870]:
+                      - img [ref=e1871]
+                      - generic [ref=e1873]: "6.9"
+                - generic [ref=e1876]:
+                  - heading "Batwoman" [level=3] [ref=e1877]
+                  - generic [ref=e1878]:
+                    - paragraph [ref=e1879]: "2019"
+                    - generic [ref=e1880]:
+                      - img [ref=e1881]
+                      - generic [ref=e1883]: "6.9"
+              - generic [ref=e1885]:
+                - link "Heroes Add to history Heroes 2006 7.4 7.4" [ref=e1886] [cursor=pointer]:
+                  - /url: /tv/1639
+                  - generic [ref=e1887]:
+                    - img "Heroes" [ref=e1888]
+                    - generic [ref=e1890]:
+                      - img [ref=e1894]
+                      - button "Add to history" [ref=e1896]:
+                        - img [ref=e1897]
+                        - generic [ref=e1901]: Add to history
+                    - generic [ref=e1903]:
+                      - generic [ref=e1904]:
+                        - heading "Heroes" [level=3] [ref=e1905]
+                        - generic [ref=e1907]: "2006"
+                      - generic [ref=e1908]:
+                        - img [ref=e1909]
+                        - generic [ref=e1911]: "7.4"
+                    - generic [ref=e1912]:
+                      - img [ref=e1913]
+                      - generic [ref=e1915]: "7.4"
+                - generic [ref=e1918]:
+                  - heading "Heroes" [level=3] [ref=e1919]
+                  - generic [ref=e1920]:
+                    - paragraph [ref=e1921]: "2006"
+                    - generic [ref=e1922]:
+                      - img [ref=e1923]
+                      - generic [ref=e1925]: "7.4"
+              - generic [ref=e1927]:
+                - link "The Maxx Add to history The Maxx 1995 8.3 8.3" [ref=e1928] [cursor=pointer]:
+                  - /url: /tv/56021
+                  - generic [ref=e1929]:
+                    - img "The Maxx" [ref=e1930]
+                    - generic [ref=e1932]:
+                      - img [ref=e1936]
+                      - button "Add to history" [ref=e1938]:
+                        - img [ref=e1939]
+                        - generic [ref=e1943]: Add to history
+                    - generic [ref=e1945]:
+                      - generic [ref=e1946]:
+                        - heading "The Maxx" [level=3] [ref=e1947]
+                        - generic [ref=e1949]: "1995"
+                      - generic [ref=e1950]:
+                        - img [ref=e1951]
+                        - generic [ref=e1953]: "8.3"
+                    - generic [ref=e1954]:
+                      - img [ref=e1955]
+                      - generic [ref=e1957]: "8.3"
+                - generic [ref=e1960]:
+                  - heading "The Maxx" [level=3] [ref=e1961]
+                  - generic [ref=e1962]:
+                    - paragraph [ref=e1963]: "1995"
+                    - generic [ref=e1964]:
+                      - img [ref=e1965]
+                      - generic [ref=e1967]: "8.3"
+    - contentinfo [ref=e982]:
+      - generic [ref=e983]:
+        - generic [ref=e984]:
+          - generic [ref=e985]:
+            - link "Xtream Logo" [ref=e986] [cursor=pointer]:
+              - /url: /
+              - img "Xtream Logo" [ref=e987]
+            - paragraph [ref=e988]: Your ultimate destination for streaming movies and TV shows. Discover, watch, and enjoy unlimited entertainment.
+          - generic [ref=e989]:
+            - heading "Browse" [level=3] [ref=e990]
+            - list [ref=e991]:
+              - listitem [ref=e992]:
+                - link "Movies" [ref=e993] [cursor=pointer]:
+                  - /url: /movies
+              - listitem [ref=e994]:
+                - link "TV Shows" [ref=e995] [cursor=pointer]:
+                  - /url: /tv
+              - listitem [ref=e996]:
+                - link "Trending" [ref=e997] [cursor=pointer]:
+                  - /url: /trending
+          - generic [ref=e998]:
+            - heading "Account" [level=3] [ref=e999]
+            - list [ref=e1000]:
+              - listitem [ref=e1001]:
+                - link "Sign In" [ref=e1002] [cursor=pointer]:
+                  - /url: /auth
+              - listitem [ref=e1003]:
+                - link "Watch History" [ref=e1004] [cursor=pointer]:
+                  - /url: /history
+              - listitem [ref=e1005]:
+                - link "Favorites" [ref=e1006] [cursor=pointer]:
+                  - /url: /favorites
+          - generic [ref=e1007]:
+            - heading "Information" [level=3] [ref=e1008]
+            - list [ref=e1009]:
+              - listitem [ref=e1010]:
+                - link "About Us" [ref=e1011] [cursor=pointer]:
+                  - /url: /about
+              - listitem [ref=e1012]:
+                - link "Contact" [ref=e1013] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=e1014]:
+                - link "Privacy Policy" [ref=e1015] [cursor=pointer]:
+                  - /url: "#"
+        - generic [ref=e1016]:
+          - paragraph [ref=e1017]: © 2026 Xtream. All rights reserved.
+          - paragraph [ref=e1018]: This site does not store any files on its server. All contents are provided by non-affiliated third parties.

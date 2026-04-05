@@ -10,7 +10,7 @@ import { usePlaybackSessionQuery } from "../../../../../hooks/use-playback-sessi
 import { useRouteAccess } from "../../../../../hooks/use-route-access";
 import { useWatchContextQuery } from "../../../../../hooks/use-watch-context-query";
 import type { WatchHrefInput } from "../../../../../lib/routes";
-import { buildAnimeHref, buildWatchHref, decodeRouteParam } from "../../../../../lib/routes";
+import { buildTitleHref, buildWatchHref, decodeRouteParam } from "../../../../../lib/routes";
 
 function isUuid(value: string | null | undefined): value is string {
   if (!value) {
@@ -18,6 +18,25 @@ function isUuid(value: string | null | undefined): value is string {
   }
 
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function formatEpisodeIdentity(
+  kind: "movie" | "tv" | "ova" | "special" | "unknown",
+  episode: {
+    number: number;
+    seasonNumber: number | null;
+    episodeNumber: number | null;
+  },
+) {
+  if (kind === "movie") {
+    return "Movie";
+  }
+
+  if (episode.seasonNumber !== null && episode.episodeNumber !== null) {
+    return `S${episode.seasonNumber} E${episode.episodeNumber}`;
+  }
+
+  return `Episode ${episode.number}`;
 }
 
 export default function WatchPage() {
@@ -202,6 +221,7 @@ export default function WatchPage() {
     return <div className="message">Missing watch context.</div>;
   }
 
+  const isMovie = context.anime.kind === "movie";
   const currentEpisodeIndex = context.episodes.findIndex(
     (episode) => episode.externalEpisodeId === context.currentEpisode.externalEpisodeId,
   );
@@ -217,7 +237,7 @@ export default function WatchPage() {
           type="button"
         >
           <span className={`episode-state state-${episode.state}`} />
-          <div className="episode-number">{episode.number}</div>
+          <div className="episode-number">{formatEpisodeIdentity(context.anime.kind, episode)}</div>
           <div className="episode-main">
             <strong>{episode.title}</strong>
             <p>
@@ -240,7 +260,7 @@ export default function WatchPage() {
           <span className="eyebrow">Watch</span>
           <h1>{context.anime.title}</h1>
           <p>
-            Episode {context.currentEpisode.number}
+            {formatEpisodeIdentity(context.anime.kind, context.currentEpisode)}
             {context.currentEpisode.title ? ` · ${context.currentEpisode.title}` : ""}
           </p>
         </div>
@@ -261,12 +281,16 @@ export default function WatchPage() {
           >
             Next
           </button>
-          <button className="button-secondary watch-episodes-toggle" onClick={() => setShowEpisodeSheet(true)} type="button">
-            Episodes
-          </button>
-          <button className="button-secondary watch-episodes-toggle desktop-only" onClick={() => setShowEpisodeRail((current) => !current)} type="button">
-            {showEpisodeRail ? "Hide rail" : "Show rail"}
-          </button>
+          {!isMovie ? (
+            <>
+              <button className="button-secondary watch-episodes-toggle" onClick={() => setShowEpisodeSheet(true)} type="button">
+                Episodes
+              </button>
+              <button className="button-secondary watch-episodes-toggle desktop-only" onClick={() => setShowEpisodeRail((current) => !current)} type="button">
+                {showEpisodeRail ? "Hide rail" : "Show rail"}
+              </button>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -275,11 +299,12 @@ export default function WatchPage() {
           <div className="watch-topline">
             <Link
               className="watch-backlink"
-              href={buildAnimeHref(context.anime.providerId, context.anime.externalAnimeId)}
+              href={buildTitleHref(context.anime.providerId, context.anime.externalAnimeId)}
             >
               &larr; Back to detail
             </Link>
             <span className="badge">{context.anime.providerDisplayName}</span>
+            <span className="badge">{context.anime.kind}</span>
           </div>
 
           {session?.status === "failed" ? (
@@ -306,19 +331,27 @@ export default function WatchPage() {
             ) : session?.status === "resolving" ? (
               <div className="surface watch-status">
                 <strong>Resolving stream…</strong>
-                <p>Relay is trying provider playback options for this episode.</p>
+                <p>
+                  Relay is trying provider playback options for this
+                  {isMovie ? " title." : " episode."}
+                </p>
               </div>
             ) : (
               <div className="surface watch-status">
                 <strong>Preparing playback</strong>
-                <p>Relay is building the playback session for this episode.</p>
+                <p>
+                  Relay is building the playback session for this
+                  {isMovie ? " title." : " episode."}
+                </p>
               </div>
             )}
 
             {autoplayActive && context.nextEpisode ? (
               <div className="autoplay-dock">
                 <div>
-                  <strong>Next up: episode {context.nextEpisode.number}</strong>
+                  <strong>
+                    Next up: {formatEpisodeIdentity(context.anime.kind, context.nextEpisode)}
+                  </strong>
                   <p>{context.nextEpisode.title}</p>
                 </div>
                 <div className="actions">
@@ -349,7 +382,7 @@ export default function WatchPage() {
             <div>
               <strong>Now playing</strong>
               <p>
-                Episode {context.currentEpisode.number}
+                {formatEpisodeIdentity(context.anime.kind, context.currentEpisode)}
                 {context.currentEpisode.title ? ` · ${context.currentEpisode.title}` : ""}
               </p>
             </div>
@@ -357,8 +390,10 @@ export default function WatchPage() {
               <strong>Next</strong>
               <p>
                 {context.nextEpisode
-                  ? `Episode ${context.nextEpisode.number} · ${context.nextEpisode.title}`
-                  : "Last available episode"}
+                  ? `${formatEpisodeIdentity(context.anime.kind, context.nextEpisode)} · ${context.nextEpisode.title}`
+                  : isMovie
+                    ? "Single-title playback"
+                    : "Last available episode"}
               </p>
             </div>
             <div>
@@ -368,7 +403,7 @@ export default function WatchPage() {
           </div>
         </section>
 
-        {showEpisodeRail ? (
+        {!isMovie && showEpisodeRail ? (
           <aside className="watch-sidebar">
             <div className="section-header">
               <div>
@@ -381,7 +416,7 @@ export default function WatchPage() {
         ) : null}
       </div>
 
-      {showEpisodeSheet ? (
+      {!isMovie && showEpisodeSheet ? (
         <div className="overlay-shell" role="presentation" onClick={() => setShowEpisodeSheet(false)}>
           <aside
             aria-label="Episode picker"

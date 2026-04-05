@@ -23,7 +23,7 @@ type ImportJob = Awaited<ReturnType<ApiServiceContainer["imports"]["createImport
 const userPreferences: UserPreferences = {
   ...DEFAULT_PREFERENCES,
   adultContentVisible: true,
-  allowedContentClasses: ["anime", "hentai"],
+  allowedContentClasses: ["anime", "general", "hentai"],
   watchedThresholdPercent: 85,
 };
 
@@ -50,6 +50,7 @@ function buildLibraryItemRow(
     externalAnimeId: "anime-1",
     title: "Example Anime",
     coverImage: null,
+    kind: "tv",
     status: "watching",
     addedAt: now,
     updatedAt: now,
@@ -61,7 +62,12 @@ function buildLibraryItemRow(
 
 function buildUpdatedLibraryItemRow(
   libraryItemId: string,
-  input: { status?: "completed" | "planned" | "watching" | "paused"; title?: string; coverImage?: string | null },
+  input: {
+    status?: "completed" | "planned" | "watching" | "paused";
+    title?: string;
+    coverImage?: string | null;
+    kind?: "movie" | "tv" | "ova" | "special" | "unknown";
+  },
 ): UpdatedLibraryItemRow {
   return {
     ...buildLibraryItemRow({
@@ -69,6 +75,7 @@ function buildUpdatedLibraryItemRow(
       status: input.status ?? "watching",
       title: input.title ?? "Example Anime",
       coverImage: input.coverImage ?? null,
+      kind: input.kind ?? "tv",
     }),
     updatedAt: now,
   };
@@ -230,6 +237,7 @@ function createServices(): ApiServiceContainer {
           status: "unknown" as const,
           year: null,
           tags: [],
+          kind: "tv" as const,
           language: "en",
           totalEpisodes: 12,
           contentClass: "anime" as const,
@@ -276,6 +284,7 @@ function createServices(): ApiServiceContainer {
           externalAnimeId: input.externalAnimeId,
           title: input.title,
           coverImage: input.coverImage,
+          kind: input.kind,
           status: input.status,
         });
       },
@@ -401,6 +410,7 @@ function createServices(): ApiServiceContainer {
             status: "unknown" as const,
             year: null,
             tags: [],
+            kind: "tv" as const,
             language: "en",
             totalEpisodes: 12,
             contentClass: "anime" as const,
@@ -414,6 +424,8 @@ function createServices(): ApiServiceContainer {
             number: 1,
             title: "Episode 1",
             synopsis: null,
+            seasonNumber: null,
+            episodeNumber: 1,
             thumbnail: null,
             durationSeconds: null,
             releasedAt: null,

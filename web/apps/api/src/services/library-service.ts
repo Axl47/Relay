@@ -197,6 +197,7 @@ export class LibraryService {
       externalAnimeId: item.externalAnimeId,
       title: item.title,
       coverImage: item.coverImage,
+      kind: item.kind as LibraryItemWithCategories["kind"],
       status: item.status as LibraryItemWithCategories["status"],
       addedAt: item.addedAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),

@@ -20,4 +20,21 @@ describe("provider external URL helpers", () => {
       }),
     ).toBe("https://hanime.tv/videos/hentai/episode/1");
   });
+
+  it("builds xtream detail URLs from the persisted kind", () => {
+    expect(
+      buildOriginalAnimeUrl({
+        providerId: "xtream",
+        externalAnimeId: "687163",
+        kind: "movie",
+      }),
+    ).toBe("https://xtream.rip/movie/687163");
+    expect(
+      buildOriginalAnimeUrl({
+        providerId: "xtream",
+        externalAnimeId: "95557",
+        kind: "tv",
+      }),
+    ).toBe("https://xtream.rip/tv/95557");
+  });
 });

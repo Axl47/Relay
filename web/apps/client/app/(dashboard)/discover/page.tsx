@@ -10,10 +10,11 @@ import { useLibraryIndexQuery } from "../../../hooks/use-library-index-query";
 import { useRouteAccess } from "../../../hooks/use-route-access";
 import { apiFetch } from "../../../lib/api";
 import { queryKeys } from "../../../lib/query-keys";
-import { buildAnimeHref } from "../../../lib/routes";
+import { buildTitleHref } from "../../../lib/routes";
 import { streamCatalogSearch } from "../../../lib/search-stream";
 
-type ContentFilter = "all" | "anime" | "hentai" | "jav";
+type ContentFilter = "all" | "anime" | "general" | "hentai" | "jav";
+type KindFilter = "all" | "movie" | "tv";
 type DensityMode = "comfortable" | "compact";
 
 function buildResultKey(item: CatalogSearchResponse["items"][number]) {
@@ -31,6 +32,7 @@ export default function DiscoverPage() {
   const [showProviderSheet, setShowProviderSheet] = useState(false);
   const [providerFilter, setProviderFilter] = useState<string>("all");
   const [contentFilter, setContentFilter] = useState<ContentFilter>("all");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [showOnlyLibrary, setShowOnlyLibrary] = useState(false);
   const [densityMode, setDensityMode] = useState<DensityMode>("comfortable");
   const [providerProgress, setProviderProgress] = useState<{
@@ -153,6 +155,10 @@ export default function DiscoverPage() {
       return false;
     }
 
+    if (kindFilter !== "all" && group.primary.kind !== kindFilter) {
+      return false;
+    }
+
     if (
       providerFilter !== "all" &&
       !group.sources.some((source) => source.providerId === providerFilter)
@@ -241,7 +247,7 @@ export default function DiscoverPage() {
           >
             All classes
           </button>
-          {(["anime", "hentai", "jav"] as const).map((contentClass) => (
+          {(["anime", "general", "hentai", "jav"] as const).map((contentClass) => (
             <button
               aria-pressed={contentFilter === contentClass}
               className={`filter-chip${contentFilter === contentClass ? " active" : ""}`}
@@ -261,6 +267,24 @@ export default function DiscoverPage() {
           >
             In library only
           </button>
+        </div>
+
+        <div className="filter-chip-row">
+          {([
+            { value: "all", label: "All kinds" },
+            { value: "movie", label: "Movie" },
+            { value: "tv", label: "TV" },
+          ] as const).map((option) => (
+            <button
+              aria-pressed={kindFilter === option.value}
+              className={`filter-chip${kindFilter === option.value ? " active" : ""}`}
+              key={option.value}
+              onClick={() => setKindFilter(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -329,7 +353,7 @@ export default function DiscoverPage() {
           {filteredResults.map((group) => (
             <Link
               className={`result-card${densityMode === "compact" ? " compact" : ""}`}
-              href={buildAnimeHref(group.primary.providerId, group.primary.externalAnimeId)}
+              href={buildTitleHref(group.primary.providerId, group.primary.externalAnimeId)}
               key={`${group.primary.providerId}-${group.primary.externalAnimeId}`}
             >
               <div className="result-card-image-wrap">

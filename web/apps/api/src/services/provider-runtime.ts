@@ -48,12 +48,13 @@ export function normalizePreferences(input: Partial<UserPreferences>): UserPrefe
 
   const allowed = new Set(parsed.allowedContentClasses);
   allowed.add("anime");
+  allowed.add("general");
 
   if (!parsed.adultContentVisible) {
     return {
       ...parsed,
       adultContentVisible: false,
-      allowedContentClasses: ["anime"],
+      allowedContentClasses: ["anime", "general"],
     };
   }
 
@@ -61,7 +62,7 @@ export function normalizePreferences(input: Partial<UserPreferences>): UserPrefe
     ...parsed,
     allowedContentClasses: Array.from(allowed).filter(
       (value): value is ProviderContentClass =>
-        value === "anime" || value === "hentai" || value === "jav",
+        value === "anime" || value === "general" || value === "hentai" || value === "jav",
     ),
   };
 }
@@ -108,6 +109,7 @@ export function buildAnimetakeFallbackAnimeDetails(
     bannerImage: null,
     status: "unknown",
     year: null,
+    kind: "unknown",
     tags: [],
     language: "en",
     totalEpisodes: null,
@@ -121,7 +123,9 @@ export class ProviderRuntime {
   private readonly browserBroker = new HttpBrowserBrokerClient(appConfig.BROWSER_SERVICE_URL);
 
   constructor() {
-    this.registryPromise = createProviderRegistry();
+    this.registryPromise = createProviderRegistry({
+      tmdbApiKey: appConfig.TMDB_API_KEY ?? null,
+    });
   }
 
   registry() {

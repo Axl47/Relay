@@ -119,6 +119,7 @@ export class CatalogService {
       bannerImage: row.bannerImage,
       status: (row.status as AnimeDetails["status"]) ?? "unknown",
       year: row.year,
+      kind: row.kind as AnimeDetails["kind"],
       tags: Array.isArray(row.tags)
         ? row.tags.filter((tag): tag is string => typeof tag === "string")
         : [],
@@ -172,6 +173,8 @@ export class CatalogService {
       externalAnimeId: episode.externalAnimeId,
       externalEpisodeId: episode.externalEpisodeId,
       number: episode.number,
+      seasonNumber: episode.seasonNumber ?? null,
+      episodeNumber: episode.episodeNumber ?? null,
       title: episode.title,
       synopsis: episode.synopsis ?? null,
       thumbnail: episode.thumbnail ?? null,
@@ -201,6 +204,8 @@ export class CatalogService {
           externalAnimeId: row.externalAnimeId,
           externalEpisodeId: row.externalEpisodeId,
           number: row.number,
+          seasonNumber: row.seasonNumber,
+          episodeNumber: row.episodeNumber,
           title: row.title,
           synopsis: row.synopsis,
           thumbnail: row.thumbnail,
@@ -208,6 +213,16 @@ export class CatalogService {
           releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
         }))
         .sort((left, right) => {
+          const seasonDelta = (left.seasonNumber ?? 0) - (right.seasonNumber ?? 0);
+          if (seasonDelta !== 0) {
+            return seasonDelta;
+          }
+
+          const episodeDelta = (left.episodeNumber ?? 0) - (right.episodeNumber ?? 0);
+          if (episodeDelta !== 0) {
+            return episodeDelta;
+          }
+
           if (left.number !== right.number) {
             return left.number - right.number;
           }
@@ -398,6 +413,7 @@ export class CatalogService {
       bannerImage: anime.bannerImage,
       status: anime.status,
       year: anime.year,
+      kind: anime.kind,
       language: anime.language,
       contentClass: anime.contentClass as ProviderContentClass,
       requiresAdultGate: anime.requiresAdultGate,

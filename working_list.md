@@ -1,31 +1,18 @@
----
-created_at: 2026-03-27T19:24:00-04:00
-updated_at: 2026-03-27T19:54:00-04:00
----
 # Working List
 
-## Current Task: Relay Web UI/UX Redesign Implementation
-
 ## Pending
-- [ ] Live authenticated browser verification once the local login/database `ECONNRESET` is resolved
+None.
 
 ## In Progress
-- [~] None
+None.
+
+## Blocked
+- [!] `rtk proxy npm run db:push -w @relay/api` could not connect to Postgres on `127.0.0.1:5432` / `::1:5432`, so the schema push itself is still waiting on a local database.
 
 ## Done
-- [x] Audit the current client routes, contracts, CSS, and rendered desktop/mobile surfaces
-- [x] Produce the redesign implementation plan covering IA, desktop, mobile, API, and validation scope
-- [x] Add imports listing contract/API support and client data hooks
-- [x] Refactor shared auth handling and route resolution for signed-out users
-- [x] Rebuild app shell and global design system for desktop/mobile IA
-- [x] Redesign Discover search workspace and provider visibility
-- [x] Redesign Library with persisted layout/sort preferences and categories
-- [x] Redesign Activity timeline
-- [x] Redesign Sources management surface
-- [x] Redesign Account surface with trackers and imports
-- [x] Redesign anime detail layout and episode controls
-- [x] Redesign watch layout, episode navigation, and autoplay treatment
-- [x] Update `AGENTS.md` with new UI/UX maintenance hotspots
-- [x] Run client/api typecheck and targeted tests
-- [x] Perform signed-out browser verification across desktop and mobile layouts
-- [x] Close out project notes and final verification details
+- [x] Create implementation tracking artifacts
+- [x] Implement contract and persistence changes for general movie/TV content
+- [x] Implement Xtream TMDB-backed provider and registry/config wiring
+- [x] Implement client route and UI updates for generic title detail and watch presentation
+- [x] Add and update automated tests for provider, API, and client helpers
+- [x] Run verification, update docs, and summarize remaining risks

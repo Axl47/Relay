@@ -4,7 +4,7 @@ export const providerIdSchema = z.string().min(1);
 export const externalIdSchema = z.string().min(1);
 export const isoDateSchema = z.string().datetime().or(z.string().min(1));
 
-export const providerContentClassSchema = z.enum(["anime", "hentai", "jav"]);
+export const providerContentClassSchema = z.enum(["anime", "general", "hentai", "jav"]);
 export const providerExecutionModeSchema = z.enum(["http", "browser"]);
 export const playbackProxyModeSchema = z.enum(["proxy", "redirect"]);
 export const playbackSessionStatusSchema = z.enum([

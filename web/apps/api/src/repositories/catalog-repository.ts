@@ -32,6 +32,7 @@ export class CatalogRepository {
             bannerImage: item.coverImage,
             status: "unknown",
             year: item.year,
+            kind: item.kind,
             language: item.language,
             contentClass: item.contentClass,
             requiresAdultGate: item.requiresAdultGate,
@@ -47,6 +48,7 @@ export class CatalogRepository {
               coverImage: item.coverImage,
               bannerImage: item.coverImage,
               year: item.year,
+              kind: item.kind,
               language: item.language,
               contentClass: item.contentClass,
               requiresAdultGate: item.requiresAdultGate,
@@ -66,6 +68,7 @@ export class CatalogRepository {
     bannerImage: string | null;
     status: string;
     year: number | null;
+    kind: string;
     language: string;
     contentClass: string;
     requiresAdultGate: boolean;
@@ -87,6 +90,7 @@ export class CatalogRepository {
           bannerImage: input.bannerImage,
           status: input.status,
           year: input.year,
+          kind: input.kind,
           language: input.language,
           contentClass: input.contentClass,
           requiresAdultGate: input.requiresAdultGate,
@@ -120,6 +124,8 @@ export class CatalogRepository {
             externalAnimeId: payload.externalAnimeId,
             externalEpisodeId: episode.externalEpisodeId,
             number: Math.round(episode.number),
+            seasonNumber: episode.seasonNumber,
+            episodeNumber: episode.episodeNumber,
             title: episode.title,
             synopsis: episode.synopsis,
             thumbnail: episode.thumbnail,
@@ -135,6 +141,8 @@ export class CatalogRepository {
             ],
             set: {
               number: Math.round(episode.number),
+              seasonNumber: episode.seasonNumber,
+              episodeNumber: episode.episodeNumber,
               title: episode.title,
               synopsis: episode.synopsis,
               thumbnail: episode.thumbnail,

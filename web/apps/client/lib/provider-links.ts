@@ -4,6 +4,7 @@ type OriginalAnimeUrlInput = {
   providerId: string;
   externalAnimeId: string;
   firstEpisodeId?: string | null;
+  kind?: "movie" | "tv" | "ova" | "special" | "unknown" | null;
 };
 
 export function buildOriginalAnimeUrl(input: OriginalAnimeUrlInput) {
@@ -32,6 +33,14 @@ export function buildOriginalAnimeUrl(input: OriginalAnimeUrlInput) {
       return `https://hstream.moe/hentai/${encodedAnimeId}`;
     case "javguru":
       return `https://jav.guru/${encodedAnimeId}/`;
+    case "xtream":
+      if (input.kind === "movie") {
+        return `https://xtream.rip/movie/${encodedAnimeId}`;
+      }
+      if (input.kind === "tv") {
+        return `https://xtream.rip/tv/${encodedAnimeId}`;
+      }
+      return null;
     default:
       return null;
   }

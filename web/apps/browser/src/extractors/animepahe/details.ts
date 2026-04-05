@@ -105,6 +105,7 @@ export async function getAnimePaheAnime(
       status: details.status,
       year: details.year,
       tags: details.tags,
+      kind: "tv",
       language: "ja",
       totalEpisodes: details.totalEpisodes,
       contentClass: "anime",

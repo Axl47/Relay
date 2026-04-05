@@ -47,6 +47,7 @@ export class LibraryRepository {
         externalAnimeId: input.externalAnimeId,
         title: input.title,
         coverImage: input.coverImage,
+        kind: input.kind,
         status: input.status,
       })
       .returning()
@@ -59,6 +60,7 @@ export class LibraryRepository {
       .set({
         title: input.title,
         coverImage: input.coverImage,
+        kind: input.kind,
         status: input.status,
         updatedAt: new Date(),
       })

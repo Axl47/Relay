@@ -15,7 +15,7 @@ import { useRouteAccess } from "../../../hooks/use-route-access";
 import { useTrackerEntriesQuery } from "../../../hooks/use-tracker-entries-query";
 import { apiFetch } from "../../../lib/api";
 import { queryKeys } from "../../../lib/query-keys";
-import { buildAnimeHref, buildWatchHref } from "../../../lib/routes";
+import { buildTitleHref, buildWatchHref } from "../../../lib/routes";
 
 type SortMode = UserPreferences["librarySortMode"];
 type LayoutMode = UserPreferences["libraryLayoutMode"];
@@ -43,6 +43,22 @@ function sortLibraryItems(
         return rightValue - leftValue;
       });
   }
+}
+
+function formatLibraryState(item: LibraryDashboardResponse["allItems"][number]) {
+  if (item.kind === "movie") {
+    return item.progress ? "In progress" : "Not started";
+  }
+
+  return item.currentEpisodeNumber ? `Episode ${item.currentEpisodeNumber}` : "Not started";
+}
+
+function formatLibraryMeta(item: LibraryDashboardResponse["allItems"][number]) {
+  if (item.kind === "movie") {
+    return "Movie";
+  }
+
+  return item.totalEpisodes ? `${item.totalEpisodes} eps` : "Series";
 }
 
 export default function LibraryPage() {
@@ -249,7 +265,7 @@ export default function LibraryPage() {
           <div className="section-header">
             <div>
               <h2>Continue watching</h2>
-              <p>Resume the shows with active watch progress instead of digging back through detail pages.</p>
+              <p>Resume active titles instead of digging back through detail pages.</p>
             </div>
           </div>
 
@@ -272,13 +288,15 @@ export default function LibraryPage() {
                       <span style={{ width: `${item.progress.percentComplete}%` }} />
                     </div>
                   ) : null}
-                  {item.currentEpisodeNumber ? (
+                  {item.kind === "movie" ? (
+                    <span className="floating-badge">Movie</span>
+                  ) : item.currentEpisodeNumber ? (
                     <span className="floating-badge">Ep {item.currentEpisodeNumber}</span>
                   ) : null}
                 </div>
                 <div className="card-body">
                   <strong>{item.title}</strong>
-                  <p>{item.currentEpisodeTitle ?? "Continue where you left off"}</p>
+                  <p>{item.currentEpisodeTitle ?? (item.kind === "movie" ? "Resume movie playback" : "Continue where you left off")}</p>
                 </div>
               </Link>
             ))}
@@ -299,7 +317,7 @@ export default function LibraryPage() {
             {recentlyAdded.map((item) => (
               <Link
                 className="mini-card"
-                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
+                href={buildTitleHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
                 <div className="result-card-image-wrap">
@@ -310,6 +328,7 @@ export default function LibraryPage() {
                 </div>
                 <div className="card-body">
                   <strong>{item.title}</strong>
+                  <p className="card-subtle">{formatLibraryMeta(item)}</p>
                 </div>
               </Link>
             ))}
@@ -354,7 +373,7 @@ export default function LibraryPage() {
             {sortedItems.map((item) => (
               <Link
                 className="result-card"
-                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
+                href={buildTitleHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
                 <div className="result-card-image-wrap">
@@ -373,8 +392,8 @@ export default function LibraryPage() {
                 <div className="card-body">
                   <strong>{item.title}</strong>
                   <div className="meta-row">
-                    {item.currentEpisodeNumber ? <span>Ep {item.currentEpisodeNumber}</span> : <span>Not started</span>}
-                    {item.totalEpisodes ? <span>{item.totalEpisodes} eps</span> : null}
+                    <span>{formatLibraryState(item)}</span>
+                    <span>{formatLibraryMeta(item)}</span>
                   </div>
                 </div>
               </Link>
@@ -385,18 +404,19 @@ export default function LibraryPage() {
             {sortedItems.map((item) => (
               <Link
                 className="list-item library-list-row"
-                href={buildAnimeHref(item.providerId, item.externalAnimeId)}
+                href={buildTitleHref(item.providerId, item.externalAnimeId)}
                 key={item.id}
               >
                 <div className="list-item-main">
                   <strong>{item.title}</strong>
                   <p>
-                    {item.currentEpisodeNumber ? `Episode ${item.currentEpisodeNumber}` : "Not started"}
+                    {formatLibraryState(item)}
                     {item.currentEpisodeTitle ? ` · ${item.currentEpisodeTitle}` : ""}
                   </p>
                 </div>
                 <div className="meta-row">
                   <span className="badge">{item.providerId}</span>
+                  <span className="badge">{item.kind}</span>
                   {trackedLibraryItemIds.has(item.id) ? <span className="badge">Tracked</span> : null}
                   {item.progress ? <span>{item.progress.percentComplete}%</span> : null}
                 </div>
@@ -406,14 +426,14 @@ export default function LibraryPage() {
         ) : (
           <div className="stack-list compact">
             {sortedItems.map((item) => (
-              <Link className="inline-card compact-card" href={buildAnimeHref(item.providerId, item.externalAnimeId)} key={item.id}>
+              <Link className="inline-card compact-card" href={buildTitleHref(item.providerId, item.externalAnimeId)} key={item.id}>
                 <div className="compact-card-media">
                   <CoverImage alt={item.title} className="compact-cover" src={item.coverImage} />
                 </div>
                 <div className="compact-card-copy">
                   <strong>{item.title}</strong>
                   <p>
-                    {item.currentEpisodeNumber ? `Episode ${item.currentEpisodeNumber}` : "Not started"}
+                    {formatLibraryState(item)}
                     {item.currentEpisodeTitle ? ` · ${item.currentEpisodeTitle}` : ""}
                   </p>
                 </div>

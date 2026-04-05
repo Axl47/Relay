@@ -31,7 +31,11 @@ function buildQueryPath(pathname: string, params: Record<string, string | null |
 }
 
 export function buildAnimeHref(providerId: string, externalAnimeId: string) {
-  return `/anime/${encodeRouteParam(providerId)}/${encodeRouteParam(externalAnimeId)}`;
+  return buildTitleHref(providerId, externalAnimeId);
+}
+
+export function buildTitleHref(providerId: string, externalAnimeId: string) {
+  return `/title/${encodeRouteParam(providerId)}/${encodeRouteParam(externalAnimeId)}`;
 }
 
 export type WatchHrefInput = {

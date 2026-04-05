@@ -11,6 +11,7 @@ import {
   HanimeProvider,
   HstreamProvider,
   JavGuruProvider,
+  XtreamProvider,
 } from "./index";
 
 type MockResponseConfig = {
@@ -102,6 +103,265 @@ describe("looksLikeChallengePage", () => {
 });
 
 describe("Wave 1 provider contract fixtures", () => {
+  it("xtream maps TMDB movie and TV results and ignores people", async () => {
+    const provider = new XtreamProvider("tmdb-key");
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url) =>
+            url.startsWith("https://api.themoviedb.org/3/search/multi?") &&
+            url.includes("query=Mario"),
+          response: {
+            body: JSON.stringify({
+              page: 1,
+              total_pages: 1,
+              results: [
+                {
+                  id: 687163,
+                  media_type: "movie",
+                  title: "The Super Mario Bros. Movie",
+                  overview: "Movie overview",
+                  poster_path: "/mario-movie.jpg",
+                  release_date: "2023-04-05",
+                  original_language: "en",
+                },
+                {
+                  id: 95557,
+                  media_type: "tv",
+                  name: "Invincible",
+                  overview: "TV overview",
+                  poster_path: "/invincible.jpg",
+                  first_air_date: "2021-03-25",
+                  original_language: "en",
+                },
+                {
+                  id: 123,
+                  media_type: "person",
+                  name: "Ignored Person",
+                },
+              ],
+            }),
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+      ]),
+    });
+
+    const search = await provider.search({ query: "Mario", page: 1, limit: 10 }, ctx);
+    expect(search.items).toHaveLength(2);
+    expect(search.items.map((item) => item.kind)).toEqual(["movie", "tv"]);
+    expect(search.items.map((item) => item.externalAnimeId)).toEqual(["687163", "95557"]);
+    expect(search.items.every((item) => item.contentClass === "general")).toBe(true);
+  });
+
+  it("xtream probes movie details first and returns a synthetic movie episode", async () => {
+    const provider = new XtreamProvider("tmdb-key");
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url) => url.startsWith("https://api.themoviedb.org/3/movie/687163?"),
+          response: {
+            body: JSON.stringify({
+              id: 687163,
+              title: "The Super Mario Bros. Movie",
+              overview: "Movie overview",
+              poster_path: "/mario-movie.jpg",
+              backdrop_path: "/mario-backdrop.jpg",
+              release_date: "2023-04-05",
+              genres: [{ id: 16, name: "Animation" }],
+              original_language: "en",
+              runtime: 92,
+            }),
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+      ]),
+    });
+
+    const anime = await provider.getAnime(
+      {
+        providerId: "xtream",
+        externalAnimeId: "687163",
+      },
+      ctx,
+    );
+    expect(anime.kind).toBe("movie");
+    expect(anime.totalEpisodes).toBe(1);
+
+    const episodes = await provider.getEpisodes(
+      {
+        providerId: "xtream",
+        externalAnimeId: "687163",
+      },
+      ctx,
+    );
+    expect(episodes.episodes).toEqual([
+      expect.objectContaining({
+        externalEpisodeId: "movie",
+        number: 1,
+        seasonNumber: null,
+        episodeNumber: null,
+        title: "The Super Mario Bros. Movie",
+      }),
+    ]);
+  });
+
+  it("xtream falls back to TV details and flattens season episodes", async () => {
+    const provider = new XtreamProvider("tmdb-key");
+    const ctx = createProviderRequestContext({
+      fetch: createMockFetch([
+        {
+          match: (url) => url.startsWith("https://api.themoviedb.org/3/movie/95557?"),
+          response: {
+            body: JSON.stringify({ status_code: 34, status_message: "Not found" }),
+            status: 404,
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+        {
+          match: (url) => url.startsWith("https://api.themoviedb.org/3/tv/95557?"),
+          response: {
+            body: JSON.stringify({
+              id: 95557,
+              name: "Invincible",
+              overview: "TV overview",
+              poster_path: "/invincible.jpg",
+              backdrop_path: "/invincible-backdrop.jpg",
+              first_air_date: "2021-03-25",
+              genres: [{ id: 10765, name: "Sci-Fi & Fantasy" }],
+              original_language: "en",
+              status: "Returning Series",
+              number_of_episodes: 3,
+              seasons: [
+                { season_number: 1, episode_count: 2 },
+                { season_number: 2, episode_count: 1 },
+              ],
+            }),
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+        {
+          match: (url) => url.startsWith("https://api.themoviedb.org/3/tv/95557/season/1?"),
+          response: {
+            body: JSON.stringify({
+              season_number: 1,
+              episodes: [
+                {
+                  episode_number: 1,
+                  name: "It's About Time",
+                  overview: "Episode one",
+                  still_path: "/s1e1.jpg",
+                  runtime: 50,
+                  air_date: "2021-03-25",
+                },
+                {
+                  episode_number: 2,
+                  name: "Here Goes Nothing",
+                  overview: "Episode two",
+                  still_path: "/s1e2.jpg",
+                  runtime: 47,
+                  air_date: "2021-04-01",
+                },
+              ],
+            }),
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+        {
+          match: (url) => url.startsWith("https://api.themoviedb.org/3/tv/95557/season/2?"),
+          response: {
+            body: JSON.stringify({
+              season_number: 2,
+              episodes: [
+                {
+                  episode_number: 1,
+                  name: "A Lesson for Your Next Life",
+                  overview: "Episode three",
+                  still_path: "/s2e1.jpg",
+                  runtime: 49,
+                  air_date: "2023-11-03",
+                },
+              ],
+            }),
+            contentType: "application/json; charset=utf-8",
+          },
+        },
+      ]),
+    });
+
+    const anime = await provider.getAnime(
+      {
+        providerId: "xtream",
+        externalAnimeId: "95557",
+      },
+      ctx,
+    );
+    expect(anime.kind).toBe("tv");
+    expect(anime.status).toBe("ongoing");
+
+    const episodes = await provider.getEpisodes(
+      {
+        providerId: "xtream",
+        externalAnimeId: "95557",
+      },
+      ctx,
+    );
+    expect(episodes.episodes.map((episode) => episode.externalEpisodeId)).toEqual([
+      "s1:e1",
+      "s1:e2",
+      "s2:e1",
+    ]);
+    expect(episodes.episodes.map((episode) => [episode.seasonNumber, episode.episodeNumber])).toEqual([
+      [1, 1],
+      [1, 2],
+      [2, 1],
+    ]);
+  });
+
+  it("xtream builds five redirect embed mirrors in provider order", async () => {
+    const provider = new XtreamProvider("tmdb-key");
+    const ctx = createProviderRequestContext();
+
+    const moviePlayback = await provider.resolvePlayback(
+      {
+        providerId: "xtream",
+        externalAnimeId: "687163",
+        externalEpisodeId: "movie",
+      },
+      ctx,
+    );
+    expect(moviePlayback.streams).toHaveLength(5);
+    expect(moviePlayback.streams.every((stream) => stream.mimeType === "text/html")).toBe(true);
+    expect(moviePlayback.streams.every((stream) => stream.proxyMode === "redirect")).toBe(true);
+    expect(moviePlayback.streams[0]).toMatchObject({
+      id: "vidsrc",
+      isDefault: true,
+      url: "https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574",
+    });
+    expect(moviePlayback.streams.map((stream) => stream.quality)).toEqual([
+      "VidSrc",
+      "Videasy",
+      "VidRock",
+      "Vidzee",
+      "VidFast",
+    ]);
+
+    const tvPlayback = await provider.resolvePlayback(
+      {
+        providerId: "xtream",
+        externalAnimeId: "95557",
+        externalEpisodeId: "s1:e2",
+      },
+      ctx,
+    );
+    expect(tvPlayback.streams[0]?.url).toBe(
+      "https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574",
+    );
+    expect(tvPlayback.streams[4]?.url).toBe(
+      "https://vidfast.pro/tv/95557/1/2?autoPlay=true&nextButton=true&autoNext=true",
+    );
+  });
+
   it("aki-h parses search, details, episodes, and browser-backed playback", async () => {
     const provider = new AkiHProvider();
     const ctx = createProviderRequestContext({

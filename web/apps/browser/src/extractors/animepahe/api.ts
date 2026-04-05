@@ -191,6 +191,8 @@ export async function getAnimePaheEpisodes(
           number: entry.episode ?? 0,
           title: buildEpisodeTitle(entry),
           synopsis: null,
+          seasonNumber: null,
+          episodeNumber: entry.episode ?? 0,
           thumbnail: entry.snapshot ?? null,
           durationSeconds: parseDurationSeconds(entry.duration),
           releasedAt: entry.created_at ?? null,

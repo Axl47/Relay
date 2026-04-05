@@ -1,0 +1,119 @@
+[   66779ms] [WARNING] Allow attribute will take precedence over 'allowfullscreen'. @ https://xtream.rip/assets/index-D8ZyekK-.js:32
+[   66792ms] [LOG] [VideoPlayer] Embed URL: https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   66792ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   66792ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   68134ms] Uncaught SecurityError: Failed to read a named property 'addEventListener' from 'Window': Blocked a frame with origin "https://www.vidsrc.wtf" from accessing a frame with origin "https://xtream.rip". Protocols, domains, and ports must match.
+    at Object.assign.isRunning (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:16814)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:17654)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:204)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:208)
+[   68953ms] [ERROR] Permissions policy violation: bluetooth is not allowed in this document. @ https://llvpn.com/tag.min.js:0
+[   68968ms] [LOG] Fetching stream {tmdbId: 687163, title: Project Hail Mary, poster: /yihdXomYb5kTeSivtFndMy5iDmf.jpg, backdrop: /8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg} @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:293
+[   69288ms] [LOG] Detected hex color: #d4a574 @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:77
+[   69288ms] [LOG] Assigned color scheme for hex: light @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:81
+[   69288ms] [LOG] Injected custom brand color: #d4a574 @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:120
+[   69302ms] [LOG] Player initialized {url: https://i-cdn-0.piexe411qok.com/stream2/i-cdn-0/69…4ce64460c:=0EVrlHTqFVeMpWR45Ua0ETTB1TP/index.m3u8, tmdbId: 687163, title: Project Hail Mary, backdrop: /8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg} @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:177
+[   73273ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.rgshows.ru/thumbnail/movie/687163:0
+[   89904ms] [WARNING] Allow attribute will take precedence over 'allowfullscreen'. @ https://xtream.rip/assets/index-D8ZyekK-.js:32
+[   89914ms] [LOG] [VideoPlayer] Embed URL: https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   89914ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   89914ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[   90631ms] Uncaught SecurityError: Failed to read a named property 'addEventListener' from 'Window': Blocked a frame with origin "https://www.vidsrc.wtf" from accessing a frame with origin "https://xtream.rip". Protocols, domains, and ports must match.
+    at Object.assign.isRunning (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:16814)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:17654)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:204)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:208)
+[   90730ms] [ERROR] Permissions policy violation: bluetooth is not allowed in this document. @ https://llvpn.com/tag.min.js:0
+[   90744ms] [LOG] Fetching stream {tmdbId: 95557, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, season: 1, episode: 1} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:314
+[   90885ms] [LOG] Detected hex color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:77
+[   90885ms] [LOG] Assigned color scheme for hex: light @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:81
+[   90885ms] [LOG] Injected custom brand color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:120
+[   90900ms] [LOG] Player initialized {url: https://zebi.xalaflix.design/tv/95557/S1/E1/premium-vsbb4w/master.m3u8, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, tmdbId: 95557, season: 1} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:177
+[   91605ms] [ERROR] Unsafe attempt to load URL https://zebi.xalaflix.design/tv/95557/S1/E1/premium-vsbb4w/text_0/index.m3u8 from frame with URL https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574. Domains, protocols and ports must match.
+ @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:0
+[   91812ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.rgshows.ru/thumbnail/tv/95557/1/1:0
+[  101529ms] [LOG] [VideoPlayer] Embed URL: https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  101529ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  101529ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  102392ms] Uncaught SecurityError: Failed to read a named property 'addEventListener' from 'Window': Blocked a frame with origin "https://www.vidsrc.wtf" from accessing a frame with origin "https://xtream.rip". Protocols, domains, and ports must match.
+    at Object.assign.isRunning (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:16814)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:17654)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:204)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:208)
+[  102385ms] [LOG] Fetching stream {tmdbId: 95557, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, season: 1, episode: 2} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:314
+[  102484ms] [ERROR] Permissions policy violation: bluetooth is not allowed in this document. @ https://llvpn.com/tag.min.js:0
+[  102486ms] [LOG] Detected hex color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:77
+[  102486ms] [LOG] Assigned color scheme for hex: light @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:81
+[  102486ms] [LOG] Injected custom brand color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:120
+[  102493ms] [LOG] Player initialized {url: https://zebi.xalaflix.design/tv/95557/S1/E2/premium-x32fmp/master.m3u8, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, tmdbId: 95557, season: 1} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:177
+[  108017ms] [ERROR] Unsafe attempt to load URL https://zebi.xalaflix.design/tv/95557/S1/E2/premium-x32fmp/text_0/index.m3u8 from frame with URL https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574. Domains, protocols and ports must match.
+ @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=2&color=D4A574:0
+[  108395ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.rgshows.ru/thumbnail/tv/95557/1/2:0
+[  135684ms] [WARNING] Allow attribute will take precedence over 'allowfullscreen'. @ https://xtream.rip/assets/index-D8ZyekK-.js:32
+[  135693ms] [LOG] [VideoPlayer] Embed URL: https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  135693ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  135693ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  135810ms] Uncaught SecurityError: Failed to read a named property 'addEventListener' from 'Window': Blocked a frame with origin "https://www.vidsrc.wtf" from accessing a frame with origin "https://xtream.rip". Protocols, domains, and ports must match.
+    at Object.assign.isRunning (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:16814)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:17654)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:204)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:208)
+[  135804ms] [LOG] Fetching stream {tmdbId: 687163, title: Project Hail Mary, poster: /yihdXomYb5kTeSivtFndMy5iDmf.jpg, backdrop: /8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg} @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:293
+[  135941ms] [LOG] Detected hex color: #d4a574 @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:77
+[  135941ms] [LOG] Assigned color scheme for hex: light @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:81
+[  135941ms] [LOG] Injected custom brand color: #d4a574 @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:120
+[  135947ms] [LOG] Player initialized {url: https://i-cdn-0.piexe411qok.com/stream2/i-cdn-0/69…4ce64460c:=0EVrlHTqFVeMpWR45Ua0ETTB1TP/index.m3u8, tmdbId: 687163, title: Project Hail Mary, backdrop: /8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg} @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:177
+[  136029ms] [ERROR] Permissions policy violation: bluetooth is not allowed in this document. @ https://llvpn.com/tag.min.js:0
+[  136874ms] [LOG] Restoring saved progress {progressTime: 6.296333} @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:186
+[  136875ms] [LOG] Progress restored to: 6.296333 @ https://www.vidsrc.wtf/api/1/movie/?id=687163&color=D4A574:190
+[  137070ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://api.rgshows.ru/thumbnail/movie/687163:0
+[  138245ms] [LOG] [VideoPlayer] Embed URL: https://player.videasy.net/movie/687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  138245ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  138245ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  138699ms] [LOG] [VideoPlayer] Embed URL: https://vidrock.net/movie/687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  138699ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  138699ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139136ms] [LOG] [VideoPlayer] Embed URL: https://player.vidzee.wtf/embed/movie/687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139136ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139136ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139594ms] [LOG] [VideoPlayer] Embed URL: https://vidfast.pro/movie/687163?autoPlay=true @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139594ms] [LOG] [VideoPlayer] TMDB ID: 687163 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  139594ms] [LOG] [VideoPlayer] Media Type: movie @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  140317ms] [WARNING] Allow attribute will take precedence over 'allowfullscreen'. @ https://xtream.rip/assets/index-D8ZyekK-.js:32
+[  140323ms] [LOG] [VideoPlayer] Embed URL: https://vidfast.pro/tv/95557/1/1?autoPlay=true&nextButton=true&autoNext=true @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  140323ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  140323ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142238ms] [WARNING] document.domain mutation is ignored because the surrounding agent cluster is origin-keyed. @ https://vidfast.pro/_next/static/chunks/365-9b9b1b0e41426e71.js:0
+[  142241ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ https://vidfast.pro/_next/static/chunks/365-9b9b1b0e41426e71.js:0
+[  142453ms] [LOG] [VideoPlayer] Embed URL: https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142453ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142453ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142670ms] Uncaught SecurityError: Failed to read a named property 'addEventListener' from 'Window': Blocked a frame with origin "https://www.vidsrc.wtf" from accessing a frame with origin "https://xtream.rip". Protocols, domains, and ports must match.
+    at Object.assign.isRunning (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:16814)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:17654)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:204)
+    at <anonymous> (https://cdn.jsdelivr.net/npm/disable-devtool@latest:0:208)
+[  142685ms] [LOG] Fetching stream {tmdbId: 95557, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, season: 1, episode: 1} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:314
+[  142825ms] [LOG] Detected hex color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:77
+[  142825ms] [LOG] Assigned color scheme for hex: light @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:81
+[  142825ms] [LOG] Injected custom brand color: #d4a574 @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:120
+[  142836ms] [LOG] Player initialized {url: https://zebi.xalaflix.design/tv/95557/S1/E1/premium-vsbb4w/master.m3u8, showName: Invincible, poster: https://image.tmdb.org/t/p/original/dfmPbyeZZSz3bekeESvMJaH91gS.jpg, tmdbId: 95557, season: 1} @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:177
+[  142886ms] [ERROR] Permissions policy violation: bluetooth is not allowed in this document. @ https://llvpn.com/tag.min.js:0
+[  142890ms] [LOG] [VideoPlayer] Embed URL: https://player.videasy.net/tv/95557/1/1 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142890ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142890ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  142947ms] [ERROR] Unsafe attempt to load URL https://zebi.xalaflix.design/tv/95557/S1/E1/premium-vsbb4w/text_0/index.m3u8 from frame with URL https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574. Domains, protocols and ports must match.
+ @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:0
+[  142947ms] [ERROR] Unsafe attempt to load URL https://zebi.xalaflix.design/tv/95557/S1/E1/premium-vsbb4w/text_1/index.m3u8 from frame with URL https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574. Domains, protocols and ports must match.
+ @ https://www.vidsrc.wtf/api/1/tv/?id=95557&s=1&e=1&color=D4A574:0
+[  143393ms] [LOG] [VideoPlayer] Embed URL: https://vidrock.net/tv/95557/1/1 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  143394ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  143394ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  143830ms] [LOG] [VideoPlayer] Embed URL: https://player.vidzee.wtf/embed/tv/95557/1/1 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  143830ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  143830ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  144262ms] [LOG] [VideoPlayer] Embed URL: https://vidfast.pro/tv/95557/1/1?autoPlay=true&nextButton=true&autoNext=true @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  144262ms] [LOG] [VideoPlayer] TMDB ID: 95557 @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  144262ms] [LOG] [VideoPlayer] Media Type: tv @ https://xtream.rip/assets/index-D8ZyekK-.js:338
+[  145257ms] [WARNING] document.domain mutation is ignored because the surrounding agent cluster is origin-keyed. @ https://vidfast.pro/_next/static/chunks/365-9b9b1b0e41426e71.js:0
+[  145260ms] [TABLE] [Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object] @ https://vidfast.pro/_next/static/chunks/365-9b9b1b0e41426e71.js:0
