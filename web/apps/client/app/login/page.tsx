@@ -1,14 +1,28 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "../../lib/api";
+import { useRouteAccess } from "../../hooks/use-route-access";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const access = useRouteAccess();
   const [mode, setMode] = useState<"login" | "bootstrap">("login");
   const [message, setMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (access.isAuthenticated) {
+      router.replace("/discover");
+    }
+  }, [access.isAuthenticated, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSubmitting(true);
+    setMessage(null);
     const form = new FormData(event.currentTarget);
     const payload =
       mode === "bootstrap"
@@ -30,80 +44,109 @@ export default function LoginPage() {
       window.location.href = "/discover";
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to authenticate.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "24px",
-      }}
-    >
-      <div className="panel" style={{ width: "min(420px, 100%)" }}>
-        <div className="topbar-title" style={{ marginBottom: 18 }}>
-          <h1>Relay Web</h1>
-          <p>Use bootstrap once on first run, then log in normally.</p>
+    <main className="entry-shell">
+      <section className="login-stage">
+        <div className="login-stage-copy">
+          <span className="eyebrow">Relay Web</span>
+          <h1>Sign in to continue watching</h1>
+          <p>
+            Relay keeps your library, playback progress, sources, and integrations in one place.
+            Use bootstrap only when creating the first admin account for a new install.
+          </p>
+
+          <div className="login-stage-notes">
+            <article className="login-note">
+              <strong>Normal use</strong>
+              <p>Sign in with your existing account and return to Discover, Library, and Watch.</p>
+            </article>
+            <article className="login-note">
+              <strong>First run only</strong>
+              <p>Bootstrap creates the initial admin account and should not be used after setup.</p>
+            </article>
+          </div>
         </div>
 
-        <div className="actions" style={{ marginBottom: 16 }}>
-          <button
-            className={mode === "login" ? "button" : "button-secondary"}
-            onClick={() => setMode("login")}
-            type="button"
-          >
-            Login
-          </button>
-          <button
-            className={mode === "bootstrap" ? "button" : "button-secondary"}
-            onClick={() => setMode("bootstrap")}
-            type="button"
-          >
-            Bootstrap
-          </button>
-        </div>
-
-        <form className="page-grid" onSubmit={onSubmit}>
-          {mode === "bootstrap" ? (
-            <div className="field">
-              <label htmlFor="displayName">Display name</label>
-              <input id="displayName" name="displayName" required />
+        <div className="login-stage-card">
+          <div className="login-card-head">
+            <div>
+              <span className="eyebrow">Account access</span>
+              <h2>{mode === "bootstrap" ? "Create the first admin account" : "Sign in"}</h2>
             </div>
-          ) : null}
-
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input id="email" name="email" type="email" required />
+            <div className="segmented-control">
+              <button
+                aria-pressed={mode === "login"}
+                className={`segmented-control-button${mode === "login" ? " active" : ""}`}
+                onClick={() => setMode("login")}
+                type="button"
+              >
+                Login
+              </button>
+              <button
+                aria-pressed={mode === "bootstrap"}
+                className={`segmented-control-button${mode === "bootstrap" ? " active" : ""}`}
+                onClick={() => setMode("bootstrap")}
+                type="button"
+              >
+                Bootstrap
+              </button>
+            </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={mode === "bootstrap" ? 10 : 1}
-            />
-          </div>
+          <form className="login-form" onSubmit={onSubmit}>
+            {mode === "bootstrap" ? (
+              <label className="field">
+                <span>Display name</span>
+                <input autoComplete="nickname" name="displayName" required />
+              </label>
+            ) : null}
 
-          {mode === "bootstrap" ? (
-            <p style={{ margin: 0, fontSize: 14, color: "var(--muted-foreground)" }}>
-              Password must be at least 10 characters.
+            <label className="field">
+              <span>Email</span>
+              <input autoComplete="email" name="email" type="email" required />
+            </label>
+
+            <label className="field">
+              <span>Password</span>
+              <input
+                autoComplete={mode === "bootstrap" ? "new-password" : "current-password"}
+                minLength={mode === "bootstrap" ? 10 : 1}
+                name="password"
+                type="password"
+                required
+              />
+            </label>
+
+            <p className="support-copy">
+              {mode === "bootstrap"
+                ? "Bootstrap passwords must be at least 10 characters so the first admin account starts with a stronger default."
+                : "Use the account credentials created during bootstrap or by your Relay administrator."}
             </p>
-          ) : null}
 
-          {message ? <div className="message">{message}</div> : null}
+            {message ? <div className="message">{message}</div> : null}
 
-          <div className="actions">
-            <button className="button" type="submit">
-              {mode === "bootstrap" ? "Create Admin" : "Login"}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="actions">
+              <button className="button" disabled={isSubmitting} type="submit">
+                {isSubmitting
+                  ? mode === "bootstrap"
+                    ? "Creating account..."
+                    : "Signing in..."
+                  : mode === "bootstrap"
+                    ? "Create admin account"
+                    : "Sign in"}
+              </button>
+              <Link className="button-secondary" href="/">
+                Back
+              </Link>
+            </div>
+          </form>
+        </div>
+      </section>
     </main>
   );
 }

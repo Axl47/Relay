@@ -14,5 +14,6 @@ export function useLibraryIndexQuery(enabled = true) {
     queryKey: queryKeys.libraryIndex(),
     queryFn: () => apiFetch<LibraryIndexResponse>("/library"),
     enabled,
+    retry: false,
   });
 }

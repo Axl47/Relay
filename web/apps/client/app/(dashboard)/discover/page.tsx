@@ -4,29 +4,35 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { CatalogSearchLastResponse, CatalogSearchResponse } from "@relay/contracts";
-import { apiFetch } from "../../../lib/api";
 import { CoverImage } from "../../../components/cover-image";
+import { AuthRequiredState } from "../../../components/auth-required-state";
 import { useLibraryIndexQuery } from "../../../hooks/use-library-index-query";
+import { useRouteAccess } from "../../../hooks/use-route-access";
+import { apiFetch } from "../../../lib/api";
 import { queryKeys } from "../../../lib/query-keys";
 import { buildAnimeHref } from "../../../lib/routes";
 import { streamCatalogSearch } from "../../../lib/search-stream";
+
+type ContentFilter = "all" | "anime" | "hentai" | "jav";
+type DensityMode = "comfortable" | "compact";
 
 function buildResultKey(item: CatalogSearchResponse["items"][number]) {
   return `${item.providerId}:${item.contentClass}:${item.title.trim().toLowerCase()}:${item.year ?? "na"}`;
 }
 
 function scoreResult(item: CatalogSearchResponse["items"][number]) {
-  return (
-    (item.coverImage ? 4 : 0) +
-    (item.synopsis ? 2 : 0) +
-    (item.year ? 1 : 0)
-  );
+  return (item.coverImage ? 4 : 0) + (item.synopsis ? 2 : 0) + (item.year ? 1 : 0);
 }
 
 export default function DiscoverPage() {
+  const access = useRouteAccess();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [showProviders, setShowProviders] = useState(false);
+  const [showProviderSheet, setShowProviderSheet] = useState(false);
+  const [providerFilter, setProviderFilter] = useState<string>("all");
+  const [contentFilter, setContentFilter] = useState<ContentFilter>("all");
+  const [showOnlyLibrary, setShowOnlyLibrary] = useState(false);
+  const [densityMode, setDensityMode] = useState<DensityMode>("comfortable");
   const [providerProgress, setProviderProgress] = useState<{
     query: string;
     completedProviders: number;
@@ -43,15 +49,18 @@ export default function DiscoverPage() {
           totalProviders,
         });
       }),
-    enabled: submittedQuery.trim().length > 0,
+    enabled: access.isAuthenticated && submittedQuery.trim().length > 0,
+    retry: false,
   });
 
   const lastSearchQuery = useQuery<CatalogSearchLastResponse>({
     queryKey: queryKeys.catalogSearchLast(),
     queryFn: () => apiFetch<CatalogSearchLastResponse>("/catalog/search/last"),
+    enabled: access.isAuthenticated,
+    retry: false,
   });
 
-  const libraryQuery = useLibraryIndexQuery();
+  const libraryQuery = useLibraryIndexQuery(access.isAuthenticated);
 
   const restoredSearchResponse = submittedQuery.trim().length > 0
     ? null
@@ -67,6 +76,12 @@ export default function DiscoverPage() {
 
     setQuery((current) => (current.trim().length > 0 ? current : restoredQuery));
   }, [restoredSearchResponse?.query]);
+
+  useEffect(() => {
+    if (!activeSearchResponse?.providers.some((provider) => provider.providerId === providerFilter)) {
+      setProviderFilter("all");
+    }
+  }, [activeSearchResponse?.providers, providerFilter]);
 
   const groupedResults = useMemo(() => {
     const items = activeSearchResponse?.items ?? [];
@@ -114,7 +129,9 @@ export default function DiscoverPage() {
     const errorCount = providers.filter((provider) => provider.status === "error").length;
     const resultCount = activeSearchResponse?.items.length ?? 0;
     const averageLatency =
-      providers.filter((provider) => provider.latencyMs !== null).reduce((total, provider) => total + (provider.latencyMs ?? 0), 0) /
+      providers
+        .filter((provider) => provider.latencyMs !== null)
+        .reduce((total, provider) => total + (provider.latencyMs ?? 0), 0) /
       Math.max(1, providers.filter((provider) => provider.latencyMs !== null).length);
 
     return {
@@ -127,12 +144,32 @@ export default function DiscoverPage() {
     };
   }, [activeSearchResponse]);
 
+  const filteredResults = groupedResults.filter((group) => {
+    if (showOnlyLibrary && !group.inLibrary) {
+      return false;
+    }
+
+    if (contentFilter !== "all" && group.primary.contentClass !== contentFilter) {
+      return false;
+    }
+
+    if (
+      providerFilter !== "all" &&
+      !group.sources.some((source) => source.providerId === providerFilter)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
   const activeProviderProgress =
     providerProgress && providerProgress.query === submittedQuery ? providerProgress : null;
   const providerProgressLabel = activeProviderProgress
     ? `${Math.min(activeProviderProgress.completedProviders, activeProviderProgress.totalProviders)}/${activeProviderProgress.totalProviders}`
     : "0/0";
   const isRestoringCachedSearch =
+    access.isAuthenticated &&
     submittedQuery.trim().length === 0 &&
     !searchQuery.data &&
     lastSearchQuery.isLoading;
@@ -150,22 +187,44 @@ export default function DiscoverPage() {
           }
         : null,
     );
-    setShowProviders(false);
+    setShowProviderSheet(false);
+  }
+
+  if (access.isLoading) {
+    return <div className="message">Loading Discover…</div>;
+  }
+
+  if (access.isUnauthenticated) {
+    return (
+      <AuthRequiredState
+        description="Sign in to search across your enabled providers, restore the last search, and jump straight into playback."
+        title="Discover opens after account sign-in"
+      />
+    );
+  }
+
+  if (access.error || !access.session) {
+    return (
+      <div className="message">
+        {access.error instanceof Error ? access.error.message : "Unable to load Discover."}
+      </div>
+    );
   }
 
   return (
     <div className="page-grid discover-page">
-      <section className="search-hero">
-        <div className="page-heading">
-          <h1>Discover</h1>
-          <p>Search across enabled providers and jump straight into playback.</p>
-        </div>
+      <section className="page-heading">
+        <span className="eyebrow">Discover</span>
+        <h1>Search across enabled providers</h1>
+        <p>Search stays front-and-center while provider health, partial failures, and library overlap stay one click away.</p>
+      </section>
 
-        <form className="search-form" onSubmit={onSearch}>
+      <section className="surface sticky-search-surface">
+        <form className="search-form search-form-rebuilt" onSubmit={onSearch}>
           <input
             className="search-input"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search across providers..."
+            placeholder="Search titles, franchises, or exact episode names…"
             value={query}
           />
           <button className="button" type="submit">
@@ -173,72 +232,103 @@ export default function DiscoverPage() {
           </button>
         </form>
 
-        {searchQuery.isFetching ? (
-          <div className="search-status search-status-loading">
-            Searching providers... {providerProgressLabel}
-          </div>
-        ) : isRestoringCachedSearch ? (
-          <div className="search-status search-status-loading">Restoring last search...</div>
-        ) : searchQuery.error ? (
-          <div className="message">
-            {searchQuery.error instanceof Error ? searchQuery.error.message : "Unable to search."}
-          </div>
-        ) : activeSearchResponse ? (
+        <div className="filter-chip-row">
           <button
-            className={`provider-summary${showProviders ? " expanded" : ""}`}
-            onClick={() => setShowProviders((current) => !current)}
+            aria-pressed={contentFilter === "all"}
+            className={`filter-chip${contentFilter === "all" ? " active" : ""}`}
+            onClick={() => setContentFilter("all")}
             type="button"
           >
-            <span>
-              {providerSummary.timeoutCount > 0 || providerSummary.errorCount > 0
-                ? `Warning · ${providerSummary.healthyCount} of ${providerSummary.providers.length} providers healthy`
-                : `Ready · ${providerSummary.providers.length} providers responded`}
-            </span>
-            <span>
-              {providerSummary.resultCount} results
-              {providerSummary.averageLatency !== null
-                ? ` · ${providerSummary.averageLatency}ms avg`
-                : ""}
-            </span>
+            All classes
           </button>
-        ) : null}
+          {(["anime", "hentai", "jav"] as const).map((contentClass) => (
+            <button
+              aria-pressed={contentFilter === contentClass}
+              className={`filter-chip${contentFilter === contentClass ? " active" : ""}`}
+              key={contentClass}
+              onClick={() => setContentFilter(contentClass)}
+              type="button"
+            >
+              {contentClass}
+            </button>
+          ))}
 
-        {showProviders && providerSummary.providers.length > 0 ? (
-          <div className="provider-response-list">
-            {providerSummary.providers.map((provider) => (
-              <article className="provider-response-row" key={provider.providerId}>
-                <div className="provider-response-main">
-                  <div className="provider-response-header">
-                    <span
-                      className={`status-dot status-${provider.status === "success" ? "healthy" : provider.status === "timeout" ? "warn" : "danger"}`}
-                    />
-                    <strong>{provider.displayName}</strong>
-                  </div>
-                  <p>
-                    {provider.status === "success"
-                      ? `${provider.items.length} results`
-                      : provider.error ?? provider.status}
-                    {provider.latencyMs !== null ? ` · ${provider.latencyMs}ms` : ""}
-                  </p>
-                </div>
-                <span className="badge">{provider.contentClass}</span>
-              </article>
+          <button
+            aria-pressed={showOnlyLibrary}
+            className={`filter-chip${showOnlyLibrary ? " active" : ""}`}
+            onClick={() => setShowOnlyLibrary((current) => !current)}
+            type="button"
+          >
+            In library only
+          </button>
+        </div>
+      </section>
+
+      <section className="surface discover-status-bar">
+        <div className="discover-status-copy">
+          {searchQuery.isFetching ? (
+            <div className="search-status search-status-loading">
+              Searching providers… {providerProgressLabel}
+            </div>
+          ) : isRestoringCachedSearch ? (
+            <div className="search-status search-status-loading">Restoring last search…</div>
+          ) : searchQuery.error ? (
+            <div className="message">
+              {searchQuery.error instanceof Error ? searchQuery.error.message : "Unable to search."}
+            </div>
+          ) : activeSearchResponse ? (
+            <>
+              <strong>{activeQueryLabel ? `Results for "${activeQueryLabel}"` : "Ready"}</strong>
+              <p>
+                {filteredResults.length} visible groups · {providerSummary.resultCount} raw results
+                {activeSearchResponse.partial ? " · partial provider coverage" : ""}
+              </p>
+            </>
+          ) : (
+            <>
+              <strong>Ready to search</strong>
+              <p>Run a query to pull matching titles from the providers enabled for this account.</p>
+            </>
+          )}
+        </div>
+
+        <div className="discover-status-actions">
+          <div className="segmented-control">
+            {[
+              { value: "comfortable", label: "Comfortable" },
+              { value: "compact", label: "Compact" },
+            ].map((option) => (
+              <button
+                aria-pressed={densityMode === option.value}
+                className={`segmented-control-button${densityMode === option.value ? " active" : ""}`}
+                key={option.value}
+                onClick={() => setDensityMode(option.value as DensityMode)}
+                type="button"
+              >
+                {option.label}
+              </button>
             ))}
           </div>
-        ) : null}
+
+          {providerSummary.providers.length > 0 ? (
+            <button className="button-secondary" onClick={() => setShowProviderSheet(true)} type="button">
+              Provider health
+            </button>
+          ) : null}
+        </div>
       </section>
 
       {searchQuery.isFetching || isRestoringCachedSearch ? (
-        <section className="discover-results-grid">
-          {Array.from({ length: 8 }).map((_, index) => (
+        <section className={`discover-results-grid${densityMode === "compact" ? " compact" : ""}`}>
+          {Array.from({ length: densityMode === "compact" ? 10 : 8 }).map((_, index) => (
             <div className="result-card result-card-skeleton" key={index} />
           ))}
         </section>
-      ) : groupedResults.length > 0 ? (
-        <section className="discover-results-grid">
-          {groupedResults.map((group) => (
+      ) : filteredResults.length > 0 ? (
+        <section className={`discover-results-grid${densityMode === "compact" ? " compact" : ""}`}>
+          {filteredResults.map((group) => (
             <Link
-              className="result-card"
+              className={`result-card${densityMode === "compact" ? " compact" : ""}`}
               href={buildAnimeHref(group.primary.providerId, group.primary.externalAnimeId)}
               key={`${group.primary.providerId}-${group.primary.externalAnimeId}`}
             >
@@ -272,15 +362,91 @@ export default function DiscoverPage() {
         </section>
       ) : activeSearchResponse ? (
         <section className="empty-panel">
-          <h2>No results</h2>
-          <p>No results for "{activeQueryLabel}" across the currently enabled providers.</p>
+          <div className="empty-panel-copy">
+            <h2>No visible results</h2>
+            <p>
+              No titles for "{activeQueryLabel}" match the filters you currently have enabled.
+            </p>
+          </div>
         </section>
       ) : (
         <section className="empty-panel">
-          <h2>Ready to search</h2>
-          <p>Use the search bar above to query Relay&apos;s enabled providers.</p>
+          <div className="empty-panel-copy">
+            <h2>Start with a title or keyword</h2>
+            <p>Relay will search across enabled sources and remember the last successful query for quick return visits.</p>
+          </div>
         </section>
       )}
+
+      {showProviderSheet && providerSummary.providers.length > 0 ? (
+        <div className="overlay-shell" role="presentation" onClick={() => setShowProviderSheet(false)}>
+          <aside
+            aria-label="Provider health"
+            className="provider-sheet"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="provider-sheet-head">
+              <div>
+                <span className="eyebrow">Providers</span>
+                <h2>Search coverage and health</h2>
+                <p>
+                  {providerSummary.healthyCount} healthy · {providerSummary.timeoutCount} timed out ·{" "}
+                  {providerSummary.errorCount} errors
+                </p>
+              </div>
+              <button className="button-secondary" onClick={() => setShowProviderSheet(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="filter-chip-row provider-filter-row">
+              <button
+                aria-pressed={providerFilter === "all"}
+                className={`filter-chip${providerFilter === "all" ? " active" : ""}`}
+                onClick={() => setProviderFilter("all")}
+                type="button"
+              >
+                All providers
+              </button>
+              {providerSummary.providers.map((provider) => (
+                <button
+                  aria-pressed={providerFilter === provider.providerId}
+                  className={`filter-chip${providerFilter === provider.providerId ? " active" : ""}`}
+                  key={provider.providerId}
+                  onClick={() => setProviderFilter(provider.providerId)}
+                  type="button"
+                >
+                  {provider.displayName}
+                </button>
+              ))}
+            </div>
+
+            <div className="provider-response-list">
+              {providerSummary.providers
+                .filter((provider) => providerFilter === "all" || provider.providerId === providerFilter)
+                .map((provider) => (
+                  <article className="provider-response-row" key={provider.providerId}>
+                    <div className="provider-response-main">
+                      <div className="provider-response-header">
+                        <span
+                          className={`status-dot status-${provider.status === "success" ? "healthy" : provider.status === "timeout" ? "warn" : "danger"}`}
+                        />
+                        <strong>{provider.displayName}</strong>
+                        <span className="badge">{provider.contentClass}</span>
+                      </div>
+                      <p>
+                        {provider.status === "success"
+                          ? `${provider.items.length} results`
+                          : provider.error ?? provider.status}
+                        {provider.latencyMs !== null ? ` · ${provider.latencyMs}ms` : ""}
+                      </p>
+                    </div>
+                  </article>
+                ))}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -8,6 +8,17 @@ type ApiErrorPayload = {
   } | null;
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly payload: ApiErrorPayload | null,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 function formatApiError(payload: ApiErrorPayload | null, status: number) {
   const formError = payload?.details?.formErrors?.find(Boolean);
   if (formError) {
@@ -25,6 +36,18 @@ function formatApiError(payload: ApiErrorPayload | null, status: number) {
   }
 
   return payload?.error ?? `Request failed with status ${status}`;
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
+export function isAuthenticationError(error: unknown) {
+  return isApiError(error) && error.status === 401;
+}
+
+export function isAdminAccessError(error: unknown) {
+  return isApiError(error) && error.status === 403;
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -45,7 +68,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
-    throw new Error(formatApiError(payload, response.status));
+    throw new ApiError(formatApiError(payload, response.status), response.status, payload);
   }
 
   return response.json() as Promise<T>;

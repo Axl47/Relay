@@ -6,6 +6,11 @@ export async function registerImportRoutes(
   app: FastifyInstance,
   services: ApiServiceContainer,
 ) {
+  app.get("/imports", async (request) => {
+    const user = await requireUser(request);
+    return services.imports.listImportJobs(user.id);
+  });
+
   app.post("/imports/android-backup", async (request) => {
     const user = await requireAdmin(request);
     return services.imports.createImportJob(user.id);

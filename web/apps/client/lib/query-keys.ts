@@ -3,6 +3,8 @@ import type { WatchHrefInput } from "./routes";
 export const queryKeys = {
   me: () => ["me"] as const,
   providers: () => ["providers"] as const,
+  trackerEntries: () => ["tracker-entries"] as const,
+  imports: () => ["imports"] as const,
   libraryIndex: () => ["library-index"] as const,
   libraryDashboard: () => ["library-dashboard"] as const,
   groupedHistory: () => ["grouped-history"] as const,

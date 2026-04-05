@@ -454,6 +454,11 @@ function createServices(): ApiServiceContainer {
       async deleteTrackerConnection() {},
     },
     imports: {
+      async listImportJobs() {
+        return {
+          jobs: [buildImportJob()],
+        };
+      },
       async createImportJob() {
         return buildImportJob();
       },

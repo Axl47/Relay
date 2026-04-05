@@ -63,7 +63,7 @@ export type ApiServiceContainer = {
     TrackerService,
     "getTrackerEntries" | "createTrackerConnection" | "deleteTrackerConnection"
   >;
-  imports: Pick<ImportService, "createImportJob" | "getImportJob">;
+  imports: Pick<ImportService, "listImportJobs" | "createImportJob" | "getImportJob">;
 };
 
 export function buildApiServiceContainer(): ApiServiceContainer {

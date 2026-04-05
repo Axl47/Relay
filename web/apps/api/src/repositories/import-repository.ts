@@ -3,6 +3,14 @@ import { db } from "../db/client";
 import { importJobs } from "../db/schema";
 
 export class ImportRepository {
+  listJobs(userId: string) {
+    return db
+      .select()
+      .from(importJobs)
+      .where(eq(importJobs.userId, userId))
+      .orderBy(importJobs.updatedAt);
+  }
+
   createJob(userId: string) {
     return db
       .insert(importJobs)
