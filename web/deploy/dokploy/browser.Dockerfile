@@ -11,4 +11,4 @@ RUN npm run build -w @relay/browser
 
 EXPOSE 4100
 
-CMD ["node", "apps/browser/dist/apps/browser/src/index.js"]
+CMD ["npx", "tsx", "apps/browser/src/index.ts"]

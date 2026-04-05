@@ -123,12 +123,24 @@ export function createSearchResult(input: SearchResult): SearchResult {
   return input;
 }
 
-export function createAnimeDetails(input: AnimeDetails): AnimeDetails {
-  return input;
+export function createAnimeDetails(
+  input: Omit<AnimeDetails, "kind"> & Partial<Pick<AnimeDetails, "kind">>,
+): AnimeDetails {
+  return {
+    kind: "unknown",
+    ...input,
+  };
 }
 
-export function createEpisode(input: EpisodeSummary): EpisodeSummary {
-  return input;
+export function createEpisode(
+  input: Omit<EpisodeSummary, "seasonNumber" | "episodeNumber"> &
+    Partial<Pick<EpisodeSummary, "seasonNumber" | "episodeNumber">>,
+): EpisodeSummary {
+  return {
+    seasonNumber: null,
+    episodeNumber: null,
+    ...input,
+  };
 }
 
 export function createStream(input: ResolvedStream): ResolvedStream {

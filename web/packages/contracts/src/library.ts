@@ -6,7 +6,12 @@ import {
   providerIdSchema,
   themePreferenceSchema,
 } from "./common";
-import { animeDetailsSchema, episodeListItemViewSchema, episodeProgressSchema } from "./catalog";
+import {
+  animeDetailsSchema,
+  episodeListItemViewSchema,
+  episodeProgressSchema,
+  searchResultKindSchema,
+} from "./catalog";
 
 export const libraryDisplayModeSchema = z.enum(["grid", "list", "compact"]);
 export const librarySortModeSchema = z.enum([
@@ -31,7 +36,7 @@ export const userPreferencesSchema = z.object({
   theme: themePreferenceSchema.default("relay-dark"),
   coverBasedTheming: z.boolean().default(true),
   adultContentVisible: z.boolean().default(false),
-  allowedContentClasses: z.array(providerContentClassSchema).default(["anime"]),
+  allowedContentClasses: z.array(providerContentClassSchema).default(["anime", "general"]),
 });
 
 export const updateUserPreferencesInputSchema = userPreferencesSchema.partial();
@@ -54,6 +59,7 @@ export const libraryItemSchema = z.object({
   externalAnimeId: externalIdSchema,
   title: z.string().min(1),
   coverImage: z.string().url().nullable().default(null),
+  kind: searchResultKindSchema.default("unknown"),
   status: libraryItemStatusSchema.default("watching"),
   addedAt: z.string(),
   updatedAt: z.string(),
@@ -113,6 +119,7 @@ export const upsertLibraryItemInputSchema = z.object({
   externalAnimeId: externalIdSchema,
   title: z.string().min(1),
   coverImage: z.string().url().nullable().default(null),
+  kind: searchResultKindSchema.default("unknown"),
   status: libraryItemStatusSchema.default("watching"),
 });
 
@@ -120,6 +127,7 @@ export const updateLibraryItemInputSchema = z.object({
   status: libraryItemStatusSchema.optional(),
   title: z.string().min(1).optional(),
   coverImage: z.string().url().nullable().optional(),
+  kind: searchResultKindSchema.optional(),
 });
 
 export const createCategoryInputSchema = z.object({

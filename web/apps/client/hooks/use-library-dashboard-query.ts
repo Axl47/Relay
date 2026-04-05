@@ -5,9 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../lib/api";
 import { queryKeys } from "../lib/query-keys";
 
-export function useLibraryDashboardQuery() {
+export function useLibraryDashboardQuery(enabled = true) {
   return useQuery({
     queryKey: queryKeys.libraryDashboard(),
     queryFn: () => apiFetch<LibraryDashboardResponse>("/library/dashboard"),
+    enabled,
+    retry: false,
   });
 }

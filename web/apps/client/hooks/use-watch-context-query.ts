@@ -7,10 +7,11 @@ import { queryKeys } from "../lib/query-keys";
 import type { WatchHrefInput } from "../lib/routes";
 import { buildWatchContextPath } from "../lib/routes";
 
-export function useWatchContextQuery(payload: WatchHrefInput | null) {
+export function useWatchContextQuery(payload: WatchHrefInput | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.watchContext(payload),
     queryFn: () => apiFetch<WatchPageContext>(buildWatchContextPath(payload!)),
-    enabled: payload !== null,
+    enabled: payload !== null && enabled,
+    retry: false,
   });
 }

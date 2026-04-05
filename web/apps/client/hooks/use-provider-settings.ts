@@ -55,13 +55,21 @@ export function useProviderSettings(enabled = true) {
       return;
     }
 
+    await reorderProviders(provider, swapTarget);
+  }
+
+  async function reorderProviders(source: ProviderSummary, target: ProviderSummary) {
+    if (source.id === target.id) {
+      return;
+    }
+
     await updateProviderMutation.mutateAsync({
-      providerId: provider.id,
-      patch: { priority: swapTarget.priority },
+      providerId: source.id,
+      patch: { priority: target.priority },
     });
     await updateProviderMutation.mutateAsync({
-      providerId: swapTarget.id,
-      patch: { priority: provider.priority },
+      providerId: target.id,
+      patch: { priority: source.priority },
     });
   }
 
@@ -72,5 +80,6 @@ export function useProviderSettings(enabled = true) {
     updateProviderMutation,
     toggleProvider,
     moveProvider,
+    reorderProviders,
   };
 }

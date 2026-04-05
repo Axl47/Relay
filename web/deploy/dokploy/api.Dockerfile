@@ -9,4 +9,4 @@ RUN npm run build -w @relay/api
 
 EXPOSE 4000
 
-CMD ["sh", "-lc", "npm run db:push -w @relay/api && node apps/api/dist/apps/api/src/index.js"]
+CMD ["sh", "-lc", "npm run db:push -w @relay/api && npx tsx apps/api/src/index.ts"]

@@ -13,6 +13,11 @@ export const importJobSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const importJobsResponseSchema = z.object({
+  jobs: z.array(importJobSchema).default([]),
+});
+
 export type ImportJobStatus = z.infer<typeof importJobStatusSchema>;
 export type ImportSource = z.infer<typeof importSourceSchema>;
 export type ImportJob = z.infer<typeof importJobSchema>;
+export type ImportJobsResponse = z.infer<typeof importJobsResponseSchema>;

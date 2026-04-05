@@ -7,32 +7,17 @@ import { useSessionQuery } from "../hooks/use-session-query";
 type NavItem = {
   href: string;
   label: string;
-  shortLabel: string;
+  icon: "discover" | "library" | "activity" | "sources" | "account";
+  mobile?: boolean;
 };
 
-const PRIMARY_NAV: NavItem[] = [
-  { href: "/discover", label: "Discover", shortLabel: "D" },
-  { href: "/library", label: "Library", shortLabel: "L" },
-  { href: "/history", label: "History", shortLabel: "H" },
+const DESKTOP_NAV: NavItem[] = [
+  { href: "/discover", label: "Discover", icon: "discover", mobile: true },
+  { href: "/library", label: "Library", icon: "library", mobile: true },
+  { href: "/history", label: "Activity", icon: "activity", mobile: true },
+  { href: "/settings/providers", label: "Sources", icon: "sources" },
+  { href: "/settings", label: "Account", icon: "account", mobile: true },
 ];
-
-const SYSTEM_NAV: NavItem[] = [
-  { href: "/settings", label: "Settings", shortLabel: "S" },
-  { href: "/settings/providers", label: "Providers", shortLabel: "P" },
-];
-
-const MOBILE_NAV: NavItem[] = [
-  { href: "/discover", label: "Discover", shortLabel: "D" },
-  { href: "/library", label: "Library", shortLabel: "L" },
-  { href: "/history", label: "History", shortLabel: "H" },
-];
-
-const MOBILE_SIGNED_OUT_NAV_ITEM: NavItem = { href: "/login", label: "Login", shortLabel: "L" };
-const MOBILE_SIGNED_IN_NAV_ITEM: NavItem = {
-  href: "/settings",
-  label: "Settings",
-  shortLabel: "S",
-};
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/settings") {
@@ -46,23 +31,88 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function SidebarNavItem({
+function NavIcon({ icon }: Readonly<{ icon: NavItem["icon"] }>) {
+  if (icon === "discover") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path d="M4 10 10 4l6 6-6 6-6-6Z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    );
+  }
+
+  if (icon === "library") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path
+          d="M5 4.5h10v11H5zm-2 2h2m10 0h2M3 10h2m10 0h2m-14 3.5h14"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.6"
+        />
+      </svg>
+    );
+  }
+
+  if (icon === "activity") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path
+          d="M4 10h2.2l1.7-3.3L10.8 14l1.9-4H16"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.6"
+        />
+      </svg>
+    );
+  }
+
+  if (icon === "sources") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20">
+        <path
+          d="M10 3.8 4.7 6.5v7L10 16.2l5.3-2.7v-7L10 3.8Zm0 0v12.4"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.6"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20">
+      <path
+        d="M10 4.8a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6ZM4.8 15.2a5.7 5.7 0 0 1 10.4 0"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
+
+function DesktopNavItem({
   item,
   pathname,
 }: Readonly<{ item: NavItem; pathname: string }>) {
   const active = isActivePath(pathname, item.href);
+
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`nav-link${active ? " active" : ""}`}
+      className={`rail-link${active ? " active" : ""}`}
       href={item.href}
-      key={item.href}
-      title={item.label}
     >
-      <span aria-hidden="true" className="nav-short">
-        {item.shortLabel}
+      <span className="rail-link-icon">
+        <NavIcon icon={item.icon} />
       </span>
-      <span className="nav-label">{item.label}</span>
+      <span className="rail-link-label">{item.label}</span>
     </Link>
   );
 }
@@ -71,73 +121,74 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
   const pathname = usePathname();
   const sessionQuery = useSessionQuery();
   const session = sessionQuery.data ?? null;
-  const mobileNavItems = [
-    ...MOBILE_NAV,
-    session ? MOBILE_SIGNED_IN_NAV_ITEM : MOBILE_SIGNED_OUT_NAV_ITEM,
-  ];
+  const mobileAccountHref = session ? "/settings" : "/login";
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <Link className="brand-wordmark" href="/discover">
-            Relay
+      <aside className="app-rail">
+        <div className="rail-brand">
+          <Link className="brand-mark" href="/discover">
+            <span aria-hidden="true" className="brand-mark-dot" />
+            <span className="brand-mark-word">Relay</span>
           </Link>
+          <p className="rail-note">Search, track progress, and keep playback moving.</p>
         </div>
 
-        <nav className="nav-groups">
-          <section className="nav-section">
-            <p className="nav-section-title">Primary</p>
-            <div className="nav-list">
-              {PRIMARY_NAV.map((item) => (
-                <SidebarNavItem item={item} key={item.href} pathname={pathname} />
-              ))}
-            </div>
-          </section>
-
-          <div className="nav-divider" />
-
-          <section className="nav-section">
-            <p className="nav-section-title">System</p>
-            <div className="nav-list">
-              {SYSTEM_NAV.map((item) => (
-                <SidebarNavItem item={item} key={item.href} pathname={pathname} />
-              ))}
-            </div>
-          </section>
+        <nav aria-label="Primary" className="rail-nav">
+          {DESKTOP_NAV.map((item) => (
+            <DesktopNavItem item={item} key={item.href} pathname={pathname} />
+          ))}
         </nav>
 
-        <div className="sidebar-footer">
+        <div className="rail-footer">
           {sessionQuery.isLoading ? (
-            <div className="user-chip user-chip-loading">Loading...</div>
+            <div className="account-chip account-chip-loading">Loading account</div>
           ) : session ? (
-            <div className="user-chip">
-              <span className="user-avatar" aria-hidden="true">
+            <Link className="account-chip" href="/settings">
+              <span className="account-chip-avatar" aria-hidden="true">
                 {session.user.displayName.slice(0, 1).toUpperCase()}
               </span>
-              <span className="user-name">{session.user.displayName}</span>
-            </div>
+              <span className="account-chip-copy">
+                <strong>{session.user.displayName}</strong>
+                <span>{session.user.isAdmin ? "Admin" : "Member"}</span>
+              </span>
+            </Link>
           ) : (
-            <Link className="user-chip user-login" href="/login">
-              Login
+            <Link className="account-chip" href="/login">
+              <span className="account-chip-avatar" aria-hidden="true">
+                ?
+              </span>
+              <span className="account-chip-copy">
+                <strong>Account</strong>
+                <span>Sign in to sync library and playback.</span>
+              </span>
             </Link>
           )}
         </div>
       </aside>
 
-      <main className="content">{children}</main>
+      <main className="content-shell">
+        <div className="content">{children}</div>
+      </main>
 
       <nav aria-label="Primary navigation" className="mobile-nav">
-        {mobileNavItems.map((item) => {
-          const active = isActivePath(pathname, item.href);
+        {DESKTOP_NAV.filter((item) => item.mobile).map((item) => {
+          const href = item.icon === "account" ? mobileAccountHref : item.href;
+          const active =
+            item.icon === "account"
+              ? pathname === "/settings" || pathname.startsWith("/settings/")
+              : isActivePath(pathname, href);
+
           return (
             <Link
               aria-current={active ? "page" : undefined}
               className={`mobile-nav-link${active ? " active" : ""}`}
-              href={item.href}
-              key={item.href}
+              href={href}
+              key={item.icon}
             >
-              <span className="mobile-nav-short">{item.shortLabel}</span>
+              <span className="mobile-nav-icon">
+                <NavIcon icon={item.icon} />
+              </span>
               <span className="mobile-nav-label">{item.label}</span>
             </Link>
           );
